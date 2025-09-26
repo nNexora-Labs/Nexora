@@ -47,7 +47,7 @@ export const useSuppliedBalance = () => {
     functionName: 'getEncryptedShares',
     args: address ? [address] : undefined,
     query: {
-      enabled: !!address && !!VAULT_ADDRESS && VAULT_ADDRESS !== '0x0000000000000000000000000000000000000000',
+      enabled: !!address && !!VAULT_ADDRESS && VAULT_ADDRESS !== '0x0000000000000000000000000000000000000000' && typeof window !== 'undefined',
     },
   });
 

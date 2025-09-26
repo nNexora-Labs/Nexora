@@ -123,7 +123,10 @@ export interface ConfidentialLendingVaultInterface extends Interface {
     functionFragment: "renounceOwnership",
     values?: undefined
   ): string;
-  encodeFunctionData(functionFragment: "supply", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "supply",
+    values: [BigNumberish]
+  ): string;
   encodeFunctionData(
     functionFragment: "transferOwnership",
     values: [AddressLike]
@@ -336,7 +339,7 @@ export interface ConfidentialLendingVault extends BaseContract {
 
   renounceOwnership: TypedContractMethod<[], [void], "nonpayable">;
 
-  supply: TypedContractMethod<[], [void], "payable">;
+  supply: TypedContractMethod<[amount: BigNumberish], [void], "nonpayable">;
 
   transferOwnership: TypedContractMethod<
     [newOwner: AddressLike],
@@ -406,7 +409,7 @@ export interface ConfidentialLendingVault extends BaseContract {
   ): TypedContractMethod<[], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "supply"
-  ): TypedContractMethod<[], [void], "payable">;
+  ): TypedContractMethod<[amount: BigNumberish], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "transferOwnership"
   ): TypedContractMethod<[newOwner: AddressLike], [void], "nonpayable">;

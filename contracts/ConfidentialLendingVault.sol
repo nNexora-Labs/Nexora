@@ -43,32 +43,34 @@ contract ConfidentialLendingVault is SepoliaConfig, Ownable, ReentrancyGuard {
         lastUpdateTime = block.timestamp;
     }
 
-    /// @notice Supply ETH to the vault (converted to cWETH)
-    /// @dev Users can supply ETH which gets wrapped to cWETH and deposited
+    /// @notice Supply cWETH to the vault
+    /// @dev Users supply cWETH tokens which get deposited into the vault
     /// @dev CONFIDENTIAL: No plaintext amounts are exposed
-    function supply() external payable nonReentrant {
-        require(msg.value > 0, "ConfidentialLendingVault: Cannot supply 0 ETH");
+    function supply(uint256 amount) external nonReentrant {
+        require(amount > 0, "ConfidentialLendingVault: Cannot supply 0 cWETH");
         
-        // Step 1: Wrap ETH to cWETH (confidential)
-        // Convert ETH to encrypted cWETH tokens
-        euint32 encryptedAmount = FHE.asEuint32(uint32(msg.value));
+        // Transfer cWETH from user to this contract
+        require(asset.transferFrom(msg.sender, address(this), amount), "ConfidentialLendingVault: cWETH transfer failed");
         
-        // Step 2: Calculate shares based on current rate (encrypted)
+        // Convert amount to encrypted value
+        euint32 encryptedAmount = FHE.asEuint32(uint32(amount));
+        
+        // Calculate shares based on current rate (encrypted)
         // For Phase 1, we'll use a simple 1:1 ratio
         euint32 encryptedShares = encryptedAmount; // 1:1 ratio for now
         
-        // Step 3: Update encrypted state
+        // Update encrypted state
         _encryptedShares[msg.sender] = FHE.add(_encryptedShares[msg.sender], encryptedShares);
         _encryptedTotalShares = FHE.add(_encryptedTotalShares, encryptedShares);
         _encryptedTotalAssets = FHE.add(_encryptedTotalAssets, encryptedAmount);
         
-        // Step 4: Allow contract and user to access encrypted values
+        // Allow contract and user to access encrypted values
         FHE.allowThis(_encryptedShares[msg.sender]);
         FHE.allow(_encryptedShares[msg.sender], msg.sender);
         FHE.allowThis(_encryptedTotalShares);
         FHE.allowThis(_encryptedTotalAssets);
         
-        // Step 5: Emit CONFIDENTIAL event (no amounts exposed)
+        // Emit CONFIDENTIAL event (no amounts exposed)
         emit ConfidentialSupply(msg.sender);
     }
 

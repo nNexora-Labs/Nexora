@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
 import {
   Box,
   TextField,
@@ -20,10 +20,63 @@ import { encryptAndRegister } from '../utils/fhe';
 // Contract ABI for supplying cWETH to the vault
 const VAULT_ABI = [
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
     "name": "supply",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+] as const;
+
+// Contract ABI for cWETH token (ERC7984)
+const CWETH_ABI = [
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "confidentialBalanceOf",
+    "outputs": [
+      {
+        "internalType": "euint64",
+        "name": "",
+        "type": "euint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "spender",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "approve",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "nonpayable",
     "type": "function"
   }
 ] as const;
@@ -40,16 +93,31 @@ export default function SupplyForm() {
 
   // Contract address (will be set after deployment)
   const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x0000000000000000000000000000000000000000';
+  const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
+
+  // Read cWETH balance using ERC7984 confidentialBalanceOf
+  const { data: cWETHBalance } = useReadContract({
+    address: CWETH_ADDRESS as `0x${string}`,
+    abi: CWETH_ABI,
+    functionName: 'confidentialBalanceOf',
+    args: address ? [address] : undefined,
+    query: {
+      enabled: !!address && !!CWETH_ADDRESS && CWETH_ADDRESS !== '0x0000000000000000000000000000000000000000' && typeof window !== 'undefined',
+    },
+  });
 
   useEffect(() => {
-    if (amount && balance) {
+    // For ERC7984, cWETHBalance is encrypted (euint64), so we can't directly compare
+    // We'll assume user has cWETH if we get a non-empty encrypted response
+    if (amount && cWETHBalance) {
       const amountWei = parseFloat(amount);
-      const balanceWei = parseFloat(balance.formatted);
-      setIsValidAmount(amountWei > 0 && amountWei <= balanceWei);
+      // Since cWETHBalance is encrypted, we'll allow any positive amount for now
+      // In a real implementation, we'd need to decrypt first
+      setIsValidAmount(amountWei > 0);
     } else {
       setIsValidAmount(false);
     }
-  }, [amount, balance]);
+  }, [amount, cWETHBalance]);
 
   useEffect(() => {
     if (isSuccess) {
@@ -61,25 +129,31 @@ export default function SupplyForm() {
   }, [isSuccess]);
 
   const handleMaxAmount = () => {
-    if (balance) {
-      setAmount(balance.formatted);
-    }
+    // For ERC7984, we can't get the exact balance without decryption
+    // We'll set a reasonable default amount
+    setAmount('1.0');
   };
 
   const handleSupply = async () => {
     if (!isValidAmount || !amount || !address) return;
 
     try {
-      // For Phase 1, we'll use the simple supply function
-      // In a full implementation, we would encrypt the amount first using:
-      // const ciphertexts = await encryptAndRegister(VAULT_ADDRESS, address, BigInt(Math.floor(parseFloat(amount) * 1e18)));
-      // Then call supplyEncrypted with the encrypted data
+      const amountWei = BigInt(Math.floor(parseFloat(amount) * 1e18));
       
+      // Step 1: Approve vault to spend cWETH
+      await writeContract({
+        address: CWETH_ADDRESS as `0x${string}`,
+        abi: CWETH_ABI,
+        functionName: 'approve',
+        args: [VAULT_ADDRESS as `0x${string}`, amountWei],
+      });
+      
+      // Step 2: Call vault supply function with the amount
       await writeContract({
         address: VAULT_ADDRESS as `0x${string}`,
         abi: VAULT_ABI,
         functionName: 'supply',
-        value: BigInt(Math.floor(parseFloat(amount) * 1e18)),
+        args: [amountWei],
       });
     } catch (err) {
       console.error('Supply failed:', err);
@@ -142,7 +216,7 @@ export default function SupplyForm() {
             ),
           }}
           helperText={
-            balance ? `Available: ${formatBalance(balance.formatted)} ETH` : 'Loading balance...'
+            cWETHBalance ? `cWETH Balance: Encrypted (use Decrypt button to view)` : 'Loading cWETH balance...'
           }
         />
       </Box>
