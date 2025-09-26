@@ -64,9 +64,9 @@ const CWETH_ABI = [
         "type": "address"
       },
       {
-        "internalType": "uint256",
-        "name": "duration",
-        "type": "uint256"
+        "internalType": "uint48",
+        "name": "until",
+        "type": "uint48"
       }
     ],
     "name": "setOperator",
@@ -138,6 +138,11 @@ export default function SupplyForm() {
   const { address, isConnected } = useAccount();
   const { data: balance } = useBalance({ address });
   const { writeContract, data: hash, isPending, error } = useWriteContract();
+  
+  // Debug wagmi error
+  if (error) {
+    console.error('Wagmi writeContract error:', error);
+  }
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
   const { data: walletClient } = useWalletClient();
 
@@ -153,6 +158,14 @@ export default function SupplyForm() {
   // Contract address (will be set after deployment)
   const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x0000000000000000000000000000000000000000';
   const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
+  
+  // Debug contract addresses
+  console.log('Contract addresses:', {
+    VAULT_ADDRESS,
+    CWETH_ADDRESS,
+    vaultValid: VAULT_ADDRESS !== '0x0000000000000000000000000000000000000000',
+    cwethValid: CWETH_ADDRESS !== '0x0000000000000000000000000000000000000000'
+  });
 
   // Function to fetch cWETH balance using raw contract call
   const fetchCWETHBalance = useCallback(async () => {
@@ -318,14 +331,25 @@ export default function SupplyForm() {
       if (!isApproved) {
         // Step 1: Set vault as operator (time-limited permission)
         console.log('Step 1: Setting vault as operator...');
-        const duration = BigInt(3600); // 1 hour in seconds
-        writeContract({
-          address: CWETH_ADDRESS as `0x${string}`,
-          abi: CWETH_ABI,
-          functionName: 'setOperator',
-          args: [VAULT_ADDRESS as `0x${string}`, duration],
+        const until = BigInt(Math.floor(Date.now() / 1000) + 3600); // Current timestamp + 1 hour
+        console.log('setOperator parameters:', {
+          address: CWETH_ADDRESS,
+          vaultAddress: VAULT_ADDRESS,
+          until: until.toString(),
+          untilType: typeof until
         });
-        console.log('Operator permission initiated...');
+        try {
+          writeContract({
+            address: CWETH_ADDRESS as `0x${string}`,
+            abi: CWETH_ABI,
+            functionName: 'setOperator',
+            args: [VAULT_ADDRESS as `0x${string}`, until],
+          });
+          console.log('Operator permission initiated...');
+        } catch (writeError) {
+          console.error('writeContract error:', writeError);
+          throw writeError;
+        }
       } else {
         // Step 2: Supply cWETH to the vault using encrypted inputs
         console.log('Step 2: Creating encrypted input for confidential transfer...');
