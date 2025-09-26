@@ -395,11 +395,12 @@ export default function SupplyForm() {
           const inputProof = encryptedData.inputProof;
           
           // Convert Uint8Array to hex strings
-          const encryptedAmountStr = Array.from(encryptedAmount).map(b => b.toString(16).padStart(2, '0')).join('');
-          const inputProofStr = Array.from(inputProof).map(b => b.toString(16).padStart(2, '0')).join('');
+          const encryptedAmountStr = Array.from(encryptedAmount as Uint8Array).map((b: number) => b.toString(16).padStart(2, '0')).join('');
+          const inputProofStr = Array.from(inputProof as Uint8Array).map((b: number) => b.toString(16).padStart(2, '0')).join('');
           
-          // Ensure they are properly formatted hex strings
-          const formattedEncryptedAmount = `0x${encryptedAmountStr}`;
+          // Ensure encrypted amount is exactly 32 bytes (64 hex chars) for bytes32
+          const paddedEncryptedAmount = encryptedAmountStr.padStart(64, '0');
+          const formattedEncryptedAmount = `0x${paddedEncryptedAmount}`;
           const formattedInputProof = `0x${inputProofStr}`;
           
           console.log('Encrypted data:', {
@@ -413,17 +414,17 @@ export default function SupplyForm() {
           
           const { encodeFunctionData } = await import('viem');
           
-          // Create a simplified ABI for viem (without FHEVM types)
+          // Create a simplified ABI for viem (matching actual contract)
           const ViemCWETH_ABI = [
             {
               "inputs": [
                 {"internalType": "address", "name": "from", "type": "address"},
                 {"internalType": "address", "name": "to", "type": "address"},
-                {"internalType": "bytes", "name": "encryptedAmount", "type": "bytes"},
+                {"internalType": "bytes32", "name": "encryptedAmount", "type": "bytes32"},
                 {"internalType": "bytes", "name": "inputProof", "type": "bytes"}
               ],
               "name": "confidentialTransferFrom",
-              "outputs": [{"internalType": "bytes", "name": "transferred", "type": "bytes"}],
+              "outputs": [{"internalType": "bytes32", "name": "transferred", "type": "bytes32"}],
               "stateMutability": "nonpayable",
               "type": "function"
             }

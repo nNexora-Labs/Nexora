@@ -3,8 +3,9 @@ pragma solidity ^0.8.24;
 
 import {ConfidentialFungibleToken} from "@openzeppelin/confidential-contracts/token/ConfidentialFungibleToken.sol";
 import {SepoliaConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
-import {FHE, euint32, euint64, externalEuint32} from "@fhevm/solidity/lib/FHE.sol";
+import {FHE, euint32, euint64, externalEuint32, ebool} from "@fhevm/solidity/lib/FHE.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {FHESafeMath} from "@openzeppelin/confidential-contracts/utils/FHESafeMath.sol";
 
 /// @title Confidential WETH (cWETH)
 /// @notice ERC7984 implementation for confidential WETH with wrap/unwrap functionality
@@ -75,5 +76,45 @@ contract ConfidentialWETH is ConfidentialFungibleToken, SepoliaConfig, Ownable {
     /// @dev CONFIDENTIAL: No plaintext amounts are exposed
     receive() external payable {
         emit ConfidentialDeposit(msg.sender);
+    }
+
+    /// @notice Override _update to use our custom _encryptedBalances mapping
+    /// @dev This ensures that transfers use our custom balance storage
+    function _update(address from, address to, euint64 amount) internal override returns (euint64 transferred) {
+        ebool success;
+        euint64 ptr;
+
+        if (from == address(0)) {
+            // Minting - increase total supply
+            (success, ptr) = FHESafeMath.tryIncrease(_totalSupply, amount);
+            FHE.allowThis(ptr);
+            _totalSupply = ptr;
+        } else {
+            // Transfer from existing balance
+            euint64 fromBalance = _encryptedBalances[from];
+            require(FHE.isInitialized(fromBalance), ConfidentialFungibleTokenZeroBalance(from));
+            (success, ptr) = FHESafeMath.tryDecrease(fromBalance, amount);
+            FHE.allowThis(ptr);
+            FHE.allow(ptr, from);
+            _encryptedBalances[from] = ptr;
+        }
+
+        transferred = FHE.select(success, amount, FHE.asEuint64(0));
+
+        if (to == address(0)) {
+            // Burning - decrease total supply
+            ptr = FHE.sub(_totalSupply, transferred);
+            FHE.allowThis(ptr);
+            _totalSupply = ptr;
+        } else {
+            // Transfer to recipient
+            euint64 toBalance = _encryptedBalances[to];
+            (success, ptr) = FHESafeMath.tryIncrease(toBalance, transferred);
+            FHE.allowThis(ptr);
+            FHE.allow(ptr, to);
+            _encryptedBalances[to] = ptr;
+        }
+
+        return transferred;
     }
 }
