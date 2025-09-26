@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAccount, useBalance, useConnect, useDisconnect } from 'wagmi';
 import { formatEncryptedBalance } from '../utils/fhe';
+import { useSuppliedBalance } from '../hooks/useSuppliedBalance';
 import {
   AppBar,
   Toolbar,
@@ -15,9 +16,16 @@ import {
   Grid,
   Chip,
   CircularProgress,
+  Tabs,
+  Tab,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
-import { AccountBalanceWallet, Security, TrendingUp } from '@mui/icons-material';
+import { AccountBalanceWallet, Security, TrendingUp, Extension, QrCode } from '@mui/icons-material';
 import SupplyForm from './SupplyForm';
+import WithdrawForm from './WithdrawForm';
 
 export default function Dashboard() {
   const { address, isConnected } = useAccount();
@@ -26,12 +34,22 @@ export default function Dashboard() {
   const { data: balance, isLoading: isBalanceLoading } = useBalance({
     address: address,
   });
+  const { suppliedBalance, isDecrypting: isDecryptingSupplied, hasSupplied, canDecrypt, decryptBalance, clearDecryption } = useSuppliedBalance();
 
   const [encryptedBalance, setEncryptedBalance] = useState<string>('Encrypted');
   const [isDecrypting, setIsDecrypting] = useState(false);
+  const [activeTab, setActiveTab] = useState<'supply' | 'withdraw'>('supply');
+  const [walletMenuAnchor, setWalletMenuAnchor] = useState<null | HTMLElement>(null);
 
   // Handle encrypted balance decryption using Zama Relayer SDK
   useEffect(() => {
+    // Only run in browser environment
+    if (typeof window === 'undefined') {
+      setEncryptedBalance('Encrypted');
+      setIsDecrypting(false);
+      return;
+    }
+
     if (isConnected && balance && address) {
       setIsDecrypting(true);
       
@@ -60,15 +78,37 @@ export default function Dashboard() {
     }
   }, [isConnected, balance, address]);
 
-  const handleConnect = () => {
-    if (connectors[0]) {
-      connect({ connector: connectors[0] });
-    }
+  const handleConnect = (event: React.MouseEvent<HTMLElement>) => {
+    setWalletMenuAnchor(event.currentTarget);
+  };
+
+  const handleWalletSelect = (connector: any) => {
+    connect({ connector });
+    setWalletMenuAnchor(null);
+  };
+
+  const handleCloseWalletMenu = () => {
+    setWalletMenuAnchor(null);
   };
 
   const handleDisconnect = () => {
     disconnect();
     setEncryptedBalance('Encrypted');
+  };
+
+  const getWalletIcon = (connectorName: string) => {
+    switch (connectorName.toLowerCase()) {
+      case 'metamask':
+        return <Extension />;
+      case 'walletconnect':
+        return <QrCode />;
+      case 'rabby':
+        return <Extension />;
+      case 'coinbase wallet':
+        return <Extension />;
+      default:
+        return <AccountBalanceWallet />;
+    }
   };
 
   return (
@@ -91,14 +131,42 @@ export default function Dashboard() {
               </Button>
             </Box>
           ) : (
-            <Button
-              color="inherit"
-              onClick={handleConnect}
-              disabled={isConnecting}
-              startIcon={<AccountBalanceWallet />}
-            >
-              {isConnecting ? 'Connecting...' : 'Connect Wallet'}
-            </Button>
+            <>
+              <Button
+                color="inherit"
+                onClick={handleConnect}
+                disabled={isConnecting}
+                startIcon={isConnecting ? <CircularProgress size={20} /> : <AccountBalanceWallet />}
+              >
+                {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+              </Button>
+              <Menu
+                anchorEl={walletMenuAnchor}
+                open={Boolean(walletMenuAnchor)}
+                onClose={handleCloseWalletMenu}
+                anchorOrigin={{
+                  vertical: 'bottom',
+                  horizontal: 'right',
+                }}
+                transformOrigin={{
+                  vertical: 'top',
+                  horizontal: 'right',
+                }}
+              >
+                {connectors.map((connector) => (
+                  <MenuItem
+                    key={connector.uid}
+                    onClick={() => handleWalletSelect(connector)}
+                    disabled={isConnecting}
+                  >
+                    <ListItemIcon>
+                      {getWalletIcon(connector.name)}
+                    </ListItemIcon>
+                    <ListItemText primary={connector.name} />
+                  </MenuItem>
+                ))}
+              </Menu>
+            </>
           )}
         </Toolbar>
       </AppBar>
@@ -134,6 +202,43 @@ export default function Dashboard() {
                         />
                       )}
                     </Box>
+                    <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="body1">
+                        Supplied: {suppliedBalance}
+                      </Typography>
+                      {isDecryptingSupplied && (
+                        <Chip
+                          label="Decrypting..."
+                          size="small"
+                          color="secondary"
+                          icon={<CircularProgress size={16} />}
+                        />
+                      )}
+                    </Box>
+                    
+                    <Box sx={{ mt: 1 }}>
+                      {suppliedBalance === 'Encrypted' && hasSupplied && (
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={decryptBalance}
+                          disabled={isDecryptingSupplied}
+                          startIcon={isDecryptingSupplied ? <CircularProgress size={16} /> : <Security />}
+                        >
+                          {isDecryptingSupplied ? 'Decrypting...' : 'Decrypt Balance'}
+                        </Button>
+                      )}
+                      {canDecrypt && suppliedBalance !== 'Encrypted' && (
+                        <Button
+                          variant="text"
+                          size="small"
+                          onClick={clearDecryption}
+                          color="secondary"
+                        >
+                          Clear Decryption
+                        </Button>
+                      )}
+                    </Box>
                   </Box>
                 ) : (
                   <Typography variant="body2" color="text.secondary">
@@ -167,14 +272,17 @@ export default function Dashboard() {
             </Card>
           </Grid>
 
-          {/* Supply Form */}
+          {/* Supply/Withdraw Form */}
           <Grid item xs={12}>
             <Card>
               <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  Supply Assets
-                </Typography>
-                <SupplyForm />
+                <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+                  <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
+                    <Tab label="Supply Assets" value="supply" />
+                    <Tab label="Withdraw Assets" value="withdraw" />
+                  </Tabs>
+                </Box>
+                {activeTab === 'supply' ? <SupplyForm /> : <WithdrawForm />}
               </CardContent>
             </Card>
           </Grid>

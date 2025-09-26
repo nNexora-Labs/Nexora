@@ -8,6 +8,7 @@ A fully end-to-end encrypted lending protocol using Zama fhevm that focuses on E
 - **Confidential WETH**: ERC7984 implementation for confidential Wrapped Ether
 - **Lending Vault**: ERC-4626 analogous vault for confidential lending
 - **Supply Flow**: ETH → WETH → cWETH → Vault
+- **Withdraw Flow**: Encrypted shares → Decrypt → Withdraw ETH
 - **Modern Frontend**: Next.js + React + TypeScript + Material-UI
 - **Wallet Integration**: WalletConnect + Wagmi + Viem
 - **Zama Relayer**: Client-side decryption for UI display
@@ -21,10 +22,11 @@ A fully end-to-end encrypted lending protocol using Zama fhevm that focuses on E
 
 ### Frontend
 - **Framework**: Next.js 14 with App Router
-- **UI**: Material-UI components
+- **UI**: Material-UI components with tabs for Supply/Withdraw
 - **Web3**: Wagmi + Viem for blockchain interaction
 - **Wallet**: WalletConnect integration
 - **FHE**: Zama Relayer SDK for encrypted operations
+- **Components**: Dashboard, SupplyForm, WithdrawForm, useSuppliedBalance hook
 
 ## 🛠️ Setup
 

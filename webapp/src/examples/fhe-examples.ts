@@ -3,7 +3,6 @@
 // Example implementation of FHE operations with Confidential Lending Protocol
 // This file demonstrates the correct usage of Zama Relayer SDK
 
-import { createInstance, SepoliaConfig } from '@zama-fhe/relayer-sdk';
 import { encryptAndRegister, decryptUserData } from '../utils/fhe';
 
 // Example: How to supply encrypted ETH to the vault

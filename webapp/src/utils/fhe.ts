@@ -1,15 +1,43 @@
 'use client';
 
-import { createInstance, SepoliaConfig } from '@zama-fhe/relayer-sdk';
+// Import polyfills first
+import './polyfills';
 
 // Create FHE instance using SepoliaConfig (concise approach)
 let fheInstance: any = null;
+let isInitializing = false;
 
 export const getFHEInstance = async () => {
-  if (!fheInstance) {
-    fheInstance = await createInstance(SepoliaConfig);
+  // Only run in browser environment
+  if (typeof window === 'undefined') {
+    throw new Error('FHE operations can only be performed in the browser');
   }
+
+  if (!fheInstance && !isInitializing) {
+    isInitializing = true;
+    try {
+      // Dynamic import to avoid SSR issues and reduce circular dependencies
+      const { createInstance, SepoliaConfig } = await import('@zama-fhe/relayer-sdk/web');
+      fheInstance = await createInstance(SepoliaConfig);
+    } catch (error) {
+      console.error('Failed to initialize FHE instance:', error);
+      throw error;
+    } finally {
+      isInitializing = false;
+    }
+  }
+  
+  if (!fheInstance) {
+    throw new Error('FHE instance not available');
+  }
+  
   return fheInstance;
+};
+
+// Cleanup function to dispose of FHE instance
+export const cleanupFHEInstance = () => {
+  fheInstance = null;
+  isInitializing = false;
 };
 
 // Create encrypted input buffer for contract interaction
@@ -17,6 +45,11 @@ export const createEncryptedInput = async (
   contractAddress: string,
   userAddress: string
 ) => {
+  // Only run in browser environment
+  if (typeof window === 'undefined') {
+    throw new Error('FHE operations can only be performed in the browser');
+  }
+
   const instance = await getFHEInstance();
   
   const buffer = instance.createEncryptedInput(
@@ -33,6 +66,11 @@ export const encryptAndRegister = async (
   userAddress: string,
   value: bigint
 ) => {
+  // Only run in browser environment
+  if (typeof window === 'undefined') {
+    throw new Error('FHE operations can only be performed in the browser');
+  }
+
   const buffer = await createEncryptedInput(contractAddress, userAddress);
   
   // Add the value to the buffer (using add64 for uint64 values)
@@ -49,6 +87,11 @@ export const decryptUserData = async (
   encryptedData: any,
   userAddress: string
 ) => {
+  // Only run in browser environment
+  if (typeof window === 'undefined') {
+    return null; // Return null during SSR
+  }
+
   try {
     const instance = await getFHEInstance();
     
@@ -70,6 +113,11 @@ export const formatEncryptedBalance = async (
   encryptedBalance: any,
   userAddress: string
 ): Promise<string> => {
+  // Only run in browser environment
+  if (typeof window === 'undefined') {
+    return 'Encrypted'; // Return default during SSR
+  }
+
   try {
     const decryptedValue = await decryptUserData(encryptedBalance, userAddress);
     

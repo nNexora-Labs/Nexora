@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import {
   Box,
   TextField,
@@ -16,93 +16,121 @@ import {
 } from '@mui/material';
 import { Send, AccountBalance } from '@mui/icons-material';
 import { encryptAndRegister } from '../utils/fhe';
+import { useSuppliedBalance } from '../hooks/useSuppliedBalance';
 
-// Contract ABI (simplified for this example)
+// Contract ABI for withdraw function (assuming it exists)
 const VAULT_ABI = [
   {
-    "inputs": [],
-    "name": "supply",
+    "inputs": [
+      {
+        "internalType": "externalEuint32",
+        "name": "encryptedShares",
+        "type": "externalEuint32"
+      },
+      {
+        "internalType": "bytes",
+        "name": "proof",
+        "type": "bytes"
+      }
+    ],
+    "name": "withdrawEncrypted",
     "outputs": [],
-    "stateMutability": "payable",
+    "stateMutability": "nonpayable",
     "type": "function"
   }
 ] as const;
 
-export default function SupplyForm() {
+export default function WithdrawForm() {
   const { address, isConnected } = useAccount();
-  const { data: balance } = useBalance({ address });
   const { writeContract, data: hash, isPending, error } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { suppliedBalance, isDecrypting, hasSupplied, refetchSuppliedBalance } = useSuppliedBalance();
 
   const [amount, setAmount] = useState('');
   const [isValidAmount, setIsValidAmount] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  // Contract address (will be set after deployment)
+  // Contract address
   const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x0000000000000000000000000000000000000000';
 
   useEffect(() => {
-    if (amount && balance) {
+    if (amount && suppliedBalance !== 'Encrypted') {
       const amountWei = parseFloat(amount);
-      const balanceWei = parseFloat(balance.formatted);
-      setIsValidAmount(amountWei > 0 && amountWei <= balanceWei);
+      const suppliedWei = parseFloat(suppliedBalance.replace(' ETH', ''));
+      setIsValidAmount(amountWei > 0 && amountWei <= suppliedWei);
     } else {
       setIsValidAmount(false);
     }
-  }, [amount, balance]);
+  }, [amount, suppliedBalance]);
 
   useEffect(() => {
     if (isSuccess) {
       setShowSuccess(true);
       setAmount('');
-      // Note: Balance refresh is handled automatically by the useSuppliedBalance hook
+      refetchSuppliedBalance(); // Refresh supplied balance
       setTimeout(() => setShowSuccess(false), 5000);
     }
-  }, [isSuccess]);
+  }, [isSuccess, refetchSuppliedBalance]);
 
   const handleMaxAmount = () => {
-    if (balance) {
-      setAmount(balance.formatted);
+    if (suppliedBalance !== 'Encrypted') {
+      setAmount(suppliedBalance.replace(' ETH', ''));
     }
   };
 
-  const handleSupply = async () => {
+  const handleWithdraw = async () => {
     if (!isValidAmount || !amount || !address) return;
 
     try {
-      // For Phase 1, we'll use the simple supply function
-      // In a full implementation, we would encrypt the amount first using:
-      // const ciphertexts = await encryptAndRegister(VAULT_ADDRESS, address, BigInt(Math.floor(parseFloat(amount) * 1e18)));
-      // Then call supplyEncrypted with the encrypted data
-      
+      // Convert ETH to wei
+      const amountInWei = BigInt(Math.floor(parseFloat(amount) * 1e18));
+
+      // Encrypt the amount using Zama Relayer SDK
+      const ciphertexts = await encryptAndRegister(
+        VAULT_ADDRESS,
+        address,
+        amountInWei
+      );
+
+      // Call the contract's withdrawEncrypted function
       await writeContract({
         address: VAULT_ADDRESS as `0x${string}`,
         abi: VAULT_ABI,
-        functionName: 'supply',
-        value: BigInt(Math.floor(parseFloat(amount) * 1e18)),
+        functionName: 'withdrawEncrypted',
+        args: [ciphertexts.handles[0], ciphertexts.inputProof],
       });
     } catch (err) {
-      console.error('Supply failed:', err);
+      console.error('Withdraw failed:', err);
     }
-  };
-
-  const formatBalance = (balance: string) => {
-    return parseFloat(balance).toFixed(4);
   };
 
   if (!isConnected) {
     return (
       <Alert severity="info">
-        Please connect your wallet to supply assets to the confidential lending protocol.
+        Please connect your wallet to withdraw assets from the confidential lending vault.
       </Alert>
     );
   }
 
+
   return (
     <Box sx={{ maxWidth: 600, mx: 'auto' }}>
+      <Alert severity="info" sx={{ mb: 2 }}>
+        <Typography variant="body2" gutterBottom>
+          <strong>Withdraw Functionality Not Available</strong>
+        </Typography>
+        <Typography variant="body2">
+          The smart contract currently only implements supply functionality (Phase 1). 
+          Withdraw functionality will be added in future phases.
+        </Typography>
+        <Typography variant="body2" sx={{ mt: 1 }}>
+          Your supplied balance: {suppliedBalance}
+        </Typography>
+      </Alert>
+
       {showSuccess && (
         <Alert severity="success" sx={{ mb: 2 }}>
-          Successfully supplied {amount} ETH to the confidential lending vault!
+          Successfully withdrew {amount} ETH from the confidential lending vault!
         </Alert>
       )}
 
@@ -114,11 +142,11 @@ export default function SupplyForm() {
 
       <Box sx={{ mb: 3 }}>
         <Typography variant="h6" gutterBottom>
-          Supply ETH to Confidential Lending Vault
+          Withdraw ETH from Confidential Lending Vault
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Your ETH will be wrapped to cWETH and deposited into the confidential lending vault.
-          All balances and transactions are encrypted using FHE technology.
+          Withdraw your encrypted shares from the confidential lending vault.
+          All transactions are encrypted using FHE technology.
         </Typography>
       </Box>
 
@@ -129,12 +157,13 @@ export default function SupplyForm() {
           type="number"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
+          disabled={true} // Disabled because withdraw function doesn't exist in smart contract
           InputProps={{
             endAdornment: (
               <Button
                 size="small"
                 onClick={handleMaxAmount}
-                disabled={!balance}
+                disabled={true} // Disabled because withdraw function doesn't exist in smart contract
                 sx={{ ml: 1 }}
               >
                 MAX
@@ -142,7 +171,9 @@ export default function SupplyForm() {
             ),
           }}
           helperText={
-            balance ? `Available: ${formatBalance(balance.formatted)} ETH` : 'Loading balance...'
+            suppliedBalance !== 'Encrypted' 
+              ? `Available: ${suppliedBalance} (Withdraw coming soon)` 
+              : 'Loading supplied balance...'
           }
         />
       </Box>
@@ -154,11 +185,11 @@ export default function SupplyForm() {
           Transaction Summary
         </Typography>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="body2">Amount to Supply:</Typography>
+          <Typography variant="body2">Amount to Withdraw:</Typography>
           <Typography variant="body2">{amount || '0'} ETH</Typography>
         </Box>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="body2">Interest Rate:</Typography>
+          <Typography variant="body2">Interest Earned:</Typography>
           <Typography variant="body2">5% APY</Typography>
         </Box>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
@@ -176,22 +207,12 @@ export default function SupplyForm() {
         fullWidth
         variant="contained"
         size="large"
-        onClick={handleSupply}
-        disabled={!isValidAmount || isPending || isConfirming}
-        startIcon={
-          isPending || isConfirming ? (
-            <CircularProgress size={20} />
-          ) : (
-            <Send />
-          )
-        }
+        onClick={handleWithdraw}
+        disabled={true} // Disabled because withdraw function doesn't exist in smart contract
+        startIcon={<Send />}
         sx={{ py: 1.5 }}
       >
-        {isPending
-          ? 'Confirming Transaction...'
-          : isConfirming
-          ? 'Processing...'
-          : 'Supply ETH'}
+        Withdraw ETH (Coming Soon)
       </Button>
 
       {hash && (

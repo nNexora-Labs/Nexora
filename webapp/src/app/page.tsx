@@ -2,7 +2,7 @@
 
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { sepolia } from 'wagmi/chains';
-import { walletConnect, metaMask } from 'wagmi/connectors';
+import { walletConnect, injected } from 'wagmi/connectors';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -13,9 +13,23 @@ import Dashboard from '../components/Dashboard';
 const config = createConfig({
   chains: [sepolia],
   connectors: [
-    metaMask(),
+    injected({
+      target: 'metaMask',
+    }),
+    injected({
+      target: 'rabby',
+    }),
+    injected({
+      target: 'coinbaseWallet',
+    }),
     walletConnect({
       projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!,
+      metadata: {
+        name: 'Confidential Lending Protocol',
+        description: 'Fully encrypted lending protocol using Zama FHEVM',
+        url: 'https://confidential-lending.vercel.app',
+        icons: ['https://confidential-lending.vercel.app/icon.png'],
+      },
     }),
   ],
   transports: {
