@@ -16,7 +16,6 @@ import {
 } from '@mui/material';
 import { Send, AccountBalance } from '@mui/icons-material';
 import { getFHEInstance } from '../utils/fhe';
-import { ethers } from 'ethers';
 
 // Contract ABI for supplying cWETH to the vault
 const VAULT_ABI = [
@@ -159,13 +158,6 @@ export default function SupplyForm() {
   const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x0000000000000000000000000000000000000000';
   const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
   
-  // Debug contract addresses
-  console.log('Contract addresses:', {
-    VAULT_ADDRESS,
-    CWETH_ADDRESS,
-    vaultValid: VAULT_ADDRESS !== '0x0000000000000000000000000000000000000000',
-    cwethValid: CWETH_ADDRESS !== '0x0000000000000000000000000000000000000000'
-  });
 
   // Function to fetch cWETH balance using raw contract call
   const fetchCWETHBalance = useCallback(async () => {
@@ -238,9 +230,15 @@ export default function SupplyForm() {
 
   // Function to check if vault is operator
   const checkOperatorStatus = useCallback(async () => {
-    if (!address || !CWETH_ADDRESS || !VAULT_ADDRESS) return;
+    console.log('checkOperatorStatus called with:', { address, CWETH_ADDRESS, VAULT_ADDRESS });
+    
+    if (!address || !CWETH_ADDRESS || !VAULT_ADDRESS) {
+      console.log('Missing required parameters for checkOperatorStatus');
+      return;
+    }
 
     try {
+      console.log('Creating public client for operator check...');
       const { createPublicClient, http, encodeFunctionData } = await import('viem');
       const { sepolia } = await import('wagmi/chains');
       
@@ -249,6 +247,7 @@ export default function SupplyForm() {
         transport: http(process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/edae100994ea476180577c9218370251'),
       });
 
+      console.log('Calling isOperator function...');
       const result = await publicClient.call({
         to: CWETH_ADDRESS as `0x${string}`,
         data: encodeFunctionData({
@@ -258,10 +257,15 @@ export default function SupplyForm() {
         }),
       });
 
+      console.log('isOperator result:', result.data);
+      
       if (result.data && result.data !== '0x') {
         const isOperator = result.data === '0x0000000000000000000000000000000000000000000000000000000000000001';
+        console.log('Setting isApproved to:', isOperator);
         setIsApproved(isOperator);
         console.log('Is vault operator:', isOperator);
+      } else {
+        console.log('No data returned from isOperator call');
       }
     } catch (error) {
       console.error('Failed to check operator status:', error);
@@ -290,21 +294,27 @@ export default function SupplyForm() {
   }, [amount, cWETHBalance]);
 
   useEffect(() => {
+    console.log('Hash effect triggered:', { hash, isApproved });
     if (hash && !isApproved) {
       // This is an approval transaction
+      console.log('Setting approval hash:', hash);
       setApprovalHash(hash);
     }
   }, [hash, isApproved]);
 
   useEffect(() => {
+    console.log('Transaction success effect triggered:', { isSuccess, approvalHash, isApproved });
+    
     if (isSuccess && approvalHash) {
       // Operator permission was successful, now check operator status
       console.log('Operator permission successful, checking status...');
       setTimeout(() => {
+        console.log('Calling checkOperatorStatus...');
         checkOperatorStatus();
       }, 2000); // Wait 2 seconds for the transaction to be mined
     } else if (isSuccess && !approvalHash) {
       // This is the supply transaction success
+      console.log('Supply transaction successful');
       setShowSuccess(true);
       setAmount('');
       setApprovalHash(null);
@@ -331,11 +341,11 @@ export default function SupplyForm() {
       if (!isApproved) {
         // Step 1: Set vault as operator (time-limited permission)
         console.log('Step 1: Setting vault as operator...');
-        const until = BigInt(Math.floor(Date.now() / 1000) + 3600); // Current timestamp + 1 hour
+        const until = Math.floor(Date.now() / 1000) + 3600; // Current timestamp + 1 hour
         console.log('setOperator parameters:', {
           address: CWETH_ADDRESS,
           vaultAddress: VAULT_ADDRESS,
-          until: until.toString(),
+          until: until,
           untilType: typeof until
         });
         try {
@@ -377,41 +387,76 @@ export default function SupplyForm() {
           console.log('Input encrypted successfully');
           
           // Extract the encrypted amount and proof
+          console.log('Raw encrypted data:', encryptedData);
+          console.log('Handles:', encryptedData.handles);
+          console.log('Input proof:', encryptedData.inputProof);
+          
           const encryptedAmount = encryptedData.handles[0];
           const inputProof = encryptedData.inputProof;
           
-          console.log('Step 3: Creating ethers contract and calling confidentialTransferFrom...');
+          // Convert Uint8Array to hex strings
+          const encryptedAmountStr = Array.from(encryptedAmount).map(b => b.toString(16).padStart(2, '0')).join('');
+          const inputProofStr = Array.from(inputProof).map(b => b.toString(16).padStart(2, '0')).join('');
           
-          // Create ethers contract instance with signer
-          const provider = new ethers.BrowserProvider(walletClient);
-          const signer = await provider.getSigner();
-          const cwethContract = new ethers.Contract(
-            CWETH_ADDRESS,
-            CWETH_ABI,
-            signer
-          );
+          // Ensure they are properly formatted hex strings
+          const formattedEncryptedAmount = `0x${encryptedAmountStr}`;
+          const formattedInputProof = `0x${inputProofStr}`;
           
-          // Call confidentialTransferFrom with encrypted amount and proof
-          const tx = await cwethContract.confidentialTransferFrom(
-            address, // from (user)
-            VAULT_ADDRESS, // to (vault)
-            encryptedAmount, // encrypted amount (handle)
-            inputProof // input proof
-          );
+          console.log('Encrypted data:', {
+            encryptedAmount: formattedEncryptedAmount,
+            inputProof: formattedInputProof,
+            encryptedAmountType: typeof formattedEncryptedAmount,
+            inputProofType: typeof formattedInputProof
+          });
           
-          console.log('Confidential transfer transaction sent:', tx.hash);
-          console.log('Waiting for transaction confirmation...');
+          console.log('Step 3: Creating viem contract and calling confidentialTransferFrom...');
           
-          // Wait for transaction confirmation
-          const receipt = await tx.wait();
-          console.log('Transaction confirmed:', receipt?.status);
+          const { encodeFunctionData } = await import('viem');
           
-          // Trigger success state
-          setShowSuccess(true);
-          setAmount('');
-          setApprovalHash(null);
-          setIsApproved(false);
-          setTimeout(() => setShowSuccess(false), 5000);
+          // Create a simplified ABI for viem (without FHEVM types)
+          const ViemCWETH_ABI = [
+            {
+              "inputs": [
+                {"internalType": "address", "name": "from", "type": "address"},
+                {"internalType": "address", "name": "to", "type": "address"},
+                {"internalType": "bytes", "name": "encryptedAmount", "type": "bytes"},
+                {"internalType": "bytes", "name": "inputProof", "type": "bytes"}
+              ],
+              "name": "confidentialTransferFrom",
+              "outputs": [{"internalType": "bytes", "name": "transferred", "type": "bytes"}],
+              "stateMutability": "nonpayable",
+              "type": "function"
+            }
+          ] as const;
+
+          // Encode the function call
+          const data = encodeFunctionData({
+            abi: ViemCWETH_ABI,
+            functionName: 'confidentialTransferFrom',
+            args: [
+              address as `0x${string}`, // from
+              VAULT_ADDRESS as `0x${string}`, // to
+              formattedEncryptedAmount as `0x${string}`, // encrypted amount
+              formattedInputProof as `0x${string}` // input proof
+            ],
+          });
+
+          console.log('Encoded function data:', data);
+
+          // Send the transaction using wagmi's writeContract
+          console.log('Sending transaction via wagmi...');
+          writeContract({
+            address: CWETH_ADDRESS as `0x${string}`,
+            abi: ViemCWETH_ABI,
+            functionName: 'confidentialTransferFrom',
+            args: [
+              address as `0x${string}`, // from
+              VAULT_ADDRESS as `0x${string}`, // to
+              formattedEncryptedAmount as `0x${string}`, // encrypted amount
+              formattedInputProof as `0x${string}` // input proof
+            ],
+          });
+          console.log('Transaction submitted via wagmi...');
           
         } catch (encryptError) {
           console.error('Encryption/Transfer failed:', encryptError);
