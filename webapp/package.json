@@ -1,0 +1,36 @@
+{
+  "name": "confidential-lending-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.11.1",
+    "@emotion/styled": "^11.11.0",
+    "@mui/icons-material": "^5.15.0",
+    "@mui/material": "^5.15.0",
+    "@tanstack/react-query": "^5.0.0",
+    "@walletconnect/modal": "^2.6.0",
+    "@walletconnect/web3-provider": "^1.8.0",
+    "@zama-fhe/relayer-sdk": "^0.2.0",
+    "ethers": "^6.15.0",
+    "next": "14.0.4",
+    "pino-pretty": "^13.1.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "viem": "^2.0.0",
+    "wagmi": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "14.0.4",
+    "typescript": "^5.0.0"
+  }
+}
