@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useAccount, useReadContract, useSignMessage } from 'wagmi';
+import { useAccount, useReadContract, useSignMessage, useWalletClient } from 'wagmi';
 import { decryptUserData, getFHEInstance } from '../utils/fhe';
+import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
+import { ethers } from 'ethers';
 
 // Contract ABI for cWETH token - using the actual function from the contract
 const CWETH_ABI = [
@@ -30,8 +32,10 @@ const CWETH_ABI = [
 export const useCWETHBalance = () => {
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
+  const { data: walletClient } = useWalletClient();
   
   console.log('useCWETHBalance: signMessageAsync available:', !!signMessageAsync);
+  console.log('useCWETHBalance: walletClient available:', !!walletClient);
   
   const [cWETHBalance, setCWETHBalance] = useState<string>('Encrypted');
   const [isDecrypting, setIsDecrypting] = useState(false);
@@ -156,7 +160,7 @@ export const useCWETHBalance = () => {
     }
   }, [address]);
 
-  // Decrypt the cWETH balance using Zama's pattern
+  // Decrypt the cWETH balance using official Zama pattern
   const decryptBalance = useCallback(async () => {
     console.log('=== STARTING cWETH DECRYPTION ===');
     console.log('isConnected:', isConnected);
@@ -184,88 +188,74 @@ export const useCWETHBalance = () => {
       const fheInstance = await getFHEInstance();
       console.log('✅ FHE instance created');
       
-      // Get user's public key
-      console.log('Getting public key...');
-      const publicKey = fheInstance.getPublicKey();
-      if (!publicKey) {
-        throw new Error('No public key available');
+      // Create a real signer from wallet client
+      if (!walletClient) {
+        throw new Error('Wallet client not available');
       }
-      console.log('✅ Public key obtained:', publicKey);
-
-      let signature = decryptionSignature;
       
-      // If no stored signature, request user to sign
-      if (!signature) {
-        console.log('🔐 Requesting user signature for cWETH decryption...');
-        
-        if (!signMessageAsync) {
-          throw new Error('signMessageAsync not available');
-        }
-        
-        // Create EIP712 message for decryption permission
-        const eip712 = fheInstance.createEIP712(
-          publicKey.publicKey,
-          [CWETH_ADDRESS], // Contract addresses that can access decryption
-          Math.floor(Date.now() / 1000), // Start timestamp
-          7 // Duration in days
-        );
+      const provider = new ethers.BrowserProvider(walletClient);
+      const signer = await provider.getSigner();
+      console.log('✅ Real signer created from wallet client');
 
-        console.log('📝 EIP712 message created:', eip712);
+      console.log('Creating decryption signature using official Zama pattern...');
+      const sig = await FhevmDecryptionSignature.loadOrSign(
+        fheInstance as any,
+        [CWETH_ADDRESS],
+        signer
+      );
 
-        // Request user signature
-        console.log('⏳ Requesting signature from wallet...');
-        signature = await signMessageAsync({
-          message: JSON.stringify(eip712),
-        });
-
-        console.log('✅ User signature obtained:', signature);
-
-        // Store signature for session persistence
-        localStorage.setItem(`fhe_cweth_decryption_${address}`, signature);
-        setDecryptionSignature(signature);
-        setCanDecrypt(true);
-      } else {
-        console.log('✅ Using stored signature');
+      if (!sig) {
+        console.error('❌ Failed to create decryption signature');
+        setCWETHBalance('Decryption Failed');
+        setIsDecrypting(false);
+        return;
       }
 
-              // Now attempt to decrypt the encrypted balance using real FHE instance
-              console.log('🔓 Attempting to decrypt encrypted cWETH balance...');
-              console.log('Encrypted balance data:', encryptedBalance);
-              
-              try {
-                // Use the real FHE instance to decrypt the encrypted balance
-                // The encryptedBalance is a hex string (ciphertext) from the contract
-                console.log('Calling fheInstance.decrypt with:', { encryptedBalance, address });
-                
-                const decryptedValue = await fheInstance.decrypt(encryptedBalance, address);
-                
-                console.log('✅ Real FHE Decryption successful:', decryptedValue);
-                console.log('Decrypted value type:', typeof decryptedValue);
-                console.log('Decrypted value:', decryptedValue);
-                
-                // Convert from wei to ETH and format
-                const ethValue = parseFloat(decryptedValue) / 1e18;
-                console.log('Converted ETH value:', ethValue);
-                
-                setCWETHBalance(`${ethValue.toFixed(4)} cWETH`);
-                setHasCWETH(ethValue > 0);
-                setIsDecrypting(false);
-                
-              } catch (decryptError) {
-                console.error('❌ Real FHE Decryption error:', decryptError);
-                console.error('Decrypt error details:', decryptError);
-                throw new Error(`Failed to decrypt encrypted cWETH balance: ${decryptError.message}`);
-              }
+      console.log('✅ Decryption signature created');
+
+      console.log('Calling userDecrypt using official Zama pattern...');
+      const result = await fheInstance.userDecrypt(
+        [{ handle: encryptedBalance, contractAddress: CWETH_ADDRESS }],
+        sig.privateKey,
+        sig.publicKey,
+        sig.signature,
+        sig.contractAddresses,
+        sig.userAddress,
+        sig.startTimestamp,
+        sig.durationDays
+      );
+
+      console.log('✅ userDecrypt completed:', result);
+
+      const decryptedValue = result[encryptedBalance];
+      if (decryptedValue !== undefined) {
+        let ethValue: number;
+        if (typeof decryptedValue === 'bigint') {
+          ethValue = Number(decryptedValue) / 1e18;
+        } else if (typeof decryptedValue === 'string') {
+          ethValue = Number(BigInt(decryptedValue)) / 1e18;
+        } else {
+          ethValue = 0;
+        }
+        setCWETHBalance(`${ethValue.toFixed(4)} cWETH`);
+        setHasCWETH(ethValue > 0);
+        console.log('✅ Balance decrypted successfully:', ethValue, 'ETH');
+      } else {
+        console.log('❌ No decrypted value found');
+        setCWETHBalance('Decryption Failed');
+        setHasCWETH(false);
+      }
 
     } catch (error) {
       console.error('❌ cWETH Decryption failed:', error);
       setCWETHBalance('Decryption Failed');
       setHasCWETH(false);
+    } finally {
       setIsDecrypting(false);
     }
     
     console.log('=== cWETH DECRYPTION COMPLETE ===');
-  }, [isConnected, address, encryptedBalance, decryptionSignature, signMessageAsync, CWETH_ADDRESS]);
+  }, [isConnected, address, encryptedBalance, CWETH_ADDRESS, walletClient]);
 
   // Clear decryption session on disconnect
   useEffect(() => {

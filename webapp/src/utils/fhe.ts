@@ -3,17 +3,73 @@
 // Import polyfills first
 import './polyfills';
 
-// Create FHE instance using SepoliaConfig (concise approach)
-// NOTE: For real FHE decryption, you need a working Zama Relayer
-// The current implementation falls back to mock decryption when relayer fails
-// To get real decryption working:
-// 1. Ensure you have a valid Zama Relayer URL
-// 2. Check if the relayer service is running and accessible
-// 3. Verify your network configuration matches the relayer requirements
-let fheInstance: any = null;
+// Types based on the official Zama example
+export interface FhevmInstance {
+  getPublicKey: () => { publicKeyId: string; publicKey: Uint8Array; } | null;
+  getPublicParams: (bits: 1 | 8 | 16 | 32 | 64 | 128 | 160 | 256 | 512 | 1024 | 2048) => { publicParams: Uint8Array; publicParamsId: string; } | null;
+  createEIP712: (
+    publicKey: string,
+    contractAddresses: string[],
+    startTimestamp: number,
+    durationDays: number
+  ) => any;
+  generateKeypair: () => { publicKey: string; privateKey: string };
+  userDecrypt: (
+    handles: Array<{ handle: string; contractAddress: string }>,
+    privateKey: string,
+    publicKey: string,
+    signature: string,
+    contractAddresses: string[],
+    userAddress: string,
+    startTimestamp: number,
+    durationDays: number
+  ) => Promise<Record<string, string | bigint | boolean>>;
+}
+
+let fheInstance: FhevmInstance | null = null;
 let isInitializing = false;
 
-export const getFHEInstance = async () => {
+// Public key storage for caching
+const publicKeyStorage = new Map<string, { publicKey: string; publicParams: any }>();
+
+// Load Zama Relayer SDK from CDN (like the official example)
+const loadRelayerSDK = async (): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    const SDK_CDN_URL = "https://cdn.zama.ai/relayer-sdk-js/0.2.0/relayer-sdk-js.umd.cjs";
+    
+    const existingScript = document.querySelector(`script[src="${SDK_CDN_URL}"]`);
+    if (existingScript) {
+      if ((window as any).relayerSDK) {
+        resolve();
+        return;
+      }
+      reject(new Error("Script loaded but relayerSDK not available"));
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = SDK_CDN_URL;
+    script.type = "text/javascript";
+    script.async = true;
+
+    script.onload = () => {
+      if (!(window as any).relayerSDK) {
+        reject(new Error(`Relayer SDK script loaded from ${SDK_CDN_URL}, but relayerSDK object is invalid`));
+        return;
+      }
+      resolve();
+    };
+
+    script.onerror = () => {
+      reject(new Error(`Failed to load Relayer SDK from ${SDK_CDN_URL}`));
+    };
+
+    console.log('Loading Zama Relayer SDK from CDN...');
+    document.head.appendChild(script);
+  });
+};
+
+export const getFHEInstance = async (provider?: any): Promise<FhevmInstance> => {
   // Only run in browser environment
   if (typeof window === 'undefined') {
     throw new Error('FHE operations can only be performed in the browser');
@@ -24,115 +80,62 @@ export const getFHEInstance = async () => {
     try {
       console.log('Creating FHE instance using official Zama configuration...');
       
-      // Dynamic import to avoid SSR issues and reduce circular dependencies
-      const { createInstance, SepoliaConfig } = await import('@zama-fhe/relayer-sdk/web');
+      // Try to load the SDK from CDN first (like the official example)
+      if (!(window as any).relayerSDK) {
+        console.log('Loading Zama Relayer SDK from CDN...');
+        await loadRelayerSDK();
+      }
       
-      // Use the official SepoliaConfig from Zama documentation
-      // This is the recommended approach as per: https://docs.zama.ai/protocol/relayer-sdk-guides/fhevm-relayer/initialization
-      console.log('Using SepoliaConfig:', SepoliaConfig);
+      const relayerSDK = (window as any).relayerSDK;
+      if (!relayerSDK) {
+        throw new Error('Failed to load relayerSDK from CDN');
+      }
       
-      fheInstance = await createInstance(SepoliaConfig);
-      console.log('✅ FHE instance created successfully with SepoliaConfig');
+      console.log('Using SepoliaConfig:', relayerSDK.SepoliaConfig);
+      
+      // Initialize SDK if not already initialized
+      if (!relayerSDK.__initialized__) {
+        console.log('Initializing relayerSDK...');
+        await relayerSDK.initSDK();
+        relayerSDK.__initialized__ = true;
+      }
+      
+      // Check if we have cached public key (like the official example)
+      const aclAddress = relayerSDK.SepoliaConfig.aclContractAddress;
+      let cachedKey = publicKeyStorage.get(aclAddress);
+      
+      console.log('Creating FHE instance...');
+      
+      // Create config with or without public key (like the official example)
+      const config = {
+        ...relayerSDK.SepoliaConfig,
+        network: provider || 'https://eth-sepolia.public.blastapi.io',
+        ...(cachedKey && { 
+          publicKey: cachedKey.publicKey,
+          publicParams: cachedKey.publicParams 
+        }),
+      };
+      
+      fheInstance = await relayerSDK.createInstance(config);
+      console.log('✅ FHE instance created successfully');
+      
+      // Get public key from the instance and cache it (like the official example)
+      if (fheInstance) {
+        const publicKeyData = fheInstance.getPublicKey();
+        const publicParamsData = fheInstance.getPublicParams(2048);
+        
+        if (publicKeyData && publicParamsData) {
+          console.log('Caching public key and params for future use...');
+          publicKeyStorage.set(aclAddress, {
+            publicKey: publicKeyData.publicKeyId, // Use the ID as the key
+            publicParams: publicParamsData
+          });
+        }
+      }
       
     } catch (error) {
-      console.error('Failed to initialize FHE instance with SepoliaConfig:', error);
-      
-      // If SepoliaConfig fails, try manual configuration as fallback
-      try {
-        console.log('Trying manual configuration as fallback...');
-        
-        const { createInstance } = await import('@zama-fhe/relayer-sdk/web');
-        
-        const manualConfig = {
-          // ACL_CONTRACT_ADDRESS (FHEVM Host chain)
-          aclContractAddress: '0x687820221192C5B662b25367F70076A37bc79b6c',
-          // KMS_VERIFIER_CONTRACT_ADDRESS (FHEVM Host chain)
-          kmsContractAddress: '0x1364cBBf2cDF5032C47d8226a6f6FBD2AFCDacAC',
-          // INPUT_VERIFIER_CONTRACT_ADDRESS (FHEVM Host chain)
-          inputVerifierContractAddress: '0xbc91f3daD1A5F19F8390c400196e58073B6a0BC4',
-          // DECRYPTION_ADDRESS (Gateway chain)
-          verifyingContractAddressDecryption: '0xb6E160B1ff80D67Bfe90A85eE06Ce0A2613607D1',
-          // INPUT_VERIFICATION_ADDRESS (Gateway chain)
-          verifyingContractAddressInputVerification: '0x7048C39f048125eDa9d678AEbaDfB22F7900a29F',
-          // FHEVM Host chain id
-          chainId: 11155111,
-          // Gateway chain id
-          gatewayChainId: 55815,
-          // Optional RPC provider to host chain
-          network: 'https://eth-sepolia.public.blastapi.io',
-          // Relayer URL
-          relayerUrl: 'https://relayer.testnet.zama.cloud',
-        };
-        
-        fheInstance = await createInstance(manualConfig);
-        console.log('✅ FHE instance created successfully with manual config');
-        
-      } catch (manualError) {
-        console.error('Failed to initialize FHE instance with manual config:', manualError);
-        
-        // Since the Zama Relayer is not accessible, we'll create a working FHE instance
-        // that can handle the real encrypted data but with simulated decryption
-        console.log('⚠️ Zama Relayer not accessible, creating working FHE instance with real data handling...');
-        
-        fheInstance = {
-          getPublicKey: () => ({
-            publicKey: 'working-fhe-instance-for-real-data',
-          }),
-          createEIP712: (publicKey: string, contracts: string[], startTime: number, duration: number) => ({
-            domain: {
-              name: 'FHEVM',
-              version: '1',
-              chainId: 11155111,
-              verifyingContract: contracts[0],
-            },
-            types: {
-              Authorization: [
-                { name: 'publicKey', type: 'bytes32' },
-                { name: 'contract', type: 'address' },
-                { name: 'startTime', type: 'uint256' },
-                { name: 'duration', type: 'uint256' },
-              ],
-            },
-            message: {
-              publicKey: publicKey,
-              contract: contracts[0],
-              startTime: startTime,
-              duration: duration,
-            },
-          }),
-          decrypt: async (encryptedData: any, userAddress: string) => {
-            console.log('🔓 Working FHE decrypt called with REAL encrypted data:', { encryptedData, userAddress });
-            
-            // Check if the encrypted data is all zeros (no balance)
-            if (encryptedData === '0x0000000000000000000000000000000000000000000000000000000000000000') {
-              console.log('Working FHE decrypt: Detected zero balance, returning 0');
-              return '0'; // 0 balance
-            }
-            
-            // We have REAL encrypted data! Let's try to extract meaningful information
-            // This is NOT real FHE decryption, but we can work with the real encrypted data
-            console.log('Working FHE decrypt: Processing REAL encrypted data');
-            console.log('Encrypted data length:', encryptedData.length);
-            console.log('Encrypted data:', encryptedData);
-            
-            // Since we can't decrypt the real FHE data without the relayer,
-            // we'll simulate the decryption but acknowledge it's real encrypted data
-            // In a production environment with working relayer, this would be real decryption
-            
-            // For now, return a reasonable estimate based on the encrypted data
-            // This is a placeholder - real decryption would happen here with working relayer
-            const estimatedBalance = '6500000000000000'; // 0.0065 ETH in wei (your reported balance)
-            
-            console.log('Working FHE decrypt: Using estimated balance from real encrypted data');
-            console.log('Working FHE decrypt: Estimated balance:', estimatedBalance, 'wei');
-            console.log('⚠️ NOTE: This is estimated decryption. Real decryption requires working Zama Relayer.');
-            
-            return estimatedBalance;
-          },
-        };
-        
-        console.log('✅ Working FHE instance created with real data handling');
-      }
+      console.error('Failed to initialize FHE instance:', error);
+      throw new Error(`FHE instance creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       isInitializing = false;
     }
@@ -163,12 +166,13 @@ export const createEncryptedInput = async (
 
   const instance = await getFHEInstance();
   
-  const buffer = instance.createEncryptedInput(
-    contractAddress,
-    userAddress
-  );
+  // Note: This method might not exist in the new SDK version
+  // We'll need to check the actual API
+  if ('createEncryptedInput' in instance) {
+    return (instance as any).createEncryptedInput(contractAddress, userAddress);
+  }
   
-  return buffer;
+  throw new Error('createEncryptedInput method not available in current SDK version');
 };
 
 // Encrypt a value and register it to FHEVM
@@ -185,18 +189,27 @@ export const encryptAndRegister = async (
   const buffer = await createEncryptedInput(contractAddress, userAddress);
   
   // Add the value to the buffer (using add64 for uint64 values)
-  buffer.add64(value);
+  if ('add64' in buffer) {
+    (buffer as any).add64(value);
+  } else if ('add32' in buffer) {
+    (buffer as any).add32(Number(value));
+  }
   
   // Encrypt and register to FHEVM
-  const ciphertexts = await buffer.encrypt();
+  if ('encrypt' in buffer) {
+    const ciphertexts = await (buffer as any).encrypt();
+    return ciphertexts;
+  }
   
-  return ciphertexts;
+  throw new Error('Buffer encrypt method not available');
 };
 
-// Decrypt user data (for UI display)
+// Decrypt user data using the official Zama pattern
 export const decryptUserData = async (
-  encryptedData: any,
-  userAddress: string
+  encryptedData: string,
+  userAddress: string,
+  contractAddress: string,
+  signer: any
 ) => {
   // Only run in browser environment
   if (typeof window === 'undefined') {
@@ -206,13 +219,41 @@ export const decryptUserData = async (
   try {
     const instance = await getFHEInstance();
     
-    // Request decryption for the user
-    const decryptedData = await instance.decrypt(
-      encryptedData,
-      userAddress
+    // Import the signature management
+    const { FhevmDecryptionSignature } = await import('./FhevmDecryptionSignature');
+    
+    // Create or load decryption signature
+    const sig = await FhevmDecryptionSignature.loadOrSign(
+      instance as any,
+      [contractAddress],
+      signer
     );
     
-    return decryptedData;
+    if (!sig) {
+      console.error('Failed to create decryption signature');
+      return null;
+    }
+    
+    // Use userDecrypt method (official Zama pattern)
+    const result = await instance.userDecrypt(
+      [{ handle: encryptedData, contractAddress }],
+      sig.privateKey,
+      sig.publicKey,
+      sig.signature,
+      sig.contractAddresses,
+      sig.userAddress,
+      sig.startTimestamp,
+      sig.durationDays
+    );
+    
+    const decryptedValue = result[encryptedData];
+    if (typeof decryptedValue === 'bigint') {
+      return decryptedValue;
+    } else if (typeof decryptedValue === 'string') {
+      return BigInt(decryptedValue);
+    } else {
+      return BigInt(0);
+    }
   } catch (error) {
     console.error('Decryption failed:', error);
     return null;
@@ -221,8 +262,10 @@ export const decryptUserData = async (
 
 // Helper function to format encrypted balance for display
 export const formatEncryptedBalance = async (
-  encryptedBalance: any,
-  userAddress: string
+  encryptedBalance: string,
+  userAddress: string,
+  contractAddress: string,
+  signer: any
 ): Promise<string> => {
   // Only run in browser environment
   if (typeof window === 'undefined') {
@@ -230,17 +273,16 @@ export const formatEncryptedBalance = async (
   }
 
   try {
-    const decryptedValue = await decryptUserData(encryptedBalance, userAddress);
+    const decryptedValue = await decryptUserData(encryptedBalance, userAddress, contractAddress, signer);
     
     if (decryptedValue !== null) {
       // Convert from wei to ETH and format
       const ethValue = Number(decryptedValue) / 1e18;
       return `${ethValue.toFixed(4)} ETH`;
     }
-    
     return 'Encrypted';
   } catch (error) {
-    console.error('Failed to decrypt balance:', error);
+    console.error('Error formatting encrypted balance:', error);
     return 'Encrypted';
   }
 };
