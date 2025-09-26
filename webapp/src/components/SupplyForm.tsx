@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
+import { useState, useEffect, useCallback } from 'react';
+import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt, useWalletClient } from 'wagmi';
 import {
   Box,
   TextField,
@@ -15,7 +15,8 @@ import {
   Chip,
 } from '@mui/material';
 import { Send, AccountBalance } from '@mui/icons-material';
-import { encryptAndRegister } from '../utils/fhe';
+import { getFHEInstance } from '../utils/fhe';
+import { ethers } from 'ethers';
 
 // Contract ABI for supplying cWETH to the vault
 const VAULT_ABI = [
@@ -34,17 +35,17 @@ const VAULT_ABI = [
   }
 ] as const;
 
-// Contract ABI for cWETH token (ERC7984)
+// Contract ABI for cWETH token - Updated for ConfidentialFungibleToken
 const CWETH_ABI = [
   {
     "inputs": [
       {
         "internalType": "address",
-        "name": "account",
+        "name": "user",
         "type": "address"
       }
     ],
-    "name": "confidentialBalanceOf",
+    "name": "getEncryptedBalance",
     "outputs": [
       {
         "internalType": "euint64",
@@ -59,16 +60,68 @@ const CWETH_ABI = [
     "inputs": [
       {
         "internalType": "address",
-        "name": "spender",
+        "name": "operator",
         "type": "address"
       },
       {
         "internalType": "uint256",
-        "name": "amount",
+        "name": "duration",
         "type": "uint256"
       }
     ],
-    "name": "approve",
+    "name": "setOperator",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "internalType": "externalEuint64",
+        "name": "encryptedAmount",
+        "type": "externalEuint64"
+      },
+      {
+        "internalType": "bytes",
+        "name": "inputProof",
+        "type": "bytes"
+      }
+    ],
+    "name": "confidentialTransferFrom",
+    "outputs": [
+      {
+        "internalType": "euint64",
+        "name": "transferred",
+        "type": "euint64"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "operator",
+        "type": "address"
+      }
+    ],
+    "name": "isOperator",
     "outputs": [
       {
         "internalType": "bool",
@@ -76,7 +129,7 @@ const CWETH_ABI = [
         "type": "bool"
       }
     ],
-    "stateMutability": "nonpayable",
+    "stateMutability": "view",
     "type": "function"
   }
 ] as const;
@@ -86,33 +139,137 @@ export default function SupplyForm() {
   const { data: balance } = useBalance({ address });
   const { writeContract, data: hash, isPending, error } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { data: walletClient } = useWalletClient();
 
   const [amount, setAmount] = useState('');
   const [isValidAmount, setIsValidAmount] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [cWETHBalance, setCWETHBalance] = useState<string | null>(null);
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+  const [isApproved, setIsApproved] = useState(false);
+  const [approvalHash, setApprovalHash] = useState<string | null>(null);
+  const [isEncrypting, setIsEncrypting] = useState(false);
 
   // Contract address (will be set after deployment)
   const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x0000000000000000000000000000000000000000';
   const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
 
-  // Read cWETH balance using ERC7984 confidentialBalanceOf
-  const { data: cWETHBalance } = useReadContract({
-    address: CWETH_ADDRESS as `0x${string}`,
-    abi: CWETH_ABI,
-    functionName: 'confidentialBalanceOf',
-    args: address ? [address] : undefined,
-    query: {
-      enabled: !!address && !!CWETH_ADDRESS && CWETH_ADDRESS !== '0x0000000000000000000000000000000000000000' && typeof window !== 'undefined',
-    },
-  });
+  // Function to fetch cWETH balance using raw contract call
+  const fetchCWETHBalance = useCallback(async () => {
+    if (!address || !CWETH_ADDRESS || CWETH_ADDRESS === '0x0000000000000000000000000000000000000000') {
+      return;
+    }
+
+    try {
+      setIsLoadingBalance(true);
+      
+      // Create a simple public client for raw calls
+      const { createPublicClient, http, encodeFunctionData } = await import('viem');
+      const { sepolia } = await import('wagmi/chains');
+      
+      // Use your dedicated Infura RPC endpoint
+      const rpcUrls = [
+        process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/edae100994ea476180577c9218370251'
+      ];
+      
+      let publicClient;
+      for (const rpcUrl of rpcUrls) {
+        try {
+          publicClient = createPublicClient({
+            chain: sepolia,
+            transport: http(rpcUrl),
+          });
+          break; // If successful, use this client
+        } catch (error) {
+          console.log(`Failed to connect to ${rpcUrl}, trying next...`);
+          continue;
+        }
+      }
+      
+      if (!publicClient) {
+        throw new Error('All RPC endpoints failed');
+      }
+
+      // Make raw contract call
+      const result = await publicClient.call({
+        to: CWETH_ADDRESS as `0x${string}`,
+        data: encodeFunctionData({
+          abi: CWETH_ABI,
+          functionName: 'getEncryptedBalance',
+          args: [address as `0x${string}`],
+        }),
+      });
+
+      if (result.data && result.data !== '0x') {
+        const balanceData = result.data as `0x${string}`;
+        setCWETHBalance(balanceData);
+      } else {
+        setCWETHBalance('0x0000000000000000000000000000000000000000000000000000000000000000');
+      }
+    } catch (error) {
+      console.error('Failed to fetch cWETH balance:', error);
+      setCWETHBalance(null);
+    } finally {
+      setIsLoadingBalance(false);
+    }
+  }, [address, CWETH_ADDRESS]);
+
+  // Fetch balance when address changes
+  useEffect(() => {
+    if (address && isConnected) {
+      fetchCWETHBalance();
+    } else {
+      setCWETHBalance(null);
+    }
+  }, [address, isConnected, fetchCWETHBalance]);
+
+  // Function to check if vault is operator
+  const checkOperatorStatus = useCallback(async () => {
+    if (!address || !CWETH_ADDRESS || !VAULT_ADDRESS) return;
+
+    try {
+      const { createPublicClient, http, encodeFunctionData } = await import('viem');
+      const { sepolia } = await import('wagmi/chains');
+      
+      const publicClient = createPublicClient({
+        chain: sepolia,
+        transport: http(process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/edae100994ea476180577c9218370251'),
+      });
+
+      const result = await publicClient.call({
+        to: CWETH_ADDRESS as `0x${string}`,
+        data: encodeFunctionData({
+          abi: CWETH_ABI,
+          functionName: 'isOperator',
+          args: [address as `0x${string}`, VAULT_ADDRESS as `0x${string}`],
+        }),
+      });
+
+      if (result.data && result.data !== '0x') {
+        const isOperator = result.data === '0x0000000000000000000000000000000000000000000000000000000000000001';
+        setIsApproved(isOperator);
+        console.log('Is vault operator:', isOperator);
+      }
+    } catch (error) {
+      console.error('Failed to check operator status:', error);
+      setIsApproved(false);
+    }
+  }, [address, CWETH_ADDRESS, VAULT_ADDRESS]);
+
+  // Check operator status when amount changes
+  useEffect(() => {
+    if (amount && parseFloat(amount) > 0) {
+      checkOperatorStatus();
+    }
+  }, [amount, checkOperatorStatus]);
 
   useEffect(() => {
-    // For ERC7984, cWETHBalance is encrypted (euint64), so we can't directly compare
-    // We'll assume user has cWETH if we get a non-empty encrypted response
-    if (amount && cWETHBalance) {
+    // Check if user has cWETH balance (encrypted data means they have some balance)
+    const hasCWETH = cWETHBalance && cWETHBalance !== '0x0000000000000000000000000000000000000000000000000000000000000000';
+    
+    if (amount && hasCWETH) {
       const amountWei = parseFloat(amount);
-      // Since cWETHBalance is encrypted, we'll allow any positive amount for now
-      // In a real implementation, we'd need to decrypt first
+      // Allow any positive amount since we can't decrypt to check exact balance
       setIsValidAmount(amountWei > 0);
     } else {
       setIsValidAmount(false);
@@ -120,45 +277,132 @@ export default function SupplyForm() {
   }, [amount, cWETHBalance]);
 
   useEffect(() => {
-    if (isSuccess) {
+    if (hash && !isApproved) {
+      // This is an approval transaction
+      setApprovalHash(hash);
+    }
+  }, [hash, isApproved]);
+
+  useEffect(() => {
+    if (isSuccess && approvalHash) {
+      // Operator permission was successful, now check operator status
+      console.log('Operator permission successful, checking status...');
+      setTimeout(() => {
+        checkOperatorStatus();
+      }, 2000); // Wait 2 seconds for the transaction to be mined
+    } else if (isSuccess && !approvalHash) {
+      // This is the supply transaction success
       setShowSuccess(true);
       setAmount('');
-      // Note: Balance refresh is handled automatically by the useSuppliedBalance hook
+      setApprovalHash(null);
+      setIsApproved(false);
       setTimeout(() => setShowSuccess(false), 5000);
     }
-  }, [isSuccess]);
+  }, [isSuccess, approvalHash, checkOperatorStatus]);
 
   const handleMaxAmount = () => {
-    // For ERC7984, we can't get the exact balance without decryption
-    // We'll set a reasonable default amount
-    setAmount('1.0');
+    // Since we can't decrypt the exact balance, we'll set a reasonable amount
+    // User can adjust as needed
+    const hasCWETH = cWETHBalance && cWETHBalance !== '0x0000000000000000000000000000000000000000000000000000000000000000';
+    if (hasCWETH) {
+      setAmount('0.1'); // Set a small amount as default
+    }
   };
 
   const handleSupply = async () => {
-    if (!isValidAmount || !amount || !address) return;
+    if (!isValidAmount || !amount || !address || !walletClient) return;
 
     try {
       const amountWei = BigInt(Math.floor(parseFloat(amount) * 1e18));
       
-      // Step 1: Approve vault to spend cWETH
-      await writeContract({
-        address: CWETH_ADDRESS as `0x${string}`,
-        abi: CWETH_ABI,
-        functionName: 'approve',
-        args: [VAULT_ADDRESS as `0x${string}`, amountWei],
-      });
-      
-      // Step 2: Call vault supply function with the amount
-      await writeContract({
-        address: VAULT_ADDRESS as `0x${string}`,
-        abi: VAULT_ABI,
-        functionName: 'supply',
-        args: [amountWei],
-      });
+      if (!isApproved) {
+        // Step 1: Set vault as operator (time-limited permission)
+        console.log('Step 1: Setting vault as operator...');
+        const duration = BigInt(3600); // 1 hour in seconds
+        writeContract({
+          address: CWETH_ADDRESS as `0x${string}`,
+          abi: CWETH_ABI,
+          functionName: 'setOperator',
+          args: [VAULT_ADDRESS as `0x${string}`, duration],
+        });
+        console.log('Operator permission initiated...');
+      } else {
+        // Step 2: Supply cWETH to the vault using encrypted inputs
+        console.log('Step 2: Creating encrypted input for confidential transfer...');
+        
+        try {
+          setIsEncrypting(true);
+          
+          // Get FHE instance (with mock fallback)
+          const fheInstance = await getFHEInstance();
+          console.log('FHE instance obtained');
+          
+          // Create encrypted input
+          const input = (fheInstance as any).createEncryptedInput(
+            CWETH_ADDRESS as `0x${string}`,
+            address as `0x${string}`
+          );
+          
+          // Add the amount as encrypted value
+          input.add64(amountWei);
+          console.log('Added amount to encrypted input');
+          
+          // Encrypt the input (this is CPU-intensive)
+          console.log('Encrypting input (this may take a moment)...');
+          const encryptedData = await input.encrypt();
+          console.log('Input encrypted successfully');
+          
+          // Extract the encrypted amount and proof
+          const encryptedAmount = encryptedData.handles[0];
+          const inputProof = encryptedData.inputProof;
+          
+          console.log('Step 3: Creating ethers contract and calling confidentialTransferFrom...');
+          
+          // Create ethers contract instance with signer
+          const provider = new ethers.BrowserProvider(walletClient);
+          const signer = await provider.getSigner();
+          const cwethContract = new ethers.Contract(
+            CWETH_ADDRESS,
+            CWETH_ABI,
+            signer
+          );
+          
+          // Call confidentialTransferFrom with encrypted amount and proof
+          const tx = await cwethContract.confidentialTransferFrom(
+            address, // from (user)
+            VAULT_ADDRESS, // to (vault)
+            encryptedAmount, // encrypted amount (handle)
+            inputProof // input proof
+          );
+          
+          console.log('Confidential transfer transaction sent:', tx.hash);
+          console.log('Waiting for transaction confirmation...');
+          
+          // Wait for transaction confirmation
+          const receipt = await tx.wait();
+          console.log('Transaction confirmed:', receipt?.status);
+          
+          // Trigger success state
+          setShowSuccess(true);
+          setAmount('');
+          setApprovalHash(null);
+          setIsApproved(false);
+          setTimeout(() => setShowSuccess(false), 5000);
+          
+        } catch (encryptError) {
+          console.error('Encryption/Transfer failed:', encryptError);
+          throw new Error('Failed to encrypt transfer amount or execute transfer');
+        } finally {
+          setIsEncrypting(false);
+        }
+      }
     } catch (err) {
-      console.error('Supply failed:', err);
+      console.error('Transaction failed:', err);
     }
   };
+
+  // For now, we'll just handle the approval transaction
+  // The user can manually call the supply function after approval
 
   const formatBalance = (balance: string) => {
     return parseFloat(balance).toFixed(4);
@@ -174,11 +418,11 @@ export default function SupplyForm() {
 
   return (
     <Box sx={{ maxWidth: 600, mx: 'auto' }}>
-      {showSuccess && (
-        <Alert severity="success" sx={{ mb: 2 }}>
-          Successfully supplied {amount} ETH to the confidential lending vault!
-        </Alert>
-      )}
+          {showSuccess && (
+            <Alert severity="success" sx={{ mb: 2 }}>
+              {isApproved ? 'Successfully supplied encrypted cWETH to the confidential lending vault!' : 'Successfully set vault as operator! Now click Supply again to complete the encrypted transfer.'}
+            </Alert>
+          )}
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
@@ -208,7 +452,7 @@ export default function SupplyForm() {
               <Button
                 size="small"
                 onClick={handleMaxAmount}
-                disabled={!balance}
+                disabled={!cWETHBalance || cWETHBalance === '0x0000000000000000000000000000000000000000000000000000000000000000'}
                 sx={{ ml: 1 }}
               >
                 MAX
@@ -216,7 +460,13 @@ export default function SupplyForm() {
             ),
           }}
           helperText={
-            cWETHBalance ? `cWETH Balance: Encrypted (use Decrypt button to view)` : 'Loading cWETH balance...'
+            isLoadingBalance 
+              ? 'Loading cWETH balance...'
+              : cWETHBalance && cWETHBalance !== '0x0000000000000000000000000000000000000000000000000000000000000000' 
+              ? `cWETH Balance: Available (encrypted)` 
+              : cWETHBalance === '0x0000000000000000000000000000000000000000000000000000000000000000'
+              ? `cWETH Balance: 0.0000 cWETH`
+              : 'No cWETH balance found'
           }
         />
       </Box>
@@ -251,21 +501,25 @@ export default function SupplyForm() {
         variant="contained"
         size="large"
         onClick={handleSupply}
-        disabled={!isValidAmount || isPending || isConfirming}
-        startIcon={
-          isPending || isConfirming ? (
-            <CircularProgress size={20} />
-          ) : (
-            <Send />
-          )
-        }
+            disabled={!isValidAmount || isPending || isConfirming || isEncrypting}
+            startIcon={
+              isPending || isConfirming || isEncrypting ? (
+                <CircularProgress size={20} />
+              ) : (
+                <Send />
+              )
+            }
         sx={{ py: 1.5 }}
       >
-                {isPending
-                  ? 'Confirming Transaction...'
-                  : isConfirming
-                  ? 'Processing...'
-                  : 'Supply cWETH'}
+            {isPending
+              ? 'Confirming Transaction...'
+              : isConfirming
+              ? 'Processing...'
+              : isEncrypting
+              ? 'Encrypting Amount...'
+              : isApproved
+              ? 'Supply cWETH (Encrypted)'
+              : 'Set Operator'}
       </Button>
 
       {hash && (

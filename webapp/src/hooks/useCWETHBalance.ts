@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useAccount, useReadContract, useSignMessage, useWalletClient } from 'wagmi';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useAccount, useSignMessage, useWalletClient } from 'wagmi';
 import { decryptUserData, getFHEInstance } from '../utils/fhe';
 import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
 import { ethers } from 'ethers';
 
-// Contract ABI for cWETH token - using the actual function from the contract
+// Simplified ABI for cWETH contract
 const CWETH_ABI = [
   {
     "inputs": [
@@ -34,170 +34,126 @@ export const useCWETHBalance = () => {
   const { signMessageAsync } = useSignMessage();
   const { data: walletClient } = useWalletClient();
   
-  console.log('useCWETHBalance: signMessageAsync available:', !!signMessageAsync);
-  console.log('useCWETHBalance: walletClient available:', !!walletClient);
-  
-  const [cWETHBalance, setCWETHBalance] = useState<string>('Encrypted');
-  const [isDecrypting, setIsDecrypting] = useState(false);
-  const [hasCWETH, setHasCWETH] = useState(false);
-  const [canDecrypt, setCanDecrypt] = useState(false);
-  const [decryptionSignature, setDecryptionSignature] = useState<string | null>(null);
-  
-  // Contract address
   const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
 
-  // State for encrypted balance
+  // Core state - minimal and stable
   const [encryptedBalance, setEncryptedBalance] = useState<string | null>(null);
-  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
+  const [cWETHBalance, setCWETHBalance] = useState<string>('••••••••');
+  const [hasCWETH, setHasCWETH] = useState<boolean>(false);
+  const [isDecrypting, setIsDecrypting] = useState<boolean>(false);
+  const [isDecrypted, setIsDecrypted] = useState<boolean>(false);
+  const [isLoadingBalance, setIsLoadingBalance] = useState<boolean>(false);
 
-  // Function to fetch encrypted balance using raw contract call
-  const fetchEncryptedBalance = useCallback(async () => {
+  // Refs for stable references
+  const decryptionSignatureRef = useRef<string | null>(null);
+  const lastEncryptedBalanceRef = useRef<string | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Simple balance fetch function - no dependencies
+  const fetchBalance = useCallback(async () => {
     if (!address || !CWETH_ADDRESS || CWETH_ADDRESS === '0x0000000000000000000000000000000000000000') {
       return;
     }
 
-    setIsLoadingBalance(true);
     try {
-      console.log('Fetching encrypted cWETH balance...');
+      setIsLoadingBalance(true);
       
+      // Create a simple public client for raw calls
       const { createPublicClient, http, encodeFunctionData } = await import('viem');
-      const { sepolia } = await import('viem/chains');
+      const { sepolia } = await import('wagmi/chains');
       
-      const publicClient = createPublicClient({
-        chain: sepolia,
-        transport: http(),
-      });
+      // Use your dedicated Infura RPC endpoint
+      const rpcUrls = [
+        process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/edae100994ea476180577c9218370251'
+      ];
       
-      // Encode the function call manually
-      const encodedData = encodeFunctionData({
-        abi: CWETH_ABI,
-        functionName: 'getEncryptedBalance',
-        args: [address as `0x${string}`],
-      });
+      let publicClient;
+      let lastError;
       
-      console.log('Encoded function data:', encodedData);
-      
-      // Make raw call to get encrypted data
-      const result = await publicClient.call({
-        to: CWETH_ADDRESS as `0x${string}`,
-        data: encodedData,
-      });
-      
-      console.log('Raw contract call result:', result);
-      
-      if (result.data && result.data !== '0x') {
-        // Check if the result is all zeros (no balance)
-        const isAllZeros = result.data === '0x0000000000000000000000000000000000000000000000000000000000000000';
-        
-        if (isAllZeros) {
-          console.log('✅ Contract call successful - User has 0 cWETH balance');
-          setEncryptedBalance('0x0000000000000000000000000000000000000000000000000000000000000000');
-        } else {
-          console.log('✅ Encrypted balance data found:', result.data);
-          setEncryptedBalance(result.data);
+      for (const rpcUrl of rpcUrls) {
+        try {
+          console.log(`🔄 Trying RPC: ${rpcUrl}`);
+          publicClient = createPublicClient({
+            chain: sepolia,
+            transport: http(rpcUrl),
+          });
+          
+          // Test the connection with a simple call
+          await publicClient.getBlockNumber();
+          console.log(`✅ Connected to ${rpcUrl}`);
+          break; // If successful, use this client
+        } catch (error) {
+          console.log(`❌ Failed to connect to ${rpcUrl}:`, (error as Error).message);
+          lastError = error;
+          continue;
         }
-      } else {
-        console.log('❌ No encrypted balance data (empty result)');
-        setEncryptedBalance(null);
       }
       
+      if (!publicClient) {
+        console.error('❌ All RPC endpoints failed, last error:', lastError);
+        throw new Error(`All RPC endpoints failed. Last error: ${lastError instanceof Error ? lastError.message : 'Unknown error'}`);
+      }
+
+      // Make raw contract call
+      const result = await publicClient.call({
+        to: CWETH_ADDRESS as `0x${string}`,
+        data: encodeFunctionData({
+          abi: CWETH_ABI,
+          functionName: 'getEncryptedBalance',
+          args: [address as `0x${string}`],
+        }),
+      });
+
+      if (result.data && result.data !== '0x') {
+        const balanceData = result.data as `0x${string}`;
+        setEncryptedBalance(balanceData);
+        
+        // Check if balance changed
+        if (balanceData !== lastEncryptedBalanceRef.current) {
+          lastEncryptedBalanceRef.current = balanceData;
+          
+          // Update hasCWETH based on balance
+          const isAllZeros = balanceData === '0x0000000000000000000000000000000000000000000000000000000000000000';
+          setHasCWETH(!isAllZeros);
+          console.log('🔍 Balance check:', { balanceData, isAllZeros, hasCWETH: !isAllZeros });
+          
+          // Auto-decrypt if we have a session (COMMENTED OUT FOR NOW)
+          // if (isDecrypted && decryptionSignatureRef.current && !isAllZeros) {
+          //   setTimeout(() => decryptBalance(), 100);
+          // }
+        }
+      } else {
+        console.log('🔍 No balance data or empty result:', result.data);
+        setEncryptedBalance('0x0000000000000000000000000000000000000000000000000000000000000000');
+        setHasCWETH(false);
+      }
     } catch (error) {
-      console.error('❌ Failed to fetch encrypted balance:', error);
+      console.error('Failed to fetch balance:', error);
       setEncryptedBalance(null);
+      setHasCWETH(false);
     } finally {
       setIsLoadingBalance(false);
     }
-  }, [address, CWETH_ADDRESS]);
+  }, [address, CWETH_ADDRESS, isDecrypted]);
 
-  // Fetch balance when address changes
-  useEffect(() => {
-    if (address && CWETH_ADDRESS && CWETH_ADDRESS !== '0x0000000000000000000000000000000000000000') {
-      fetchEncryptedBalance();
-    }
-  }, [fetchEncryptedBalance]);
-
-  // Debug contract call
-  useEffect(() => {
-    console.log('Contract call debug:');
-    console.log('- CWETH_ADDRESS:', CWETH_ADDRESS);
-    console.log('- address:', address);
-    console.log('- encryptedBalance:', encryptedBalance);
-    console.log('- isLoadingBalance:', isLoadingBalance);
-  }, [CWETH_ADDRESS, address, encryptedBalance, isLoadingBalance]);
-
-  // Check if user has any encrypted cWETH balance
-  useEffect(() => {
-    console.log('useCWETHBalance: encryptedBalance changed:', encryptedBalance);
-    if (encryptedBalance) {
-      // Check if the balance is all zeros (no balance)
-      const isAllZeros = encryptedBalance === '0x0000000000000000000000000000000000000000000000000000000000000000';
-      
-      if (isAllZeros) {
-        console.log('useCWETHBalance: User has 0 cWETH balance');
-        setHasCWETH(false);
-        setCWETHBalance('0.0000 cWETH');
-      } else {
-        // The encryptedBalance is a hex string (ciphertext) with actual encrypted data
-        console.log('useCWETHBalance: User has encrypted cWETH balance');
-        setHasCWETH(true);
-        setCWETHBalance('Encrypted');
-      }
-    } else {
-      console.log('useCWETHBalance: no encryptedBalance data');
-      setHasCWETH(false);
-      setCWETHBalance('Loading...');
-    }
-  }, [encryptedBalance]);
-
-  // Check if we have a stored decryption signature
-  useEffect(() => {
-    if (typeof window !== 'undefined' && address) {
-      const storedSignature = localStorage.getItem(`fhe_cweth_decryption_${address}`);
-      if (storedSignature) {
-        setDecryptionSignature(storedSignature);
-        setCanDecrypt(true);
-      }
-    }
-  }, [address]);
-
-  // Decrypt the cWETH balance using official Zama pattern
+  // Simple decrypt function - no dependencies
   const decryptBalance = useCallback(async () => {
-    console.log('=== STARTING cWETH DECRYPTION ===');
-    console.log('isConnected:', isConnected);
-    console.log('address:', address);
-    console.log('encryptedBalance:', encryptedBalance);
-    
-    if (!isConnected || !address) {
-      console.log('❌ Not connected or no address');
+    if (!isConnected || !address || !encryptedBalance || !walletClient) {
       return;
     }
 
-    if (!encryptedBalance) {
-      console.log('❌ No encrypted balance data');
-      return;
-    }
-
-    setIsDecrypting(true);
-    
     try {
-      console.log('Starting cWETH decryption process...');
-      console.log('Encrypted balance ciphertext:', encryptedBalance);
+      setIsDecrypting(true);
       
       // Get FHE instance
-      console.log('Getting FHE instance...');
       const fheInstance = await getFHEInstance();
-      console.log('✅ FHE instance created');
       
-      // Create a real signer from wallet client
-      if (!walletClient) {
-        throw new Error('Wallet client not available');
-      }
-      
+      // Create signer
       const provider = new ethers.BrowserProvider(walletClient);
       const signer = await provider.getSigner();
-      console.log('✅ Real signer created from wallet client');
-
-      console.log('Creating decryption signature using official Zama pattern...');
+      
+      // Load or create signature
       const sig = await FhevmDecryptionSignature.loadOrSign(
         fheInstance as any,
         [CWETH_ADDRESS],
@@ -205,15 +161,10 @@ export const useCWETHBalance = () => {
       );
 
       if (!sig) {
-        console.error('❌ Failed to create decryption signature');
-        setCWETHBalance('Decryption Failed');
-        setIsDecrypting(false);
-        return;
+        throw new Error('Failed to create decryption signature');
       }
 
-      console.log('✅ Decryption signature created');
-
-      console.log('Calling userDecrypt using official Zama pattern...');
+      // Decrypt balance
       const result = await fheInstance.userDecrypt(
         [{ handle: encryptedBalance, contractAddress: CWETH_ADDRESS }],
         sig.privateKey,
@@ -225,14 +176,10 @@ export const useCWETHBalance = () => {
         sig.durationDays
       );
 
-      console.log('✅ userDecrypt completed:', result);
-
       const decryptedValue = result[encryptedBalance];
       if (decryptedValue !== undefined) {
         let ethValue: number;
         if (typeof decryptedValue === 'bigint') {
-          // The contract stores values as euint32, so we need to interpret this correctly
-          // The decrypted value is in wei, but might be affected by uint32 overflow
           ethValue = Number(decryptedValue) / 1e18;
         } else if (typeof decryptedValue === 'string') {
           ethValue = Number(BigInt(decryptedValue)) / 1e18;
@@ -240,57 +187,120 @@ export const useCWETHBalance = () => {
           ethValue = 0;
         }
         
-        console.log('Raw decrypted value:', decryptedValue);
-        console.log('Converted ETH value:', ethValue);
-        console.log('Decrypted value in wei:', Number(decryptedValue));
-        
         setCWETHBalance(`${ethValue.toFixed(8)} cWETH`);
         setHasCWETH(ethValue > 0);
-        console.log('✅ Balance decrypted successfully:', ethValue, 'ETH');
-      } else {
-        console.log('❌ No decrypted value found');
-        setCWETHBalance('Decryption Failed');
-        setHasCWETH(false);
+        setIsDecrypted(true);
+        decryptionSignatureRef.current = sig.signature;
       }
-
     } catch (error) {
-      console.error('❌ cWETH Decryption failed:', error);
-      setCWETHBalance('Decryption Failed');
-      setHasCWETH(false);
+      console.error('Decryption failed:', error);
+      setCWETHBalance('••••••••');
     } finally {
       setIsDecrypting(false);
     }
-    
-    console.log('=== cWETH DECRYPTION COMPLETE ===');
-  }, [isConnected, address, encryptedBalance, CWETH_ADDRESS, walletClient]);
+  }, [isConnected, address, encryptedBalance, walletClient, CWETH_ADDRESS]);
 
-  // Clear decryption session on disconnect
+  // Simple polling - no dependencies (COMMENTED OUT FOR NOW)
+  // const startPolling = useCallback(() => {
+  //   if (pollingIntervalRef.current) {
+  //     clearInterval(pollingIntervalRef.current);
+  //   }
+  //   
+  //   pollingIntervalRef.current = setInterval(() => {
+  //     fetchBalance();
+  //   }, 5000); // Poll every 5 seconds
+  // }, [fetchBalance]);
+
+  // const stopPolling = useCallback(() => {
+  //   if (pollingIntervalRef.current) {
+  //     clearInterval(pollingIntervalRef.current);
+  //     pollingIntervalRef.current = null;
+  //   }
+  // }, []);
+
+  // Initialize when address changes
   useEffect(() => {
-    if (!isConnected && address) {
-      localStorage.removeItem(`fhe_cweth_decryption_${address}`);
-      setDecryptionSignature(null);
-      setCanDecrypt(false);
-      setCWETHBalance('Encrypted');
+    if (address && isConnected) {
+      fetchBalance();
+      // startPolling(); // COMMENTED OUT FOR NOW
+    } else {
+      // stopPolling(); // COMMENTED OUT FOR NOW
+      setEncryptedBalance(null);
+      setCWETHBalance('••••••••');
       setHasCWETH(false);
+      setIsDecrypted(false);
     }
-  }, [isConnected, address]);
+    
+    // return () => stopPolling(); // COMMENTED OUT FOR NOW
+  }, [address, isConnected, fetchBalance]); // Removed startPolling, stopPolling from dependencies
+
+  // Load stored signature (COMMENTED OUT FOR NOW - NO AUTO-DECRYPTION)
+  // useEffect(() => {
+  //   if (typeof window !== 'undefined' && address) {
+  //     const storedSignature = localStorage.getItem(`fhe_cweth_decryption_${address}`);
+  //     if (storedSignature) {
+  //       decryptionSignatureRef.current = storedSignature;
+  //       setIsDecrypted(true);
+  //     }
+  //   }
+  // }, [address]);
+
+  // Cleanup on unmount (COMMENTED OUT FOR NOW)
+  // useEffect(() => {
+  //   return () => {
+  //     stopPolling();
+  //     if (updateTimeoutRef.current) {
+  //       clearTimeout(updateTimeoutRef.current);
+  //     }
+  //   };
+  // }, [stopPolling]);
+
+  // Simple refresh function
+  const forceRefresh = useCallback(() => {
+    fetchBalance();
+  }, [fetchBalance]);
+
+  // Simple clear decryption
+  const clearDecryption = useCallback(() => {
+    if (address) {
+      localStorage.removeItem(`fhe_cweth_decryption_${address}`);
+      decryptionSignatureRef.current = null;
+      setIsDecrypted(false);
+      setCWETHBalance('••••••••');
+    }
+  }, [address]);
+
+  // Simple lock function
+  const lockBalance = useCallback(() => {
+    setIsDecrypted(false);
+    setCWETHBalance('••••••••');
+  }, []);
+
+  const canDecrypt = !!encryptedBalance && encryptedBalance !== '0x0000000000000000000000000000000000000000000000000000000000000000';
+  
+  // Debug logging
+  console.log('🔍 useCWETHBalance return values:', {
+    formattedBalance: cWETHBalance,
+    hasCWETH,
+    canDecrypt,
+    isDecrypted,
+    encryptedBalance,
+    isDecrypting,
+    isLoadingBalance
+  });
 
   return {
-    cWETHBalance,
     formattedBalance: cWETHBalance,
-    refetchCWETHBalance: fetchEncryptedBalance,
+    refetchCWETHBalance: fetchBalance,
     hasCWETH,
     canDecrypt,
     decryptBalance,
     isDecrypting,
     isLoadingBalance,
-    clearDecryption: () => {
-      if (address) {
-        localStorage.removeItem(`fhe_cweth_decryption_${address}`);
-        setDecryptionSignature(null);
-        setCanDecrypt(false);
-        setCWETHBalance('Encrypted');
-      }
-    }
+    isDecrypted,
+    isUpdating: isDecrypting || isLoadingBalance,
+    clearDecryption,
+    lockBalance,
+    forceRefresh,
   };
 };

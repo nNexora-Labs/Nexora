@@ -23,8 +23,9 @@ import {
   MenuItem,
   ListItemIcon,
   ListItemText,
+  IconButton,
 } from '@mui/material';
-import { AccountBalanceWallet, Security, TrendingUp, Extension, QrCode } from '@mui/icons-material';
+import { AccountBalanceWallet, Security, TrendingUp, Extension, QrCode, Lock, LockOpen } from '@mui/icons-material';
 import SupplyForm from './SupplyForm';
 import WithdrawForm from './WithdrawForm';
 import ETHToCWETHConverter from './ETHToCWETHConverter';
@@ -41,7 +42,16 @@ export default function Dashboard() {
     address: address,
   });
   const { suppliedBalance, isDecrypting: isDecryptingSupplied, hasSupplied, canDecrypt, decryptBalance, clearDecryption } = useSuppliedBalance();
-  const { formattedBalance: cWETHBalance, hasCWETH, canDecrypt: canDecryptCWETH, decryptBalance: decryptCWETHBalance, isDecrypting: isDecryptingCWETH } = useCWETHBalance();
+  const { formattedBalance: cWETHBalance, hasCWETH, canDecrypt: canDecryptCWETH, decryptBalance: decryptCWETHBalance, isDecrypting: isDecryptingCWETH, isDecrypted: isCWETHDecrypted, lockBalance: lockCWETHBalance } = useCWETHBalance();
+  
+  // Debug logging
+  console.log('🔍 Dashboard cWETH values:', { 
+    cWETHBalance, 
+    hasCWETH, 
+    canDecryptCWETH, 
+    isCWETHDecrypted, 
+    isDecryptingCWETH
+  });
 
   const [encryptedBalance, setEncryptedBalance] = useState<string>('Encrypted');
   const [isDecrypting, setIsDecrypting] = useState(false);
@@ -182,154 +192,37 @@ export default function Dashboard() {
                         />
                       )}
                     </Box>
-                    <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body1">
-                        cWETH Balance: {cWETHBalance}
-                      </Typography>
-                      {isDecryptingCWETH && (
-                        <Chip
-                          label="Decrypting..."
-                          size="small"
-                          color="primary"
-                          icon={<CircularProgress size={16} />}
-                        />
-                      )}
-                      {hasCWETH && cWETHBalance === 'Encrypted' && (
-                        <Chip
-                          label="Available"
-                          size="small"
-                          color="success"
-                        />
-                      )}
-                    </Box>
+        <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="body1" sx={{ fontFamily: 'monospace', fontSize: '1.1rem' }}>
+            cWETH Balance: {cWETHBalance}
+          </Typography>
+          {canDecryptCWETH && (
+            <IconButton
+              size="small"
+              onClick={isCWETHDecrypted ? lockCWETHBalance : decryptCWETHBalance}
+              disabled={isDecryptingCWETH}
+              sx={{ 
+                color: isCWETHDecrypted ? 'success.main' : 'primary.main',
+                '&:hover': {
+                  backgroundColor: isCWETHDecrypted ? 'success.light' : 'primary.light',
+                  color: 'white'
+                }
+              }}
+            >
+              {isDecryptingCWETH ? (
+                <CircularProgress size={20} />
+              ) : isCWETHDecrypted ? (
+                <LockOpen />
+              ) : (
+                <Lock />
+              )}
+            </IconButton>
+          )}
+        </Box>
                     
-                    {/* Debug info - remove this later */}
-                    <Box sx={{ mt: 1, p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
-                      <Typography variant="caption" color="text.secondary">
-                        Debug: hasCWETH={hasCWETH.toString()}, cWETHBalance="{cWETHBalance}", canDecrypt={canDecryptCWETH.toString()}
-                      </Typography>
-                    </Box>
+                    {/* Clean UI - removed debug info and test buttons */}
                     
-                    <Box sx={{ mt: 1 }}>
-                      {/* Simple test button */}
-                      <Button
-                        variant="contained"
-                        size="small"
-                        onClick={async () => {
-                          console.log('🧪 Test button clicked!');
-                          console.log('Wallet connected:', isConnected);
-                          console.log('Address:', address);
-                          console.log('signMessageAsync available:', !!signMessageAsync);
-                          
-                          // Test FHE instance creation
-                          try {
-                            console.log('Testing FHE instance creation...');
-                            const { getFHEInstance } = await import('../utils/fhe');
-                            const fheInstance = await getFHEInstance();
-                            console.log('✅ FHE instance created successfully:', !!fheInstance);
-                          } catch (error) {
-                            console.error('❌ FHE instance creation failed:', error);
-                          }
-                          
-                          // Test contract address
-                          const cwethAddress = process.env.NEXT_PUBLIC_CWETH_ADDRESS;
-                          console.log('cWETH Contract Address:', cwethAddress);
-                          
-                          // Test if we can read from the contract using raw call
-                          try {
-                            const { createPublicClient, http, encodeFunctionData, decodeFunctionResult } = await import('viem');
-                            const { sepolia } = await import('viem/chains');
-                            
-                            const publicClient = createPublicClient({
-                              chain: sepolia,
-                              transport: http(),
-                            });
-                            
-                            console.log('Testing raw contract call...');
-                            
-                            // Encode the function call manually
-                            const encodedData = encodeFunctionData({
-                              abi: [{
-                                "inputs": [{"internalType": "address", "name": "user", "type": "address"}],
-                                "name": "getEncryptedBalance",
-                                "outputs": [{"internalType": "euint32", "name": "", "type": "euint32"}],
-                                "stateMutability": "view",
-                                "type": "function"
-                              }],
-                              functionName: 'getEncryptedBalance',
-                              args: [address as `0x${string}`],
-                            });
-                            
-                            console.log('Encoded function data:', encodedData);
-                            
-                            // Make raw call to get encrypted data
-                            const result = await publicClient.call({
-                              to: cwethAddress as `0x${string}`,
-                              data: encodedData,
-                            });
-                            
-                            console.log('✅ Raw contract call successful:', result);
-                            console.log('Raw result data:', result.data);
-                            
-                            // The result.data contains the encrypted euint64 value
-                            if (result.data && result.data !== '0x') {
-                              console.log('✅ Encrypted balance data found:', result.data);
-                            } else {
-                              console.log('❌ No encrypted balance data (empty result)');
-                            }
-                            
-                          } catch (contractError) {
-                            console.error('❌ Contract call failed:', contractError);
-                          }
-                        }}
-                        sx={{ mr: 1, mb: 1 }}
-                      >
-                        Test Wallet Connection
-                      </Button>
-                      
-                      {/* Always show decrypt button for testing */}
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={() => {
-                          console.log('🔘 Decrypt button clicked!');
-                          decryptCWETHBalance();
-                        }}
-                        disabled={isDecryptingCWETH}
-                        startIcon={isDecryptingCWETH ? <CircularProgress size={16} /> : <Security />}
-                        sx={{ mr: 1 }}
-                      >
-                        {isDecryptingCWETH ? 'Decrypting...' : 'Decrypt cWETH Balance'}
-                      </Button>
-                      
-                      {/* Original conditional button */}
-                      {cWETHBalance === 'Encrypted' && hasCWETH && (
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          onClick={decryptCWETHBalance}
-                          disabled={isDecryptingCWETH}
-                          startIcon={isDecryptingCWETH ? <CircularProgress size={16} /> : <Security />}
-                        >
-                          {isDecryptingCWETH ? 'Decrypting...' : 'Decrypt cWETH Balance (Conditional)'}
-                        </Button>
-                      )}
-                      {canDecryptCWETH && cWETHBalance !== 'Encrypted' && (
-                        <Button
-                          variant="text"
-                          size="small"
-                          onClick={() => {
-                            if (address) {
-                              localStorage.removeItem(`fhe_cweth_decryption_${address}`);
-                              window.location.reload();
-                            }
-                          }}
-                          color="secondary"
-                        >
-                          Clear cWETH Decryption
-                        </Button>
-                      )}
-                    </Box>
+                    {/* Supplied Balance Display */}
                     <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Typography variant="body1">
                         Supplied: {suppliedBalance}

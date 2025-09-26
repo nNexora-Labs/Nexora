@@ -22,18 +22,21 @@ const config = createConfig({
     injected({
       target: 'coinbaseWallet',
     }),
-    walletConnect({
-      projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!,
-      metadata: {
-        name: 'Confidential Lending Protocol',
-        description: 'Fully encrypted lending protocol using Zama FHEVM',
-        url: 'https://confidential-lending.vercel.app',
-        icons: ['https://confidential-lending.vercel.app/icon.png'],
-      },
-    }),
+    // Only add WalletConnect if project ID is available
+    ...(process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID && process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID !== 'placeholder_project_id' ? [
+      walletConnect({
+        projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
+        metadata: {
+          name: 'Confidential Lending Protocol',
+          description: 'Fully encrypted lending protocol using Zama FHEVM',
+          url: 'https://confidential-lending.vercel.app',
+          icons: ['https://confidential-lending.vercel.app/icon.png'],
+        },
+      })
+    ] : []),
   ],
   transports: {
-    [sepolia.id]: http(),
+    [sepolia.id]: http(process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/edae100994ea476180577c9218370251'),
   },
 });
 

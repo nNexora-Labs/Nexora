@@ -42,9 +42,9 @@ export interface ConfidentialLendingVaultInterface extends Interface {
       | "getEncryptedTotalShares"
       | "getUtilizationRate"
       | "lastUpdateTime"
+      | "onConfidentialTransferReceived"
       | "owner"
       | "renounceOwnership"
-      | "supply"
       | "transferOwnership"
       | "withdraw"
   ): FunctionFragment;
@@ -118,14 +118,14 @@ export interface ConfidentialLendingVaultInterface extends Interface {
     functionFragment: "lastUpdateTime",
     values?: undefined
   ): string;
+  encodeFunctionData(
+    functionFragment: "onConfidentialTransferReceived",
+    values: [AddressLike, AddressLike, BytesLike, BytesLike]
+  ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "renounceOwnership",
     values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "supply",
-    values: [BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "transferOwnership",
@@ -194,12 +194,15 @@ export interface ConfidentialLendingVaultInterface extends Interface {
     functionFragment: "lastUpdateTime",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(
+    functionFragment: "onConfidentialTransferReceived",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "renounceOwnership",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "supply", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "transferOwnership",
     data: BytesLike
@@ -335,11 +338,20 @@ export interface ConfidentialLendingVault extends BaseContract {
 
   lastUpdateTime: TypedContractMethod<[], [bigint], "view">;
 
+  onConfidentialTransferReceived: TypedContractMethod<
+    [
+      operator: AddressLike,
+      from: AddressLike,
+      amount: BytesLike,
+      data: BytesLike
+    ],
+    [string],
+    "nonpayable"
+  >;
+
   owner: TypedContractMethod<[], [string], "view">;
 
   renounceOwnership: TypedContractMethod<[], [void], "nonpayable">;
-
-  supply: TypedContractMethod<[amount: BigNumberish], [void], "nonpayable">;
 
   transferOwnership: TypedContractMethod<
     [newOwner: AddressLike],
@@ -402,14 +414,23 @@ export interface ConfidentialLendingVault extends BaseContract {
     nameOrSignature: "lastUpdateTime"
   ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
+    nameOrSignature: "onConfidentialTransferReceived"
+  ): TypedContractMethod<
+    [
+      operator: AddressLike,
+      from: AddressLike,
+      amount: BytesLike,
+      data: BytesLike
+    ],
+    [string],
+    "nonpayable"
+  >;
+  getFunction(
     nameOrSignature: "owner"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "renounceOwnership"
   ): TypedContractMethod<[], [void], "nonpayable">;
-  getFunction(
-    nameOrSignature: "supply"
-  ): TypedContractMethod<[amount: BigNumberish], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "transferOwnership"
   ): TypedContractMethod<[newOwner: AddressLike], [void], "nonpayable">;

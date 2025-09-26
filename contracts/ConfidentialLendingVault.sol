@@ -2,8 +2,9 @@
 pragma solidity ^0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IConfidentialFungibleTokenReceiver} from "@openzeppelin/confidential-contracts/interfaces/IConfidentialFungibleTokenReceiver.sol";
 import {SepoliaConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
-import {FHE, euint32, externalEuint32} from "@fhevm/solidity/lib/FHE.sol";
+import {FHE, euint32, externalEuint32, euint64, ebool} from "@fhevm/solidity/lib/FHE.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -11,7 +12,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 /// @title Confidential Lending Vault
 /// @notice ERC-4626 analogous vault for confidential lending with encrypted balances
 /// @dev This contract implements supply-only functionality for Phase 1
-contract ConfidentialLendingVault is SepoliaConfig, Ownable, ReentrancyGuard {
+contract ConfidentialLendingVault is SepoliaConfig, Ownable, ReentrancyGuard, IConfidentialFungibleTokenReceiver {
     using SafeERC20 for IERC20;
 
     // Events - CONFIDENTIAL: No plaintext amounts exposed
@@ -25,9 +26,9 @@ contract ConfidentialLendingVault is SepoliaConfig, Ownable, ReentrancyGuard {
     uint256 public constant RATE_PRECISION = 1e18;
     
     // Encrypted state
-    mapping(address => euint32) private _encryptedShares;
-    euint32 private _encryptedTotalShares;
-    euint32 private _encryptedTotalAssets;
+    mapping(address => euint64) private _encryptedShares;
+    euint64 private _encryptedTotalShares;
+    euint64 private _encryptedTotalAssets;
     
     // Interest rate parameters (fixed for Phase 1)
     uint256 public currentRate = INITIAL_RATE;
@@ -43,53 +44,64 @@ contract ConfidentialLendingVault is SepoliaConfig, Ownable, ReentrancyGuard {
         lastUpdateTime = block.timestamp;
     }
 
-    /// @notice Supply cWETH to the vault
-    /// @dev Users supply cWETH tokens which get deposited into the vault
-    /// @dev CONFIDENTIAL: No plaintext amounts are exposed
-    function supply(uint256 amount) external nonReentrant {
-        require(amount > 0, "ConfidentialLendingVault: Cannot supply 0 cWETH");
+    /// @notice Handle incoming confidential transfers from cWETH
+    /// @dev This function is called when cWETH tokens are transferred to this vault
+    /// @param operator The address that initiated the transfer
+    /// @param from The address that sent the tokens
+    /// @param amount The encrypted amount transferred
+    /// @param data Additional data (unused)
+    /// @return ebool indicating if the transfer was accepted
+    function onConfidentialTransferReceived(
+        address operator,
+        address from,
+        euint64 amount,
+        bytes calldata data
+    ) external override nonReentrant returns (ebool) {
+        // Only accept transfers from the cWETH contract
+        require(msg.sender == address(asset), "ConfidentialLendingVault: Only cWETH transfers allowed");
         
-        // Transfer cWETH from user to this contract
-        require(asset.transferFrom(msg.sender, address(this), amount), "ConfidentialLendingVault: cWETH transfer failed");
-        
-        // Convert amount to encrypted value
-        euint32 encryptedAmount = FHE.asEuint32(uint32(amount));
+        // Use euint64 directly for internal calculations
+        // Note: In FHEVM, we work directly with encrypted values
+        euint64 encryptedAmount = amount;
         
         // Calculate shares based on current rate (encrypted)
         // For Phase 1, we'll use a simple 1:1 ratio
-        euint32 encryptedShares = encryptedAmount; // 1:1 ratio for now
+        euint64 encryptedShares = encryptedAmount; // 1:1 ratio for now
         
         // Update encrypted state
-        _encryptedShares[msg.sender] = FHE.add(_encryptedShares[msg.sender], encryptedShares);
+        _encryptedShares[from] = FHE.add(_encryptedShares[from], encryptedShares);
         _encryptedTotalShares = FHE.add(_encryptedTotalShares, encryptedShares);
         _encryptedTotalAssets = FHE.add(_encryptedTotalAssets, encryptedAmount);
         
         // Allow contract and user to access encrypted values
-        FHE.allowThis(_encryptedShares[msg.sender]);
-        FHE.allow(_encryptedShares[msg.sender], msg.sender);
+        FHE.allowThis(_encryptedShares[from]);
+        FHE.allow(_encryptedShares[from], from);
         FHE.allowThis(_encryptedTotalShares);
         FHE.allowThis(_encryptedTotalAssets);
         
         // Emit CONFIDENTIAL event (no amounts exposed)
-        emit ConfidentialSupply(msg.sender);
+        emit ConfidentialSupply(from);
+        
+        // Return true to accept the transfer
+        return FHE.asEbool(true);
     }
 
     /// @notice Get encrypted shares of a user
     /// @param user The user address
     /// @return The encrypted shares
-    function getEncryptedShares(address user) external view returns (euint32) {
+    function getEncryptedShares(address user) external view returns (euint64) {
         return _encryptedShares[user];
     }
 
     /// @notice Get encrypted total shares
     /// @return The encrypted total shares
-    function getEncryptedTotalShares() external view returns (euint32) {
+    function getEncryptedTotalShares() external view returns (euint64) {
         return _encryptedTotalShares;
     }
 
     /// @notice Get encrypted total assets
     /// @return The encrypted total assets
-    function getEncryptedTotalAssets() external view returns (euint32) {
+    function getEncryptedTotalAssets() external view returns (euint64) {
         return _encryptedTotalAssets;
     }
 
@@ -98,13 +110,13 @@ contract ConfidentialLendingVault is SepoliaConfig, Ownable, ReentrancyGuard {
     /// @dev CONFIDENTIAL: No plaintext amounts are exposed
     function withdraw() external nonReentrant {
         // Get user's encrypted shares
-        euint32 userShares = _encryptedShares[msg.sender];
+        euint64 userShares = _encryptedShares[msg.sender];
         
         // Check if user has any shares (this will be handled by FHEVM)
         // In a real implementation, we would check if shares > 0
         
         // Calculate withdrawal amount (1:1 ratio for Phase 1)
-        euint32 withdrawalAmount = userShares;
+        euint64 withdrawalAmount = userShares;
         
         // Update encrypted state
         _encryptedShares[msg.sender] = FHE.sub(_encryptedShares[msg.sender], userShares);

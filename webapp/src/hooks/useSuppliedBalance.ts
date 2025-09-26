@@ -114,7 +114,7 @@ export const useSuppliedBalance = () => {
         
         // Create EIP712 message for decryption permission
         const eip712 = fheInstance.createEIP712(
-          publicKey.publicKey,
+          Buffer.from(publicKey.publicKey).toString('hex'),
           [VAULT_ADDRESS], // Contract addresses that can access decryption
           Math.floor(Date.now() / 1000), // Start timestamp
           7 // Duration in days

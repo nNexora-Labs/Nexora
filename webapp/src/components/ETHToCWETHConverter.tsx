@@ -16,7 +16,7 @@ import {
   IconButton,
   Tooltip,
 } from '@mui/material';
-import { SwapHoriz, AccountBalance, Refresh } from '@mui/icons-material';
+import { SwapHoriz, AccountBalance } from '@mui/icons-material';
 
 // Contract ABI for ConfidentialWETH wrap function
 const CWETH_ABI = [
@@ -48,6 +48,10 @@ const CWETH_ABI = [
   }
 ] as const;
 
+interface ETHToCWETHConverterProps {
+  // Removed onTransactionSuccess prop - no automatic refresh
+}
+
 export default function ETHToCWETHConverter() {
   const { address, isConnected } = useAccount();
   const { data: balance } = useBalance({ address });
@@ -57,7 +61,6 @@ export default function ETHToCWETHConverter() {
   const [amount, setAmount] = useState('');
   const [isValidAmount, setIsValidAmount] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [cWETHBalance, setCWETHBalance] = useState<string>('Encrypted');
 
   // Contract address
   const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
@@ -77,6 +80,8 @@ export default function ETHToCWETHConverter() {
       setShowSuccess(true);
       setAmount('');
       setTimeout(() => setShowSuccess(false), 5000);
+      
+      // Removed automatic balance refresh callback
     }
   }, [isSuccess]);
 
@@ -223,29 +228,6 @@ export default function ETHToCWETHConverter() {
         </CardContent>
       </Card>
 
-      {/* cWETH Balance Display */}
-      <Card>
-        <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Box>
-              <Typography variant="subtitle2" gutterBottom>
-                Your cWETH Balance
-              </Typography>
-              <Typography variant="h6" color="primary">
-                {cWETHBalance}
-              </Typography>
-            </Box>
-            <Tooltip title="Refresh cWETH Balance">
-              <IconButton onClick={() => setCWETHBalance('Encrypted')}>
-                <Refresh />
-              </IconButton>
-            </Tooltip>
-          </Box>
-          <Typography variant="caption" color="text.secondary">
-            Your confidential WETH balance is encrypted and private
-          </Typography>
-        </CardContent>
-      </Card>
     </Box>
   );
 }
