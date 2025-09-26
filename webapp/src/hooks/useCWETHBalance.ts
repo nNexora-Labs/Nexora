@@ -19,9 +19,9 @@ const CWETH_ABI = [
     "name": "getEncryptedBalance",
     "outputs": [
       {
-        "internalType": "euint32",
+        "internalType": "euint64",
         "name": "",
-        "type": "euint32"
+        "type": "euint64"
       }
     ],
     "stateMutability": "view",
@@ -231,13 +231,20 @@ export const useCWETHBalance = () => {
       if (decryptedValue !== undefined) {
         let ethValue: number;
         if (typeof decryptedValue === 'bigint') {
+          // The contract stores values as euint32, so we need to interpret this correctly
+          // The decrypted value is in wei, but might be affected by uint32 overflow
           ethValue = Number(decryptedValue) / 1e18;
         } else if (typeof decryptedValue === 'string') {
           ethValue = Number(BigInt(decryptedValue)) / 1e18;
         } else {
           ethValue = 0;
         }
-        setCWETHBalance(`${ethValue.toFixed(4)} cWETH`);
+        
+        console.log('Raw decrypted value:', decryptedValue);
+        console.log('Converted ETH value:', ethValue);
+        console.log('Decrypted value in wei:', Number(decryptedValue));
+        
+        setCWETHBalance(`${ethValue.toFixed(8)} cWETH`);
         setHasCWETH(ethValue > 0);
         console.log('✅ Balance decrypted successfully:', ethValue, 'ETH');
       } else {

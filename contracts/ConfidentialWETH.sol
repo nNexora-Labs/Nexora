@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {ConfidentialFungibleToken} from "@openzeppelin/confidential-contracts/token/ConfidentialFungibleToken.sol";
 import {SepoliaConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
-import {FHE, euint32, externalEuint32} from "@fhevm/solidity/lib/FHE.sol";
+import {FHE, euint32, euint64, externalEuint32} from "@fhevm/solidity/lib/FHE.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @title Confidential WETH (cWETH)
@@ -17,10 +17,10 @@ contract ConfidentialWETH is ConfidentialFungibleToken, SepoliaConfig, Ownable {
     event ConfidentialUnwrap(address indexed user);
 
     // Mapping to store encrypted balances
-    mapping(address => euint32) private _encryptedBalances;
+    mapping(address => euint64) private _encryptedBalances;
     
     // Total supply tracking (encrypted)
-    euint32 private _totalSupply;
+    euint64 private _totalSupply;
 
     constructor() ConfidentialFungibleToken("Confidential Wrapped Ether", "cWETH", "https://api.example.com/metadata/") Ownable(msg.sender) {}
 
@@ -31,7 +31,7 @@ contract ConfidentialWETH is ConfidentialFungibleToken, SepoliaConfig, Ownable {
         require(msg.value > 0, "ConfidentialWETH: Cannot wrap 0 ETH");
         
         // Convert ETH amount to encrypted value
-        euint32 encryptedAmount = FHE.asEuint32(uint32(msg.value));
+        euint64 encryptedAmount = FHE.asEuint64(uint64(msg.value));
         
         // Update encrypted balance
         _encryptedBalances[msg.sender] = FHE.add(_encryptedBalances[msg.sender], encryptedAmount);
@@ -51,13 +51,13 @@ contract ConfidentialWETH is ConfidentialFungibleToken, SepoliaConfig, Ownable {
     /// @notice Get encrypted balance of a user
     /// @param user The user address
     /// @return The encrypted balance
-    function getEncryptedBalance(address user) external view returns (euint32) {
+    function getEncryptedBalance(address user) external view returns (euint64) {
         return _encryptedBalances[user];
     }
 
     /// @notice Get encrypted total supply
     /// @return The encrypted total supply
-    function getEncryptedTotalSupply() external view returns (euint32) {
+    function getEncryptedTotalSupply() external view returns (euint64) {
         return _totalSupply;
     }
 
