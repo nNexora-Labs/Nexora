@@ -46,14 +46,15 @@ export interface ConfidentialLendingVaultInterface extends Interface {
       | "renounceOwnership"
       | "supply"
       | "transferOwnership"
+      | "withdraw"
   ): FunctionFragment;
 
   getEvent(
     nameOrSignatureOrTopic:
+      | "ConfidentialSupply"
+      | "ConfidentialWithdraw"
       | "InterestAccrued"
       | "OwnershipTransferred"
-      | "Supply"
-      | "Withdraw"
   ): EventFragment;
 
   encodeFunctionData(
@@ -127,6 +128,7 @@ export interface ConfidentialLendingVaultInterface extends Interface {
     functionFragment: "transferOwnership",
     values: [AddressLike]
   ): string;
+  encodeFunctionData(functionFragment: "withdraw", values?: undefined): string;
 
   decodeFunctionResult(
     functionFragment: "ETH_PRICE_USDC",
@@ -199,13 +201,37 @@ export interface ConfidentialLendingVaultInterface extends Interface {
     functionFragment: "transferOwnership",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "withdraw", data: BytesLike): Result;
+}
+
+export namespace ConfidentialSupplyEvent {
+  export type InputTuple = [user: AddressLike];
+  export type OutputTuple = [user: string];
+  export interface OutputObject {
+    user: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace ConfidentialWithdrawEvent {
+  export type InputTuple = [user: AddressLike];
+  export type OutputTuple = [user: string];
+  export interface OutputObject {
+    user: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
 }
 
 export namespace InterestAccruedEvent {
-  export type InputTuple = [newRate: BigNumberish, timestamp: BigNumberish];
-  export type OutputTuple = [newRate: bigint, timestamp: bigint];
+  export type InputTuple = [timestamp: BigNumberish];
+  export type OutputTuple = [timestamp: bigint];
   export interface OutputObject {
-    newRate: bigint;
     timestamp: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
@@ -220,42 +246,6 @@ export namespace OwnershipTransferredEvent {
   export interface OutputObject {
     previousOwner: string;
     newOwner: string;
-  }
-  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
-  export type Filter = TypedDeferredTopicFilter<Event>;
-  export type Log = TypedEventLog<Event>;
-  export type LogDescription = TypedLogDescription<Event>;
-}
-
-export namespace SupplyEvent {
-  export type InputTuple = [
-    user: AddressLike,
-    amount: BigNumberish,
-    shares: BigNumberish
-  ];
-  export type OutputTuple = [user: string, amount: bigint, shares: bigint];
-  export interface OutputObject {
-    user: string;
-    amount: bigint;
-    shares: bigint;
-  }
-  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
-  export type Filter = TypedDeferredTopicFilter<Event>;
-  export type Log = TypedEventLog<Event>;
-  export type LogDescription = TypedLogDescription<Event>;
-}
-
-export namespace WithdrawEvent {
-  export type InputTuple = [
-    user: AddressLike,
-    amount: BigNumberish,
-    shares: BigNumberish
-  ];
-  export type OutputTuple = [user: string, amount: bigint, shares: bigint];
-  export interface OutputObject {
-    user: string;
-    amount: bigint;
-    shares: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -354,6 +344,8 @@ export interface ConfidentialLendingVault extends BaseContract {
     "nonpayable"
   >;
 
+  withdraw: TypedContractMethod<[], [void], "nonpayable">;
+
   getFunction<T extends ContractMethod = ContractMethod>(
     key: string | FunctionFragment
   ): T;
@@ -418,7 +410,24 @@ export interface ConfidentialLendingVault extends BaseContract {
   getFunction(
     nameOrSignature: "transferOwnership"
   ): TypedContractMethod<[newOwner: AddressLike], [void], "nonpayable">;
+  getFunction(
+    nameOrSignature: "withdraw"
+  ): TypedContractMethod<[], [void], "nonpayable">;
 
+  getEvent(
+    key: "ConfidentialSupply"
+  ): TypedContractEvent<
+    ConfidentialSupplyEvent.InputTuple,
+    ConfidentialSupplyEvent.OutputTuple,
+    ConfidentialSupplyEvent.OutputObject
+  >;
+  getEvent(
+    key: "ConfidentialWithdraw"
+  ): TypedContractEvent<
+    ConfidentialWithdrawEvent.InputTuple,
+    ConfidentialWithdrawEvent.OutputTuple,
+    ConfidentialWithdrawEvent.OutputObject
+  >;
   getEvent(
     key: "InterestAccrued"
   ): TypedContractEvent<
@@ -433,23 +442,31 @@ export interface ConfidentialLendingVault extends BaseContract {
     OwnershipTransferredEvent.OutputTuple,
     OwnershipTransferredEvent.OutputObject
   >;
-  getEvent(
-    key: "Supply"
-  ): TypedContractEvent<
-    SupplyEvent.InputTuple,
-    SupplyEvent.OutputTuple,
-    SupplyEvent.OutputObject
-  >;
-  getEvent(
-    key: "Withdraw"
-  ): TypedContractEvent<
-    WithdrawEvent.InputTuple,
-    WithdrawEvent.OutputTuple,
-    WithdrawEvent.OutputObject
-  >;
 
   filters: {
-    "InterestAccrued(uint256,uint256)": TypedContractEvent<
+    "ConfidentialSupply(address)": TypedContractEvent<
+      ConfidentialSupplyEvent.InputTuple,
+      ConfidentialSupplyEvent.OutputTuple,
+      ConfidentialSupplyEvent.OutputObject
+    >;
+    ConfidentialSupply: TypedContractEvent<
+      ConfidentialSupplyEvent.InputTuple,
+      ConfidentialSupplyEvent.OutputTuple,
+      ConfidentialSupplyEvent.OutputObject
+    >;
+
+    "ConfidentialWithdraw(address)": TypedContractEvent<
+      ConfidentialWithdrawEvent.InputTuple,
+      ConfidentialWithdrawEvent.OutputTuple,
+      ConfidentialWithdrawEvent.OutputObject
+    >;
+    ConfidentialWithdraw: TypedContractEvent<
+      ConfidentialWithdrawEvent.InputTuple,
+      ConfidentialWithdrawEvent.OutputTuple,
+      ConfidentialWithdrawEvent.OutputObject
+    >;
+
+    "InterestAccrued(uint256)": TypedContractEvent<
       InterestAccruedEvent.InputTuple,
       InterestAccruedEvent.OutputTuple,
       InterestAccruedEvent.OutputObject
@@ -469,28 +486,6 @@ export interface ConfidentialLendingVault extends BaseContract {
       OwnershipTransferredEvent.InputTuple,
       OwnershipTransferredEvent.OutputTuple,
       OwnershipTransferredEvent.OutputObject
-    >;
-
-    "Supply(address,uint256,uint256)": TypedContractEvent<
-      SupplyEvent.InputTuple,
-      SupplyEvent.OutputTuple,
-      SupplyEvent.OutputObject
-    >;
-    Supply: TypedContractEvent<
-      SupplyEvent.InputTuple,
-      SupplyEvent.OutputTuple,
-      SupplyEvent.OutputObject
-    >;
-
-    "Withdraw(address,uint256,uint256)": TypedContractEvent<
-      WithdrawEvent.InputTuple,
-      WithdrawEvent.OutputTuple,
-      WithdrawEvent.OutputObject
-    >;
-    Withdraw: TypedContractEvent<
-      WithdrawEvent.InputTuple,
-      WithdrawEvent.OutputTuple,
-      WithdrawEvent.OutputObject
     >;
   };
 }

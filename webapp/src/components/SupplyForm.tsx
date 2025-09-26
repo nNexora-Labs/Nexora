@@ -17,7 +17,7 @@ import {
 import { Send, AccountBalance } from '@mui/icons-material';
 import { encryptAndRegister } from '../utils/fhe';
 
-// Contract ABI (simplified for this example)
+// Contract ABI for supplying cWETH to the vault
 const VAULT_ABI = [
   {
     "inputs": [],
@@ -112,20 +112,20 @@ export default function SupplyForm() {
         </Alert>
       )}
 
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Supply ETH to Confidential Lending Vault
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Your ETH will be wrapped to cWETH and deposited into the confidential lending vault.
-          All balances and transactions are encrypted using FHE technology.
-        </Typography>
-      </Box>
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="h6" gutterBottom>
+                  Supply cWETH to Confidential Lending Vault
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Supply your confidential WETH (cWETH) tokens to the lending vault.
+                  All balances and transactions are encrypted using FHE technology.
+                </Typography>
+              </Box>
 
       <Box sx={{ mb: 3 }}>
         <TextField
           fullWidth
-          label="Amount (ETH)"
+          label="Amount (cWETH)"
           type="number"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
@@ -153,10 +153,10 @@ export default function SupplyForm() {
         <Typography variant="subtitle2" gutterBottom>
           Transaction Summary
         </Typography>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="body2">Amount to Supply:</Typography>
-          <Typography variant="body2">{amount || '0'} ETH</Typography>
-        </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                  <Typography variant="body2">Amount to Supply:</Typography>
+                  <Typography variant="body2">{amount || '0'} cWETH</Typography>
+                </Box>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
           <Typography variant="body2">Interest Rate:</Typography>
           <Typography variant="body2">5% APY</Typography>
@@ -187,11 +187,11 @@ export default function SupplyForm() {
         }
         sx={{ py: 1.5 }}
       >
-        {isPending
-          ? 'Confirming Transaction...'
-          : isConfirming
-          ? 'Processing...'
-          : 'Supply ETH'}
+                {isPending
+                  ? 'Confirming Transaction...'
+                  : isConfirming
+                  ? 'Processing...'
+                  : 'Supply cWETH'}
       </Button>
 
       {hash && (

@@ -56,14 +56,14 @@ export interface ConfidentialWETHInterface extends Interface {
   getEvent(
     nameOrSignatureOrTopic:
       | "AmountDisclosed"
+      | "ConfidentialDeposit"
       | "ConfidentialTransfer"
+      | "ConfidentialUnwrap"
+      | "ConfidentialWithdrawal"
+      | "ConfidentialWrap"
       | "DecryptionFulfilled"
-      | "Deposit"
       | "OperatorSet"
       | "OwnershipTransferred"
-      | "Unwrap"
-      | "Withdrawal"
-      | "Wrap"
   ): EventFragment;
 
   encodeFunctionData(
@@ -243,6 +243,18 @@ export namespace AmountDisclosedEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
+export namespace ConfidentialDepositEvent {
+  export type InputTuple = [user: AddressLike];
+  export type OutputTuple = [user: string];
+  export interface OutputObject {
+    user: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
 export namespace ConfidentialTransferEvent {
   export type InputTuple = [
     from: AddressLike,
@@ -261,11 +273,11 @@ export namespace ConfidentialTransferEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
-export namespace DecryptionFulfilledEvent {
-  export type InputTuple = [requestID: BigNumberish];
-  export type OutputTuple = [requestID: bigint];
+export namespace ConfidentialUnwrapEvent {
+  export type InputTuple = [user: AddressLike];
+  export type OutputTuple = [user: string];
   export interface OutputObject {
-    requestID: bigint;
+    user: string;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -273,12 +285,35 @@ export namespace DecryptionFulfilledEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
-export namespace DepositEvent {
-  export type InputTuple = [user: AddressLike, amount: BigNumberish];
-  export type OutputTuple = [user: string, amount: bigint];
+export namespace ConfidentialWithdrawalEvent {
+  export type InputTuple = [user: AddressLike];
+  export type OutputTuple = [user: string];
   export interface OutputObject {
     user: string;
-    amount: bigint;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace ConfidentialWrapEvent {
+  export type InputTuple = [user: AddressLike];
+  export type OutputTuple = [user: string];
+  export interface OutputObject {
+    user: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
+export namespace DecryptionFulfilledEvent {
+  export type InputTuple = [requestID: BigNumberish];
+  export type OutputTuple = [requestID: bigint];
+  export interface OutputObject {
+    requestID: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -310,45 +345,6 @@ export namespace OwnershipTransferredEvent {
   export interface OutputObject {
     previousOwner: string;
     newOwner: string;
-  }
-  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
-  export type Filter = TypedDeferredTopicFilter<Event>;
-  export type Log = TypedEventLog<Event>;
-  export type LogDescription = TypedLogDescription<Event>;
-}
-
-export namespace UnwrapEvent {
-  export type InputTuple = [user: AddressLike, amount: BigNumberish];
-  export type OutputTuple = [user: string, amount: bigint];
-  export interface OutputObject {
-    user: string;
-    amount: bigint;
-  }
-  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
-  export type Filter = TypedDeferredTopicFilter<Event>;
-  export type Log = TypedEventLog<Event>;
-  export type LogDescription = TypedLogDescription<Event>;
-}
-
-export namespace WithdrawalEvent {
-  export type InputTuple = [user: AddressLike, amount: BigNumberish];
-  export type OutputTuple = [user: string, amount: bigint];
-  export interface OutputObject {
-    user: string;
-    amount: bigint;
-  }
-  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
-  export type Filter = TypedDeferredTopicFilter<Event>;
-  export type Log = TypedEventLog<Event>;
-  export type LogDescription = TypedLogDescription<Event>;
-}
-
-export namespace WrapEvent {
-  export type InputTuple = [user: AddressLike, amount: BigNumberish];
-  export type OutputTuple = [user: string, amount: bigint];
-  export interface OutputObject {
-    user: string;
-    amount: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -673,6 +669,13 @@ export interface ConfidentialWETH extends BaseContract {
     AmountDisclosedEvent.OutputObject
   >;
   getEvent(
+    key: "ConfidentialDeposit"
+  ): TypedContractEvent<
+    ConfidentialDepositEvent.InputTuple,
+    ConfidentialDepositEvent.OutputTuple,
+    ConfidentialDepositEvent.OutputObject
+  >;
+  getEvent(
     key: "ConfidentialTransfer"
   ): TypedContractEvent<
     ConfidentialTransferEvent.InputTuple,
@@ -680,18 +683,32 @@ export interface ConfidentialWETH extends BaseContract {
     ConfidentialTransferEvent.OutputObject
   >;
   getEvent(
+    key: "ConfidentialUnwrap"
+  ): TypedContractEvent<
+    ConfidentialUnwrapEvent.InputTuple,
+    ConfidentialUnwrapEvent.OutputTuple,
+    ConfidentialUnwrapEvent.OutputObject
+  >;
+  getEvent(
+    key: "ConfidentialWithdrawal"
+  ): TypedContractEvent<
+    ConfidentialWithdrawalEvent.InputTuple,
+    ConfidentialWithdrawalEvent.OutputTuple,
+    ConfidentialWithdrawalEvent.OutputObject
+  >;
+  getEvent(
+    key: "ConfidentialWrap"
+  ): TypedContractEvent<
+    ConfidentialWrapEvent.InputTuple,
+    ConfidentialWrapEvent.OutputTuple,
+    ConfidentialWrapEvent.OutputObject
+  >;
+  getEvent(
     key: "DecryptionFulfilled"
   ): TypedContractEvent<
     DecryptionFulfilledEvent.InputTuple,
     DecryptionFulfilledEvent.OutputTuple,
     DecryptionFulfilledEvent.OutputObject
-  >;
-  getEvent(
-    key: "Deposit"
-  ): TypedContractEvent<
-    DepositEvent.InputTuple,
-    DepositEvent.OutputTuple,
-    DepositEvent.OutputObject
   >;
   getEvent(
     key: "OperatorSet"
@@ -707,27 +724,6 @@ export interface ConfidentialWETH extends BaseContract {
     OwnershipTransferredEvent.OutputTuple,
     OwnershipTransferredEvent.OutputObject
   >;
-  getEvent(
-    key: "Unwrap"
-  ): TypedContractEvent<
-    UnwrapEvent.InputTuple,
-    UnwrapEvent.OutputTuple,
-    UnwrapEvent.OutputObject
-  >;
-  getEvent(
-    key: "Withdrawal"
-  ): TypedContractEvent<
-    WithdrawalEvent.InputTuple,
-    WithdrawalEvent.OutputTuple,
-    WithdrawalEvent.OutputObject
-  >;
-  getEvent(
-    key: "Wrap"
-  ): TypedContractEvent<
-    WrapEvent.InputTuple,
-    WrapEvent.OutputTuple,
-    WrapEvent.OutputObject
-  >;
 
   filters: {
     "AmountDisclosed(bytes32,uint64)": TypedContractEvent<
@@ -741,6 +737,17 @@ export interface ConfidentialWETH extends BaseContract {
       AmountDisclosedEvent.OutputObject
     >;
 
+    "ConfidentialDeposit(address)": TypedContractEvent<
+      ConfidentialDepositEvent.InputTuple,
+      ConfidentialDepositEvent.OutputTuple,
+      ConfidentialDepositEvent.OutputObject
+    >;
+    ConfidentialDeposit: TypedContractEvent<
+      ConfidentialDepositEvent.InputTuple,
+      ConfidentialDepositEvent.OutputTuple,
+      ConfidentialDepositEvent.OutputObject
+    >;
+
     "ConfidentialTransfer(address,address,bytes32)": TypedContractEvent<
       ConfidentialTransferEvent.InputTuple,
       ConfidentialTransferEvent.OutputTuple,
@@ -752,6 +759,39 @@ export interface ConfidentialWETH extends BaseContract {
       ConfidentialTransferEvent.OutputObject
     >;
 
+    "ConfidentialUnwrap(address)": TypedContractEvent<
+      ConfidentialUnwrapEvent.InputTuple,
+      ConfidentialUnwrapEvent.OutputTuple,
+      ConfidentialUnwrapEvent.OutputObject
+    >;
+    ConfidentialUnwrap: TypedContractEvent<
+      ConfidentialUnwrapEvent.InputTuple,
+      ConfidentialUnwrapEvent.OutputTuple,
+      ConfidentialUnwrapEvent.OutputObject
+    >;
+
+    "ConfidentialWithdrawal(address)": TypedContractEvent<
+      ConfidentialWithdrawalEvent.InputTuple,
+      ConfidentialWithdrawalEvent.OutputTuple,
+      ConfidentialWithdrawalEvent.OutputObject
+    >;
+    ConfidentialWithdrawal: TypedContractEvent<
+      ConfidentialWithdrawalEvent.InputTuple,
+      ConfidentialWithdrawalEvent.OutputTuple,
+      ConfidentialWithdrawalEvent.OutputObject
+    >;
+
+    "ConfidentialWrap(address)": TypedContractEvent<
+      ConfidentialWrapEvent.InputTuple,
+      ConfidentialWrapEvent.OutputTuple,
+      ConfidentialWrapEvent.OutputObject
+    >;
+    ConfidentialWrap: TypedContractEvent<
+      ConfidentialWrapEvent.InputTuple,
+      ConfidentialWrapEvent.OutputTuple,
+      ConfidentialWrapEvent.OutputObject
+    >;
+
     "DecryptionFulfilled(uint256)": TypedContractEvent<
       DecryptionFulfilledEvent.InputTuple,
       DecryptionFulfilledEvent.OutputTuple,
@@ -761,17 +801,6 @@ export interface ConfidentialWETH extends BaseContract {
       DecryptionFulfilledEvent.InputTuple,
       DecryptionFulfilledEvent.OutputTuple,
       DecryptionFulfilledEvent.OutputObject
-    >;
-
-    "Deposit(address,uint256)": TypedContractEvent<
-      DepositEvent.InputTuple,
-      DepositEvent.OutputTuple,
-      DepositEvent.OutputObject
-    >;
-    Deposit: TypedContractEvent<
-      DepositEvent.InputTuple,
-      DepositEvent.OutputTuple,
-      DepositEvent.OutputObject
     >;
 
     "OperatorSet(address,address,uint48)": TypedContractEvent<
@@ -794,39 +823,6 @@ export interface ConfidentialWETH extends BaseContract {
       OwnershipTransferredEvent.InputTuple,
       OwnershipTransferredEvent.OutputTuple,
       OwnershipTransferredEvent.OutputObject
-    >;
-
-    "Unwrap(address,uint256)": TypedContractEvent<
-      UnwrapEvent.InputTuple,
-      UnwrapEvent.OutputTuple,
-      UnwrapEvent.OutputObject
-    >;
-    Unwrap: TypedContractEvent<
-      UnwrapEvent.InputTuple,
-      UnwrapEvent.OutputTuple,
-      UnwrapEvent.OutputObject
-    >;
-
-    "Withdrawal(address,uint256)": TypedContractEvent<
-      WithdrawalEvent.InputTuple,
-      WithdrawalEvent.OutputTuple,
-      WithdrawalEvent.OutputObject
-    >;
-    Withdrawal: TypedContractEvent<
-      WithdrawalEvent.InputTuple,
-      WithdrawalEvent.OutputTuple,
-      WithdrawalEvent.OutputObject
-    >;
-
-    "Wrap(address,uint256)": TypedContractEvent<
-      WrapEvent.InputTuple,
-      WrapEvent.OutputTuple,
-      WrapEvent.OutputObject
-    >;
-    Wrap: TypedContractEvent<
-      WrapEvent.InputTuple,
-      WrapEvent.OutputTuple,
-      WrapEvent.OutputObject
     >;
   };
 }

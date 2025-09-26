@@ -18,22 +18,11 @@ import { Send, AccountBalance } from '@mui/icons-material';
 import { encryptAndRegister } from '../utils/fhe';
 import { useSuppliedBalance } from '../hooks/useSuppliedBalance';
 
-// Contract ABI for withdraw function (assuming it exists)
+// Contract ABI for withdraw function
 const VAULT_ABI = [
   {
-    "inputs": [
-      {
-        "internalType": "externalEuint32",
-        "name": "encryptedShares",
-        "type": "externalEuint32"
-      },
-      {
-        "internalType": "bytes",
-        "name": "proof",
-        "type": "bytes"
-      }
-    ],
-    "name": "withdrawEncrypted",
+    "inputs": [],
+    "name": "withdraw",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -92,12 +81,11 @@ export default function WithdrawForm() {
         amountInWei
       );
 
-      // Call the contract's withdrawEncrypted function
+      // Call the contract's withdraw function
       await writeContract({
         address: VAULT_ADDRESS as `0x${string}`,
         abi: VAULT_ABI,
-        functionName: 'withdrawEncrypted',
-        args: [ciphertexts.handles[0], ciphertexts.inputProof],
+        functionName: 'withdraw',
       });
     } catch (err) {
       console.error('Withdraw failed:', err);
@@ -107,7 +95,7 @@ export default function WithdrawForm() {
   if (!isConnected) {
     return (
       <Alert severity="info">
-        Please connect your wallet to withdraw assets from the confidential lending vault.
+        Please connect your wallet to withdraw ETH from the confidential lending vault.
       </Alert>
     );
   }

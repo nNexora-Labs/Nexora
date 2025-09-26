@@ -26,6 +26,7 @@ import {
 import { AccountBalanceWallet, Security, TrendingUp, Extension, QrCode } from '@mui/icons-material';
 import SupplyForm from './SupplyForm';
 import WithdrawForm from './WithdrawForm';
+import ETHToCWETHConverter from './ETHToCWETHConverter';
 
 export default function Dashboard() {
   const { address, isConnected } = useAccount();
@@ -38,7 +39,7 @@ export default function Dashboard() {
 
   const [encryptedBalance, setEncryptedBalance] = useState<string>('Encrypted');
   const [isDecrypting, setIsDecrypting] = useState(false);
-  const [activeTab, setActiveTab] = useState<'supply' | 'withdraw'>('supply');
+  const [activeTab, setActiveTab] = useState<'convert' | 'supply' | 'withdraw'>('convert');
   const [walletMenuAnchor, setWalletMenuAnchor] = useState<null | HTMLElement>(null);
 
   // Handle encrypted balance decryption using Zama Relayer SDK
@@ -278,11 +279,12 @@ export default function Dashboard() {
               <CardContent>
                 <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
                   <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
-                    <Tab label="Supply Assets" value="supply" />
-                    <Tab label="Withdraw Assets" value="withdraw" />
+                    <Tab label="Convert ETH → cWETH" value="convert" />
+                    <Tab label="Supply cWETH" value="supply" />
+                    <Tab label="Withdraw ETH" value="withdraw" />
                   </Tabs>
                 </Box>
-                {activeTab === 'supply' ? <SupplyForm /> : <WithdrawForm />}
+                {activeTab === 'convert' ? <ETHToCWETHConverter /> : activeTab === 'supply' ? <SupplyForm /> : <WithdrawForm />}
               </CardContent>
             </Card>
           </Grid>

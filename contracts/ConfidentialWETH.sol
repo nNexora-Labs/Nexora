@@ -10,11 +10,11 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 /// @notice ERC7984 implementation for confidential WETH with wrap/unwrap functionality
 /// @dev This contract allows users to wrap ETH into confidential WETH tokens
 contract ConfidentialWETH is ConfidentialFungibleToken, SepoliaConfig, Ownable {
-    // Events
-    event Deposit(address indexed user, uint256 amount);
-    event Withdrawal(address indexed user, uint256 amount);
-    event Wrap(address indexed user, uint256 amount);
-    event Unwrap(address indexed user, uint256 amount);
+    // Events - CONFIDENTIAL: No plaintext amounts exposed
+    event ConfidentialDeposit(address indexed user);
+    event ConfidentialWithdrawal(address indexed user);
+    event ConfidentialWrap(address indexed user);
+    event ConfidentialUnwrap(address indexed user);
 
     // Mapping to store encrypted balances
     mapping(address => euint32) private _encryptedBalances;
@@ -26,6 +26,7 @@ contract ConfidentialWETH is ConfidentialFungibleToken, SepoliaConfig, Ownable {
 
     /// @notice Wrap ETH into confidential WETH
     /// @dev Users send ETH and receive encrypted cWETH tokens
+    /// @dev CONFIDENTIAL: No plaintext amounts are exposed
     function wrap() external payable {
         require(msg.value > 0, "ConfidentialWETH: Cannot wrap 0 ETH");
         
@@ -43,7 +44,8 @@ contract ConfidentialWETH is ConfidentialFungibleToken, SepoliaConfig, Ownable {
         FHE.allow(_encryptedBalances[msg.sender], msg.sender);
         FHE.allowThis(_totalSupply);
         
-        emit Wrap(msg.sender, msg.value);
+        // Emit CONFIDENTIAL event (no amounts exposed)
+        emit ConfidentialWrap(msg.sender);
     }
 
     /// @notice Get encrypted balance of a user
@@ -70,7 +72,8 @@ contract ConfidentialWETH is ConfidentialFungibleToken, SepoliaConfig, Ownable {
     }
 
     /// @notice Receive function to accept ETH deposits
+    /// @dev CONFIDENTIAL: No plaintext amounts are exposed
     receive() external payable {
-        emit Deposit(msg.sender, msg.value);
+        emit ConfidentialDeposit(msg.sender);
     }
 }
