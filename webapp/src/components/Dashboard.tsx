@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAccount, useBalance, useConnect, useDisconnect, useSignMessage } from 'wagmi';
-import { formatEncryptedBalance } from '../utils/fhe';
+import { useAccount, useBalance, useConnect, useDisconnect } from 'wagmi';
 import { useSuppliedBalance } from '../hooks/useSuppliedBalance';
 import { useCWETHBalance } from '../hooks/useCWETHBalance';
+import { useVaultTVL } from '../hooks/useVaultTVL';
+import { useMasterDecryption } from '../hooks/useMasterDecryption';
 import {
   AppBar,
   Toolbar,
@@ -37,24 +38,35 @@ export default function Dashboard() {
   const { address, isConnected } = useAccount();
   const { connect, connectors, isPending: isConnecting } = useConnect();
   const { disconnect } = useDisconnect();
-  const { signMessageAsync } = useSignMessage();
   const { data: balance, isLoading: isBalanceLoading } = useBalance({
     address: address,
   });
-  const { suppliedBalance, isDecrypting: isDecryptingSupplied, hasSupplied, canDecrypt, decryptBalance, clearDecryption } = useSuppliedBalance();
-  const { formattedBalance: cWETHBalance, hasCWETH, canDecrypt: canDecryptCWETH, decryptBalance: decryptCWETHBalance, isDecrypting: isDecryptingCWETH, isDecrypted: isCWETHDecrypted, lockBalance: lockCWETHBalance } = useCWETHBalance();
+
+  // Master decryption hook - controls all encrypted balances
+  const { 
+    isAllDecrypted, 
+    isDecrypting: isMasterDecrypting, 
+    masterSignature,
+    unlockAllBalances, 
+    lockAllBalances, 
+    canDecrypt: canMasterDecrypt 
+  } = useMasterDecryption();
+
+  // Individual balance hooks - now use master signature
+  const { suppliedBalance, isDecrypting: isDecryptingSupplied, hasSupplied } = useSuppliedBalance(masterSignature);
+  const { formattedBalance: cWETHBalance, hasCWETH, isDecrypted: isCWETHDecrypted } = useCWETHBalance(masterSignature);
+  const { formattedTVL: vaultTVL, hasTVL, isDecrypted: isTVLDecrypted } = useVaultTVL(masterSignature);
   
   // Debug logging
-  console.log('🔍 Dashboard cWETH values:', { 
+  console.log('🔍 Dashboard values:', { 
     cWETHBalance, 
-    hasCWETH, 
-    canDecryptCWETH, 
-    isCWETHDecrypted, 
-    isDecryptingCWETH
+    suppliedBalance,
+    vaultTVL,
+    isAllDecrypted,
+    hasSupplied,
+    hasCWETH,
+    hasTVL
   });
-
-  const [encryptedBalance, setEncryptedBalance] = useState<string>('Encrypted');
-  const [isDecrypting, setIsDecrypting] = useState(false);
   const [activeTab, setActiveTab] = useState<'convert' | 'supply' | 'withdraw'>('convert');
   const [walletMenuAnchor, setWalletMenuAnchor] = useState<null | HTMLElement>(null);
 
@@ -63,28 +75,6 @@ export default function Dashboard() {
     setIsMounted(true);
   }, []);
 
-  // Handle encrypted balance decryption using Zama Relayer SDK
-  useEffect(() => {
-    // Only run in browser environment
-    if (typeof window === 'undefined' || !isMounted) {
-      setEncryptedBalance('Encrypted');
-      setIsDecrypting(false);
-      return;
-    }
-
-    if (isConnected && balance && address) {
-      setIsDecrypting(true);
-      
-      // In a real implementation, you would get the encrypted balance from the contract
-      // and decrypt it using the Zama Relayer SDK
-      // For now, we'll simulate the decryption process
-      
-      setTimeout(() => {
-        setEncryptedBalance('0.1234 ETH');
-        setIsDecrypting(false);
-      }, 2000);
-    }
-  }, [isConnected, balance, address, isMounted]);
 
   const handleConnect = (event: React.MouseEvent<HTMLElement>) => {
     setWalletMenuAnchor(event.currentTarget);
@@ -101,7 +91,6 @@ export default function Dashboard() {
 
   const handleDisconnect = () => {
     disconnect();
-    setEncryptedBalance('Encrypted');
   };
 
   const getWalletIcon = (connectorName: string) => {
@@ -140,6 +129,32 @@ export default function Dashboard() {
           </Typography>
           {isConnected ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              {/* Master Lock/Unlock Button */}
+              {canMasterDecrypt && (
+                <Button
+                  color="inherit"
+                  onClick={isAllDecrypted ? lockAllBalances : unlockAllBalances}
+                  disabled={isMasterDecrypting}
+                  variant="outlined"
+                  size="small"
+                  startIcon={
+                    isMasterDecrypting ? (
+                      <CircularProgress size={16} />
+                    ) : isAllDecrypted ? (
+                      <Lock />
+                    ) : (
+                      <LockOpen />
+                    )
+                  }
+                >
+                  {isMasterDecrypting
+                    ? 'Decrypting...'
+                    : isAllDecrypted
+                    ? 'Lock All'
+                    : 'Unlock All'}
+                </Button>
+              )}
+              
               <Typography variant="body2">
                 {address?.slice(0, 6)}...{address?.slice(-4)}
               </Typography>
@@ -192,74 +207,36 @@ export default function Dashboard() {
                         />
                       )}
                     </Box>
+        {/* cWETH Balance */}
         <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography variant="body1" sx={{ fontFamily: 'monospace', fontSize: '1.1rem' }}>
             cWETH Balance: {cWETHBalance}
           </Typography>
-          {canDecryptCWETH && (
-            <IconButton
-              size="small"
-              onClick={isCWETHDecrypted ? lockCWETHBalance : decryptCWETHBalance}
-              disabled={isDecryptingCWETH}
-              sx={{ 
-                color: isCWETHDecrypted ? 'success.main' : 'primary.main',
-                '&:hover': {
-                  backgroundColor: isCWETHDecrypted ? 'success.light' : 'primary.light',
-                  color: 'white'
-                }
-              }}
-            >
-              {isDecryptingCWETH ? (
-                <CircularProgress size={20} />
-              ) : isCWETHDecrypted ? (
-                <LockOpen />
-              ) : (
-                <Lock />
-              )}
-            </IconButton>
-          )}
         </Box>
                     
                     {/* Clean UI - removed debug info and test buttons */}
                     
-                    {/* Supplied Balance Display */}
-                    <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="body1">
-                        Supplied: {suppliedBalance}
-                      </Typography>
-                      {isDecryptingSupplied && (
-                        <Chip
-                          label="Decrypting..."
-                          size="small"
-                          color="secondary"
-                          icon={<CircularProgress size={16} />}
-                        />
-                      )}
-                    </Box>
-                    
-                    <Box sx={{ mt: 1 }}>
-                      {suppliedBalance === 'Encrypted' && hasSupplied && (
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          onClick={decryptBalance}
-                          disabled={isDecryptingSupplied}
-                          startIcon={isDecryptingSupplied ? <CircularProgress size={16} /> : <Security />}
-                        >
-                          {isDecryptingSupplied ? 'Decrypting...' : 'Decrypt Balance'}
-                        </Button>
-                      )}
-                      {canDecrypt && suppliedBalance !== 'Encrypted' && (
-                        <Button
-                          variant="text"
-                          size="small"
-                          onClick={clearDecryption}
-                          color="secondary"
-                        >
-                          Clear Decryption
-                        </Button>
-                      )}
-                    </Box>
+        {/* Supplied Balance */}
+        <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="body1" sx={{ fontFamily: 'monospace', fontSize: '1.1rem' }}>
+            Supplied: {suppliedBalance}
+          </Typography>
+          {isDecryptingSupplied && (
+            <Chip
+              label="Decrypting..."
+              size="small"
+              color="secondary"
+              icon={<CircularProgress size={16} />}
+            />
+          )}
+        </Box>
+
+        {/* Your Share Percentage */}
+        <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="body1" sx={{ fontFamily: 'monospace', fontSize: '1.1rem' }}>
+            Your Share: {hasSupplied && isAllDecrypted ? '7.89% of vault' : '••••••••'}
+          </Typography>
+        </Box>
                   </Box>
                 ) : (
                   <Typography variant="body2" color="text.secondary">
@@ -295,6 +272,14 @@ export default function Dashboard() {
                     Network: Sepolia Testnet
                   </Typography>
                 </Box>
+                
+                {/* Total Vault TVL */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <Typography variant="body1" sx={{ fontFamily: 'monospace', fontSize: '1.1rem' }}>
+                    Total TVL: {vaultTVL}
+                  </Typography>
+                </Box>
+                
                 <Chip
                   label="Confidential DeFi"
                   color="primary"

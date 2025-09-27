@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useAccount, useSignMessage, useReadContract } from 'wagmi';
+import { useAccount, useReadContract } from 'wagmi';
 import { decryptUserData, getFHEInstance } from '../utils/fhe';
 
 // Contract ABI for getting encrypted shares
@@ -27,15 +27,13 @@ const VAULT_ABI = [
   }
 ] as const;
 
-export const useSuppliedBalance = () => {
+export const useSuppliedBalance = (masterSignature: string | null) => {
   const { address, isConnected } = useAccount();
-  const { signMessageAsync } = useSignMessage();
   
   const [suppliedBalance, setSuppliedBalance] = useState<string>('Encrypted');
   const [isDecrypting, setIsDecrypting] = useState(false);
   const [hasSupplied, setHasSupplied] = useState(false);
   const [canDecrypt, setCanDecrypt] = useState(false);
-  const [decryptionSignature, setDecryptionSignature] = useState<string | null>(null);
 
   // Contract address
   const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x0000000000000000000000000000000000000000';
@@ -71,21 +69,15 @@ export const useSuppliedBalance = () => {
     }
   }, [encryptedShares]);
 
-  // Check if we have a stored decryption signature
+  // Update canDecrypt based on master signature
   useEffect(() => {
-    if (typeof window !== 'undefined' && address) {
-      const storedSignature = localStorage.getItem(`fhe_decryption_${address}`);
-      if (storedSignature) {
-        setDecryptionSignature(storedSignature);
-        setCanDecrypt(true);
-      }
-    }
-  }, [address]);
+    setCanDecrypt(!!masterSignature && hasSupplied);
+  }, [masterSignature, hasSupplied]);
 
-  // Decrypt the supplied balance using Zama's pattern
+  // Decrypt the supplied balance using master signature
   const decryptBalance = useCallback(async () => {
-    if (!isConnected || !address || !encryptedShares) {
-      console.log('Missing requirements:', { isConnected, address, encryptedShares });
+    if (!isConnected || !address || !encryptedShares || !masterSignature) {
+      console.log('Missing requirements:', { isConnected, address, encryptedShares, masterSignature });
       return;
     }
 
@@ -106,35 +98,9 @@ export const useSuppliedBalance = () => {
       }
       console.log('Public key obtained');
 
-      let signature = decryptionSignature;
+      // Use master signature for decryption
+      console.log('Using master signature for decryption...');
       
-      // If no stored signature, request user to sign
-      if (!signature) {
-        console.log('Requesting user signature...');
-        
-        // Create EIP712 message for decryption permission
-        const eip712 = fheInstance.createEIP712(
-          Buffer.from(publicKey.publicKey).toString('hex'),
-          [VAULT_ADDRESS], // Contract addresses that can access decryption
-          Math.floor(Date.now() / 1000), // Start timestamp
-          7 // Duration in days
-        );
-
-        console.log('EIP712 message created:', eip712);
-
-        // Request user signature
-        signature = await signMessageAsync({
-          message: JSON.stringify(eip712),
-        });
-
-        console.log('User signature obtained');
-
-        // Store signature for session persistence
-        localStorage.setItem(`fhe_decryption_${address}`, signature);
-        setDecryptionSignature(signature);
-        setCanDecrypt(true);
-      }
-
       // Now attempt to decrypt the encrypted shares
       console.log('Attempting to decrypt encrypted shares...');
       
@@ -166,16 +132,23 @@ export const useSuppliedBalance = () => {
       setHasSupplied(false);
       setIsDecrypting(false);
     }
-  }, [isConnected, address, encryptedShares, decryptionSignature, signMessageAsync, VAULT_ADDRESS]);
+  }, [isConnected, address, encryptedShares, masterSignature, VAULT_ADDRESS]);
+
+  // Auto-decrypt when master signature becomes available
+  useEffect(() => {
+    if (masterSignature && encryptedShares && hasSupplied) {
+      decryptBalance();
+    } else if (!masterSignature) {
+      setSuppliedBalance('Encrypted');
+    }
+  }, [masterSignature, encryptedShares, hasSupplied, decryptBalance]);
 
   // Clear decryption session on disconnect
   useEffect(() => {
     if (!isConnected && address) {
-      localStorage.removeItem(`fhe_decryption_${address}`);
-      setDecryptionSignature(null);
-      setCanDecrypt(false);
       setSuppliedBalance('Encrypted');
       setHasSupplied(false);
+      setCanDecrypt(false);
     }
   }, [isConnected, address]);
 
@@ -188,12 +161,8 @@ export const useSuppliedBalance = () => {
     encryptedShares,
     refetchEncryptedShares,
     clearDecryption: () => {
-      if (address) {
-        localStorage.removeItem(`fhe_decryption_${address}`);
-        setDecryptionSignature(null);
-        setCanDecrypt(false);
-        setSuppliedBalance('Encrypted');
-      }
+      setSuppliedBalance('Encrypted');
+      setCanDecrypt(false);
     }
   };
 };

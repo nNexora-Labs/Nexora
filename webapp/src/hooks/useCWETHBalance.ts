@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAccount, useSignMessage, useWalletClient } from 'wagmi';
+import { useAccount, useWalletClient } from 'wagmi';
 import { decryptUserData, getFHEInstance } from '../utils/fhe';
 import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
 import { ethers } from 'ethers';
@@ -29,9 +29,8 @@ const CWETH_ABI = [
   }
 ] as const;
 
-export const useCWETHBalance = () => {
+export const useCWETHBalance = (masterSignature: string | null) => {
   const { address, isConnected } = useAccount();
-  const { signMessageAsync } = useSignMessage();
   const { data: walletClient } = useWalletClient();
   
   const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
@@ -137,9 +136,9 @@ export const useCWETHBalance = () => {
     }
   }, [address, CWETH_ADDRESS, isDecrypted]);
 
-  // Simple decrypt function - no dependencies
+  // Simple decrypt function - uses master signature
   const decryptBalance = useCallback(async () => {
-    if (!isConnected || !address || !encryptedBalance || !walletClient) {
+    if (!isConnected || !address || !encryptedBalance || !walletClient || !masterSignature) {
       return;
     }
 
@@ -153,7 +152,7 @@ export const useCWETHBalance = () => {
       const provider = new ethers.BrowserProvider(walletClient);
       const signer = await provider.getSigner();
       
-      // Load or create signature
+      // Use master signature for decryption
       const sig = await FhevmDecryptionSignature.loadOrSign(
         fheInstance as any,
         [CWETH_ADDRESS],
@@ -198,7 +197,7 @@ export const useCWETHBalance = () => {
     } finally {
       setIsDecrypting(false);
     }
-  }, [isConnected, address, encryptedBalance, walletClient, CWETH_ADDRESS]);
+  }, [isConnected, address, encryptedBalance, walletClient, masterSignature, CWETH_ADDRESS]);
 
   // Simple polling - no dependencies (COMMENTED OUT FOR NOW)
   // const startPolling = useCallback(() => {
@@ -233,6 +232,15 @@ export const useCWETHBalance = () => {
     
     // return () => stopPolling(); // COMMENTED OUT FOR NOW
   }, [address, isConnected, fetchBalance]); // Removed startPolling, stopPolling from dependencies
+
+  // Auto-decrypt when master signature becomes available
+  useEffect(() => {
+    if (masterSignature && encryptedBalance && !isLoadingBalance) {
+      decryptBalance();
+    } else if (!masterSignature) {
+      lockBalance();
+    }
+  }, [masterSignature, encryptedBalance, isLoadingBalance, decryptBalance]);
 
   // Load stored signature (COMMENTED OUT FOR NOW - NO AUTO-DECRYPTION)
   // useEffect(() => {
@@ -276,7 +284,7 @@ export const useCWETHBalance = () => {
     setCWETHBalance('••••••••');
   }, []);
 
-  const canDecrypt = !!encryptedBalance && encryptedBalance !== '0x0000000000000000000000000000000000000000000000000000000000000000';
+  const canDecrypt = !!encryptedBalance && encryptedBalance !== '0x0000000000000000000000000000000000000000000000000000000000000000' && !!masterSignature;
   
   // Debug logging
   console.log('🔍 useCWETHBalance return values:', {
