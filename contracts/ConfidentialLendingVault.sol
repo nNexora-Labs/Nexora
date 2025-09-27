@@ -3,8 +3,8 @@ pragma solidity ^0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IConfidentialFungibleTokenReceiver} from "@openzeppelin/confidential-contracts/interfaces/IConfidentialFungibleTokenReceiver.sol";
-import {SepoliaConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
-import {FHE, euint32, externalEuint32, euint64, ebool} from "@fhevm/solidity/lib/FHE.sol";
+import {ConfidentialFungibleToken} from "@openzeppelin/confidential-contracts/token/ConfidentialFungibleToken.sol";
+import {FHE, euint32, externalEuint32, euint64, externalEuint64, ebool} from "@fhevm/solidity/lib/FHE.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -12,7 +12,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 /// @title Confidential Lending Vault
 /// @notice ERC-4626 analogous vault for confidential lending with encrypted balances
 /// @dev This contract implements supply-only functionality for Phase 1
-contract ConfidentialLendingVault is SepoliaConfig, Ownable, ReentrancyGuard, IConfidentialFungibleTokenReceiver {
+contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFungibleTokenReceiver {
     using SafeERC20 for IERC20;
 
     // Events - CONFIDENTIAL: No plaintext amounts exposed
@@ -56,7 +56,7 @@ contract ConfidentialLendingVault is SepoliaConfig, Ownable, ReentrancyGuard, IC
         address from,
         euint64 amount,
         bytes calldata data
-    ) external override nonReentrant returns (ebool) {
+    ) external override returns (ebool) {
         // Only accept transfers from the cWETH contract
         require(msg.sender == address(asset), "ConfidentialLendingVault: Only cWETH transfers allowed");
         
@@ -84,6 +84,38 @@ contract ConfidentialLendingVault is SepoliaConfig, Ownable, ReentrancyGuard, IC
         
         // Return true to accept the transfer
         return FHE.asEbool(true);
+    }
+    /// @notice Supply cWETH to the vault by pulling tokens from user (vault is operator)
+    /// @dev Flow:
+    ///      1) User sets this vault as operator on cWETH (setOperator)
+    ///      2) Frontend encrypts amount for THIS vault and calls supply(encryptedAmount, inputProof)
+    ///      3) We convert external handle to euint64 and pull via confidentialTransferFromAndCall
+    ///         which triggers onConfidentialTransferReceived to update encrypted accounting
+    /// @param encryptedAmount Encrypted amount handle (externalEuint64)
+    /// @param inputProof Proof for the encrypted amount (FHE input proof)
+    function supply(
+        externalEuint64 encryptedAmount,
+        bytes calldata inputProof
+    ) external nonReentrant {
+        require(inputProof.length > 0, "Invalid input proof");
+
+        // Convert external encrypted handle to internal euint64
+        euint64 amount = FHE.fromExternal(encryptedAmount, inputProof);
+
+        // Allow the asset (cWETH) to consume this encrypted value transiently
+        FHE.allowTransient(amount, address(asset));
+
+        // Pull tokens from user into the vault; triggers receiver hook for accounting
+        euint64 transferred = ConfidentialFungibleToken(address(asset)).confidentialTransferFromAndCall(
+            msg.sender,
+            address(this),
+            amount,
+            bytes("")
+        );
+
+        // Keep access to the transferred ciphertext (optional)
+        FHE.allowThis(transferred);
+        // State updates occur in onConfidentialTransferReceived
     }
 
     /// @notice Get encrypted shares of a user

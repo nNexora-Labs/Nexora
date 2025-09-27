@@ -1,4 +1,4 @@
-// import "@fhevm/hardhat-plugin"; // temporarily disabled for debugging
+import "@fhevm/hardhat-plugin";
 import "@nomicfoundation/hardhat-chai-matchers";
 import "@nomicfoundation/hardhat-ethers";
 import "@nomicfoundation/hardhat-verify";

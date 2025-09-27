@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {ConfidentialFungibleToken} from "@openzeppelin/confidential-contracts/token/ConfidentialFungibleToken.sol";
-import {SepoliaConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
+/* SepoliaConfig removed to avoid compile-time config dependency */
 import {FHE, euint32, euint64, externalEuint32, ebool} from "@fhevm/solidity/lib/FHE.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {FHESafeMath} from "@openzeppelin/confidential-contracts/utils/FHESafeMath.sol";
@@ -10,7 +10,7 @@ import {FHESafeMath} from "@openzeppelin/confidential-contracts/utils/FHESafeMat
 /// @title Confidential WETH (cWETH)
 /// @notice ERC7984 implementation for confidential WETH with wrap/unwrap functionality
 /// @dev This contract allows users to wrap ETH into confidential WETH tokens
-contract ConfidentialWETH is ConfidentialFungibleToken, SepoliaConfig, Ownable {
+contract ConfidentialWETH is ConfidentialFungibleToken, Ownable {
     // Events - CONFIDENTIAL: No plaintext amounts exposed
     event ConfidentialDeposit(address indexed user);
     event ConfidentialWithdrawal(address indexed user);

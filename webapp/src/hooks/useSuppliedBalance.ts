@@ -17,9 +17,9 @@ const VAULT_ABI = [
     "name": "getEncryptedShares",
     "outputs": [
       {
-        "internalType": "euint32",
+        "internalType": "bytes32",
         "name": "",
-        "type": "euint32"
+        "type": "bytes32"
       }
     ],
     "stateMutability": "view",

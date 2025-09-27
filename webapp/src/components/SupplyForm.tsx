@@ -21,11 +21,8 @@ import { getFHEInstance } from '../utils/fhe';
 const VAULT_ABI = [
   {
     "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "amount",
-        "type": "uint256"
-      }
+      { "internalType": "bytes32", "name": "encryptedAmount", "type": "bytes32" },
+      { "internalType": "bytes", "name": "inputProof", "type": "bytes" }
     ],
     "name": "supply",
     "outputs": [],
@@ -47,9 +44,9 @@ const CWETH_ABI = [
     "name": "getEncryptedBalance",
     "outputs": [
       {
-        "internalType": "euint64",
+        "internalType": "bytes32",
         "name": "",
-        "type": "euint64"
+        "type": "bytes32"
       }
     ],
     "stateMutability": "view",
@@ -86,9 +83,9 @@ const CWETH_ABI = [
         "type": "address"
       },
       {
-        "internalType": "externalEuint64",
+        "internalType": "bytes32",
         "name": "encryptedAmount",
-        "type": "externalEuint64"
+        "type": "bytes32"
       },
       {
         "internalType": "bytes",
@@ -99,9 +96,9 @@ const CWETH_ABI = [
     "name": "confidentialTransferFrom",
     "outputs": [
       {
-        "internalType": "euint64",
+        "internalType": "bytes32",
         "name": "transferred",
-        "type": "euint64"
+        "type": "bytes32"
       }
     ],
     "stateMutability": "nonpayable",
@@ -371,9 +368,9 @@ export default function SupplyForm() {
           const fheInstance = await getFHEInstance();
           console.log('FHE instance obtained');
           
-          // Create encrypted input
+          // Create encrypted input bound to the vault (pull pattern)
           const input = (fheInstance as any).createEncryptedInput(
-            CWETH_ADDRESS as `0x${string}`,
+            VAULT_ADDRESS as `0x${string}`,
             address as `0x${string}`
           );
           
@@ -386,78 +383,43 @@ export default function SupplyForm() {
           const encryptedData = await input.encrypt();
           console.log('Input encrypted successfully');
           
-          // Extract the encrypted amount and proof
+          // Extract and normalize encrypted amount and proof to hex strings
           console.log('Raw encrypted data:', encryptedData);
           console.log('Handles:', encryptedData.handles);
           console.log('Input proof:', encryptedData.inputProof);
           
-          const encryptedAmount = encryptedData.handles[0];
-          const inputProof = encryptedData.inputProof;
+          const encryptedAmountHandle = (encryptedData as any).handles?.[0];
+          const inputProofRaw = (encryptedData as any).inputProof;
           
-          // Convert Uint8Array to hex strings
-          const encryptedAmountStr = Array.from(encryptedAmount as Uint8Array).map((b: number) => b.toString(16).padStart(2, '0')).join('');
-          const inputProofStr = Array.from(inputProof as Uint8Array).map((b: number) => b.toString(16).padStart(2, '0')).join('');
+          const toHex = (v: any): `0x${string}` => {
+            if (typeof v === 'string') {
+              return (v.startsWith('0x') ? v : `0x${v}`) as `0x${string}`;
+            }
+            if (v instanceof Uint8Array) {
+              return ('0x' + Array.from(v).map((b: number) => b.toString(16).padStart(2, '0')).join('')) as `0x${string}`;
+            }
+            throw new Error('Unsupported encrypted payload type');
+          };
           
-          // Ensure encrypted amount is exactly 32 bytes (64 hex chars) for bytes32
-          const paddedEncryptedAmount = encryptedAmountStr.padStart(64, '0');
-          const formattedEncryptedAmount = `0x${paddedEncryptedAmount}`;
-          const formattedInputProof = `0x${inputProofStr}`;
+          const formattedEncryptedAmount = toHex(encryptedAmountHandle);
+          const formattedInputProof = toHex(inputProofRaw);
           
-          console.log('Encrypted data:', {
+          console.log('Encrypted payload (normalized):', {
             encryptedAmount: formattedEncryptedAmount,
             inputProof: formattedInputProof,
-            encryptedAmountType: typeof formattedEncryptedAmount,
-            inputProofType: typeof formattedInputProof
           });
           
-          console.log('Step 3: Creating viem contract and calling confidentialTransferFrom...');
-          
-          const { encodeFunctionData } = await import('viem');
-          
-          // Create a simplified ABI for viem (matching actual contract)
-          const ViemCWETH_ABI = [
-            {
-              "inputs": [
-                {"internalType": "address", "name": "from", "type": "address"},
-                {"internalType": "address", "name": "to", "type": "address"},
-                {"internalType": "bytes32", "name": "encryptedAmount", "type": "bytes32"},
-                {"internalType": "bytes", "name": "inputProof", "type": "bytes"}
-              ],
-              "name": "confidentialTransferFrom",
-              "outputs": [{"internalType": "bytes32", "name": "transferred", "type": "bytes32"}],
-              "stateMutability": "nonpayable",
-              "type": "function"
-            }
-          ] as const;
-
-          // Encode the function call
-          const data = encodeFunctionData({
-            abi: ViemCWETH_ABI,
-            functionName: 'confidentialTransferFrom',
-            args: [
-              address as `0x${string}`, // from
-              VAULT_ADDRESS as `0x${string}`, // to
-              formattedEncryptedAmount as `0x${string}`, // encrypted amount
-              formattedInputProof as `0x${string}` // input proof
-            ],
-          });
-
-          console.log('Encoded function data:', data);
-
-          // Send the transaction using wagmi's writeContract
-          console.log('Sending transaction via wagmi...');
+          console.log('Step 3: Calling supply on vault (pull pattern)...');
           writeContract({
-            address: CWETH_ADDRESS as `0x${string}`,
-            abi: ViemCWETH_ABI,
-            functionName: 'confidentialTransferFrom',
+            address: VAULT_ADDRESS as `0x${string}`,
+            abi: VAULT_ABI,
+            functionName: 'supply',
             args: [
-              address as `0x${string}`, // from
-              VAULT_ADDRESS as `0x${string}`, // to
-              formattedEncryptedAmount as `0x${string}`, // encrypted amount
-              formattedInputProof as `0x${string}` // input proof
+              formattedEncryptedAmount, // encrypted handle for externalEuint64
+              formattedInputProof // input proof
             ],
           });
-          console.log('Transaction submitted via wagmi...');
+          console.log('Supply submitted to vault...');
           
         } catch (encryptError) {
           console.error('Encryption/Transfer failed:', encryptError);
