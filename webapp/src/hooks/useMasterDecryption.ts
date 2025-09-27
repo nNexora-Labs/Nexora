@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useAccount, useSignMessage } from 'wagmi';
+import { useAccount, useSignMessage, useWalletClient } from 'wagmi';
 import { getFHEInstance } from '../utils/fhe';
+import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
+import { ethers } from 'ethers';
 
 // Contract addresses that need decryption access
 const CONTRACT_ADDRESSES = [
@@ -13,6 +15,7 @@ const CONTRACT_ADDRESSES = [
 export const useMasterDecryption = () => {
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
+  const { data: walletClient } = useWalletClient();
   
   // Master decryption state
   const [isAllDecrypted, setIsAllDecrypted] = useState(false);
@@ -44,11 +47,12 @@ export const useMasterDecryption = () => {
 
   // Master unlock function
   const unlockAllBalances = useCallback(async () => {
-    if (!isConnected || !address || !CONTRACT_ADDRESSES.length) {
+    if (!isConnected || !address || !CONTRACT_ADDRESSES.length || !walletClient) {
       console.log('Missing requirements for master decryption:', { 
         isConnected, 
         address, 
-        contractAddresses: CONTRACT_ADDRESSES.length 
+        contractAddresses: CONTRACT_ADDRESSES.length,
+        walletClient: !!walletClient
       });
       return;
     }
@@ -63,39 +67,33 @@ export const useMasterDecryption = () => {
       const fheInstance = await getFHEInstance();
       console.log('✅ FHE instance created');
       
-      // Get user's public key
-      const publicKey = fheInstance.getPublicKey();
-      if (!publicKey) {
-        throw new Error('No public key available from FHE instance');
-      }
-      console.log('✅ Public key obtained');
-
+      // Create signer
+      const provider = new ethers.BrowserProvider(walletClient);
+      const signer = await provider.getSigner();
+      
       let signature = masterSignature;
       
-      // If no stored signature, request user to sign
+      // If no stored signature, create one using FhevmDecryptionSignature
       if (!signature) {
-        console.log('🔐 Requesting user signature for master decryption...');
+        console.log('🔐 Creating master decryption signature...');
         
-        // Create EIP712 message for decryption permission
-        const eip712 = fheInstance.createEIP712(
-          Buffer.from(publicKey.publicKey).toString('hex'),
-          CONTRACT_ADDRESSES, // All contracts at once
-          Math.floor(Date.now() / 1000), // Start timestamp
-          7 // Duration in days
+        // Use FhevmDecryptionSignature to create proper signature
+        const sig = await FhevmDecryptionSignature.loadOrSign(
+          fheInstance as any,
+          CONTRACT_ADDRESSES,
+          signer
         );
 
-        console.log('✅ EIP712 message created for contracts:', CONTRACT_ADDRESSES);
+        if (!sig) {
+          throw new Error('Failed to create master decryption signature');
+        }
 
-        // Request user signature
-        signature = await signMessageAsync({
-          message: JSON.stringify(eip712),
-        });
-
-        console.log('✅ User signature obtained');
+        console.log('✅ Master decryption signature created');
 
         // Store signature for session persistence
-        localStorage.setItem(`fhe_master_decryption_${address}`, signature);
-        setMasterSignature(signature);
+        localStorage.setItem(`fhe_master_decryption_${address}`, sig.signature);
+        setMasterSignature(sig.signature);
+        signature = sig.signature;
       }
 
       // Set decryption state
@@ -109,7 +107,7 @@ export const useMasterDecryption = () => {
     } finally {
       setIsDecrypting(false);
     }
-  }, [isConnected, address, masterSignature, signMessageAsync]);
+  }, [isConnected, address, masterSignature, walletClient]);
 
   // Master lock function
   const lockAllBalances = useCallback(() => {

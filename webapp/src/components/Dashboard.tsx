@@ -5,6 +5,7 @@ import { useAccount, useBalance, useConnect, useDisconnect } from 'wagmi';
 import { useSuppliedBalance } from '../hooks/useSuppliedBalance';
 import { useCWETHBalance } from '../hooks/useCWETHBalance';
 import { useVaultTVL } from '../hooks/useVaultTVL';
+import { useSharePercentage } from '../hooks/useSharePercentage';
 import { useMasterDecryption } from '../hooks/useMasterDecryption';
 import {
   AppBar,
@@ -56,16 +57,19 @@ export default function Dashboard() {
   const { suppliedBalance, isDecrypting: isDecryptingSupplied, hasSupplied } = useSuppliedBalance(masterSignature);
   const { formattedBalance: cWETHBalance, hasCWETH, isDecrypted: isCWETHDecrypted } = useCWETHBalance(masterSignature);
   const { formattedTVL: vaultTVL, hasTVL, isDecrypted: isTVLDecrypted } = useVaultTVL(masterSignature);
+  const { sharePercentage, hasShares, isDecrypting: isDecryptingShares } = useSharePercentage(masterSignature);
   
   // Debug logging
   console.log('🔍 Dashboard values:', { 
     cWETHBalance, 
     suppliedBalance,
     vaultTVL,
+    sharePercentage,
     isAllDecrypted,
     hasSupplied,
     hasCWETH,
-    hasTVL
+    hasTVL,
+    hasShares
   });
   const [activeTab, setActiveTab] = useState<'convert' | 'supply' | 'withdraw'>('convert');
   const [walletMenuAnchor, setWalletMenuAnchor] = useState<null | HTMLElement>(null);
@@ -234,8 +238,16 @@ export default function Dashboard() {
         {/* Your Share Percentage */}
         <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography variant="body1" sx={{ fontFamily: 'monospace', fontSize: '1.1rem' }}>
-            Your Share: {hasSupplied && isAllDecrypted ? '7.89% of vault' : '••••••••'}
+            Your Share: {sharePercentage}
           </Typography>
+          {isDecryptingShares && (
+            <Chip
+              label="Calculating..."
+              size="small"
+              color="secondary"
+              icon={<CircularProgress size={16} />}
+            />
+          )}
         </Box>
                   </Box>
                 ) : (

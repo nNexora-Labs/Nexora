@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useAccount, useReadContract } from 'wagmi';
+import { useAccount, useReadContract, useWalletClient } from 'wagmi';
 import { decryptUserData, getFHEInstance } from '../utils/fhe';
+import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
+import { ethers } from 'ethers';
 
 // Contract ABI for getting encrypted shares
 const VAULT_ABI = [
@@ -29,8 +31,9 @@ const VAULT_ABI = [
 
 export const useSuppliedBalance = (masterSignature: string | null) => {
   const { address, isConnected } = useAccount();
+  const { data: walletClient } = useWalletClient();
   
-  const [suppliedBalance, setSuppliedBalance] = useState<string>('Encrypted');
+  const [suppliedBalance, setSuppliedBalance] = useState<string>('••••••••');
   const [isDecrypting, setIsDecrypting] = useState(false);
   const [hasSupplied, setHasSupplied] = useState(false);
   const [canDecrypt, setCanDecrypt] = useState(false);
@@ -64,7 +67,7 @@ export const useSuppliedBalance = (masterSignature: string | null) => {
       if (!hasEncryptedShares) {
         setSuppliedBalance('No supplies found');
       } else {
-        setSuppliedBalance('Encrypted');
+        setSuppliedBalance('••••••••');
       }
     }
   }, [encryptedShares]);
@@ -76,8 +79,8 @@ export const useSuppliedBalance = (masterSignature: string | null) => {
 
   // Decrypt the supplied balance using master signature
   const decryptBalance = useCallback(async () => {
-    if (!isConnected || !address || !encryptedShares || !masterSignature) {
-      console.log('Missing requirements:', { isConnected, address, encryptedShares, masterSignature });
+    if (!isConnected || !address || !encryptedShares || !masterSignature || !walletClient) {
+      console.log('Missing requirements:', { isConnected, address, encryptedShares, masterSignature, walletClient });
       return;
     }
 
@@ -91,39 +94,56 @@ export const useSuppliedBalance = (masterSignature: string | null) => {
       const fheInstance = await getFHEInstance();
       console.log('FHE instance created');
       
-      // Get user's public key
-      const publicKey = fheInstance.getPublicKey();
-      if (!publicKey) {
-        throw new Error('No public key available');
-      }
-      console.log('Public key obtained');
-
+      // Create signer
+      const provider = new ethers.BrowserProvider(walletClient);
+      const signer = await provider.getSigner();
+      
       // Use master signature for decryption
       console.log('Using master signature for decryption...');
       
-      // Now attempt to decrypt the encrypted shares
+      // Load or create signature
+      const sig = await FhevmDecryptionSignature.loadOrSign(
+        fheInstance as any,
+        [VAULT_ADDRESS],
+        signer
+      );
+
+      if (!sig) {
+        throw new Error('Failed to create decryption signature');
+      }
+
+      // Decrypt balance using real FHEVM decryption
       console.log('Attempting to decrypt encrypted shares...');
       
-      // The encryptedShares is a hex string (ciphertext)
-      // We need to use the Zama Relayer SDK to decrypt it
-      try {
-        // This is where we would use the actual decryption method
-        // For now, we'll simulate the decryption process
-        // In a real implementation, you would use the FHE instance to decrypt the ciphertext
+      const result = await fheInstance.userDecrypt(
+        [{ handle: encryptedShares, contractAddress: VAULT_ADDRESS }],
+        sig.privateKey,
+        sig.publicKey,
+        sig.signature,
+        sig.contractAddresses,
+        sig.userAddress,
+        sig.startTimestamp,
+        sig.durationDays
+      );
+
+      const decryptedValue = result[encryptedShares];
+      if (decryptedValue !== undefined) {
+        let ethValue: number;
+        if (typeof decryptedValue === 'bigint') {
+          ethValue = Number(decryptedValue) / 1e18;
+        } else if (typeof decryptedValue === 'string') {
+          ethValue = Number(BigInt(decryptedValue)) / 1e18;
+        } else {
+          ethValue = 0;
+        }
         
-        // Simulate successful decryption with a realistic value
-        // In practice, this would be the actual decrypted balance from FHEVM
-        const decryptedValue = 0.1615; // This would come from actual FHEVM decryption
-        
-        setSuppliedBalance(`${decryptedValue.toFixed(4)} ETH`);
-        setHasSupplied(true);
+        setSuppliedBalance(`${ethValue.toFixed(4)} ETH`);
+        setHasSupplied(ethValue > 0);
         setIsDecrypting(false);
         
-        console.log('Decryption successful:', decryptedValue);
-        
-      } catch (decryptError) {
-        console.error('Decryption error:', decryptError);
-        throw new Error('Failed to decrypt encrypted shares');
+        console.log('Decryption successful:', ethValue);
+      } else {
+        throw new Error('No decrypted value returned');
       }
 
     } catch (error) {
@@ -132,21 +152,21 @@ export const useSuppliedBalance = (masterSignature: string | null) => {
       setHasSupplied(false);
       setIsDecrypting(false);
     }
-  }, [isConnected, address, encryptedShares, masterSignature, VAULT_ADDRESS]);
+  }, [isConnected, address, encryptedShares, masterSignature, walletClient, VAULT_ADDRESS]);
 
   // Auto-decrypt when master signature becomes available
   useEffect(() => {
     if (masterSignature && encryptedShares && hasSupplied) {
       decryptBalance();
     } else if (!masterSignature) {
-      setSuppliedBalance('Encrypted');
+      setSuppliedBalance('••••••••');
     }
   }, [masterSignature, encryptedShares, hasSupplied, decryptBalance]);
 
   // Clear decryption session on disconnect
   useEffect(() => {
     if (!isConnected && address) {
-      setSuppliedBalance('Encrypted');
+      setSuppliedBalance('••••••••');
       setHasSupplied(false);
       setCanDecrypt(false);
     }
@@ -161,7 +181,7 @@ export const useSuppliedBalance = (masterSignature: string | null) => {
     encryptedShares,
     refetchEncryptedShares,
     clearDecryption: () => {
-      setSuppliedBalance('Encrypted');
+      setSuppliedBalance('••••••••');
       setCanDecrypt(false);
     }
   };
