@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {ConfidentialFungibleToken} from "@openzeppelin/confidential-contracts/token/ConfidentialFungibleToken.sol";
 /* SepoliaConfig removed to avoid compile-time config dependency */
-import {FHE, euint32, euint64, externalEuint32, ebool} from "@fhevm/solidity/lib/FHE.sol";
+import "@fhevm/solidity/lib/FHE.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {FHESafeMath} from "@openzeppelin/confidential-contracts/utils/FHESafeMath.sol";
 
@@ -23,28 +23,32 @@ contract ConfidentialWETH is ConfidentialFungibleToken, Ownable {
     // Total supply tracking (encrypted)
     euint64 private _totalSupply;
 
-    constructor() ConfidentialFungibleToken("Confidential Wrapped Ether", "cWETH", "https://api.example.com/metadata/") Ownable(msg.sender) {}
+    constructor() ConfidentialFungibleToken("Confidential Wrapped Ether", "cWETH", "https://api.example.com/metadata/") Ownable(msg.sender) {
+        // Initialize encrypted state variables
+        _totalSupply = FHE.asEuint64(0);
+        FHE.allowThis(_totalSupply);
+    }
 
     /// @notice Wrap ETH into confidential WETH
     /// @dev Users send ETH and receive encrypted cWETH tokens
     /// @dev CONFIDENTIAL: No plaintext amounts are exposed
     function wrap() external payable {
         require(msg.value > 0, "ConfidentialWETH: Cannot wrap 0 ETH");
-        
+
         // Convert ETH amount to encrypted value
         euint64 encryptedAmount = FHE.asEuint64(uint64(msg.value));
-        
+
         // Update encrypted balance
         _encryptedBalances[msg.sender] = FHE.add(_encryptedBalances[msg.sender], encryptedAmount);
-        
+
         // Update total supply
         _totalSupply = FHE.add(_totalSupply, encryptedAmount);
-        
+
         // Allow contract and user to access the encrypted balance
         FHE.allowThis(_encryptedBalances[msg.sender]);
         FHE.allow(_encryptedBalances[msg.sender], msg.sender);
         FHE.allowThis(_totalSupply);
-        
+
         // Emit CONFIDENTIAL event (no amounts exposed)
         emit ConfidentialWrap(msg.sender);
     }

@@ -1,158 +1,140 @@
-# Confidential Lending Protocol - Deployment Guide
+# Confidential Lending Frontend - Vercel Deployment
 
-## 🚀 Quick Start
+This is a Next.js application for confidential lending built with FHEVM and deployed on Vercel.
 
-### 1. Prerequisites
-- Node.js >= 20
-- npm >= 7.0.0
-- Sepolia ETH for gas fees
-- WalletConnect Project ID
-- Sepolia RPC URL (Infura/Alchemy)
+## 🚀 Quick Deploy to Vercel
 
-### 2. Smart Contract Deployment
+### Option 1: Deploy with Vercel CLI (Recommended)
 
-#### Setup Environment
-```bash
-# Copy environment template
-cp .env.example .env
+1. **Install Vercel CLI** (if not already installed):
+   ```bash
+   npm i -g vercel
+   ```
 
-# Fill in your values:
-# PRIVATE_KEY=your_private_key_here
-# INFURA_API_KEY=your_infura_key_here
-# ETHERSCAN_API_KEY=your_etherscan_key_here
+2. **Login to Vercel**:
+   ```bash
+   vercel login
+   ```
+
+3. **Deploy from the project root**:
+   ```bash
+   vercel
+   ```
+
+4. **Follow the prompts**:
+   - Link to existing project? → No
+   - Project name → confidential-lending-frontend (or your preferred name)
+   - Directory → webapp
+   - Override settings? → No
+
+### Option 2: Deploy via Vercel Dashboard
+
+1. **Push your code to GitHub** (if not already done)
+2. **Go to [vercel.com](https://vercel.com)**
+3. **Click "New Project"**
+4. **Import your GitHub repository**
+5. **Configure the project**:
+   - Framework Preset: Next.js
+   - Root Directory: webapp
+   - Build Command: `npm run build`
+   - Output Directory: `.next`
+6. **Click "Deploy"**
+
+## 🔧 Configuration
+
+### Environment Variables
+
+Set these in your Vercel dashboard under Project Settings → Environment Variables:
+
+```
+NEXT_PUBLIC_RPC_URL=https://sepolia.infura.io/v3/YOUR_INFURA_KEY
+NEXT_PUBLIC_CHAIN_ID=11155111
+NEXT_PUBLIC_CONTRACT_ADDRESS=YOUR_CONTRACT_ADDRESS
 ```
 
-#### Deploy to Sepolia
-```bash
-# Deploy contracts
-npx hardhat deploy --network sepolia
+### Build Settings
 
-# The deployment will output contract addresses
-# Save these for frontend configuration
+The project is configured with:
+- **Framework**: Next.js
+- **Build Command**: `npm run build`
+- **Output Directory**: `.next`
+- **Install Command**: `npm install`
+
+## 📁 Project Structure
+
+```
+├── webapp/                 # Next.js application
+│   ├── src/
+│   │   ├── components/     # React components
+│   │   ├── pages/          # Next.js pages
+│   │   └── utils/          # Utility functions
+│   ├── public/             # Static assets
+│   ├── package.json        # Dependencies
+│   └── next.config.js      # Next.js configuration
+├── contracts/              # Smart contracts (not deployed)
+├── vercel.json             # Vercel configuration
+└── .vercelignore           # Files to ignore during deployment
 ```
 
-### 3. Frontend Setup
+## 🛠️ Local Development
 
-#### Install Dependencies
-```bash
-# Run the setup script
-./setup-frontend.sh
+1. **Install dependencies**:
+   ```bash
+   cd webapp
+   npm install
+   ```
 
-# Or manually:
-cd webapp
-npm install
-cp env.example .env.local
-```
+2. **Run development server**:
+   ```bash
+   npm run dev
+   ```
 
-#### Configure Environment
-Update `webapp/.env.local` with:
-```bash
-# WalletConnect Project ID (get from https://cloud.walletconnect.com/)
-NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_project_id_here
+3. **Open [http://localhost:3000](http://localhost:3000)**
 
-# Sepolia RPC URL
-NEXT_PUBLIC_SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/your_infura_key
+## 🔒 Security Features
 
-# Contract addresses (from deployment)
-NEXT_PUBLIC_CWETH_ADDRESS=0x...
-NEXT_PUBLIC_VAULT_ADDRESS=0x...
+The application includes:
+- **Security Headers**: X-Frame-Options, X-Content-Type-Options, Referrer-Policy
+- **Environment Variable Protection**: Sensitive data not exposed to client
+- **FHEVM Integration**: Fully homomorphic encryption for privacy
 
-# Note: Zama Relayer SDK uses SepoliaConfig automatically
-# No additional relayer configuration needed!
-```
+## 📊 Performance Optimizations
 
-#### Start Development Server
-```bash
-cd webapp
-npm run dev
-```
+- **SWC Minification**: Faster builds and smaller bundles
+- **CSS Optimization**: Experimental CSS optimization enabled
+- **Code Splitting**: Automatic code splitting for better performance
+- **Image Optimization**: Optimized image loading
 
-### 4. Production Deployment
+## 🐛 Troubleshooting
 
-#### Deploy Frontend to Vercel
-```bash
-cd webapp
-npm run build
-# Deploy to Vercel or your preferred platform
-```
+### Common Issues:
 
-## 🔧 Configuration Details
+1. **Build Failures**:
+   - Check that all dependencies are in `package.json`
+   - Ensure Node.js version is 18+ (Vercel requirement)
 
-### Smart Contract Configuration
-- **Network**: Sepolia testnet
-- **Solidity Version**: 0.8.27
-- **FHEVM Version**: 0.8.0
-- **OpenZeppelin Confidential**: 0.2.0
+2. **Environment Variables**:
+   - Make sure all required env vars are set in Vercel dashboard
+   - Variables must start with `NEXT_PUBLIC_` to be available in browser
 
-### Frontend Configuration
-- **Framework**: Next.js 14
-- **UI Library**: Material-UI
-- **Web3**: Wagmi + Viem
-- **Wallet**: WalletConnect
-- **FHE**: Zama Relayer SDK
+3. **FHEVM Issues**:
+   - Ensure Zama Relayer SDK is properly configured
+   - Check that webpack fallbacks are working
 
-## 📊 Contract Addresses
+### Support:
 
-After deployment, you'll get addresses like:
-- **ConfidentialWETH**: `0x...`
-- **ConfidentialLendingVault**: `0x...`
+- Check Vercel deployment logs in the dashboard
+- Review Next.js build output for errors
+- Ensure all dependencies are compatible with Node.js 18+
 
-## 🧪 Testing
+## 🚀 Production Deployment
 
-### Local Testing
-```bash
-# Run tests (note: FHE operations require Sepolia network)
-npm test
-```
+Once deployed, your app will be available at:
+`https://your-project-name.vercel.app`
 
-### Sepolia Testing
-```bash
-# Test on Sepolia
-npm run test:sepolia
-```
-
-## 🔐 Security Considerations
-
-1. **Private Keys**: Never commit private keys to version control
-2. **Environment Variables**: Use `.env` files and never commit them
-3. **FHE Operations**: All sensitive operations are encrypted
-4. **Access Control**: Contracts use Ownable pattern for admin functions
-
-## 🚨 Troubleshooting
-
-### Common Issues
-
-1. **Compilation Errors**: Ensure all dependencies are installed
-2. **Deployment Failures**: Check gas limits and network connectivity
-3. **FHE Errors**: FHE operations require Sepolia network configuration
-4. **Frontend Errors**: Verify environment variables are set correctly
-
-### Getting Help
-
-- Check the [Zama Documentation](https://docs.zama.ai/)
-- Review [FHEVM Documentation](https://docs.fhevm.org/)
-- Check [WalletConnect Documentation](https://walletconnect.com/)
-
-## 📈 Success Metrics
-
-After successful deployment, you should have:
-- ✅ Contracts deployed on Sepolia
-- ✅ Frontend running locally
-- ✅ Wallet connection working
-- ✅ ETH supply functionality
-- ✅ Encrypted balance tracking
-- ✅ Material-UI interface
-
-## 🎯 Next Steps
-
-1. **Phase 2**: Add borrowing functionality
-2. **Phase 3**: Implement dynamic interest rates
-3. **Phase 4**: Add multi-asset support
-4. **Phase 5**: Advanced DeFi features
-
-## 📝 Notes
-
-- This is Phase 1 focusing on supply-only functionality
-- All balances and transactions are encrypted using FHE
-- The protocol is designed for the Zama Developer Program
-- Production deployment requires additional security audits
+The deployment includes:
+- ✅ Automatic HTTPS
+- ✅ Global CDN
+- ✅ Automatic scaling
+- ✅ Zero-downtime deployments
+- ✅ Preview deployments for branches

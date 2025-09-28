@@ -38,9 +38,9 @@ const CWETH_ABI = [
     "name": "getEncryptedBalance",
     "outputs": [
       {
-        "internalType": "euint32",
+        "internalType": "euint64",
         "name": "",
-        "type": "euint32"
+        "type": "bytes32"
       }
     ],
     "stateMutability": "view",

@@ -17,6 +17,7 @@ import {
 import { Send, AccountBalance } from '@mui/icons-material';
 import { encryptAndRegister } from '../utils/fhe';
 import { useSuppliedBalance } from '../hooks/useSuppliedBalance';
+import { useMasterDecryption } from '../hooks/useMasterDecryption';
 
 // Contract ABI for withdraw function
 const VAULT_ABI = [
@@ -33,7 +34,11 @@ export default function WithdrawForm() {
   const { address, isConnected } = useAccount();
   const { writeContract, data: hash, isPending, error } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
-  const { suppliedBalance, isDecrypting, hasSupplied, refetchSuppliedBalance } = useSuppliedBalance();
+  
+  // Master decryption hook
+  const { masterSignature } = useMasterDecryption();
+  
+  const { suppliedBalance, isDecrypting, hasSupplied, refetchEncryptedShares } = useSuppliedBalance(masterSignature);
 
   const [amount, setAmount] = useState('');
   const [isValidAmount, setIsValidAmount] = useState(false);
@@ -56,10 +61,10 @@ export default function WithdrawForm() {
     if (isSuccess) {
       setShowSuccess(true);
       setAmount('');
-      refetchSuppliedBalance(); // Refresh supplied balance
+      refetchEncryptedShares(); // Refresh supplied balance
       setTimeout(() => setShowSuccess(false), 5000);
     }
-  }, [isSuccess, refetchSuppliedBalance]);
+  }, [isSuccess, refetchEncryptedShares]);
 
   const handleMaxAmount = () => {
     if (suppliedBalance !== 'Encrypted') {
@@ -102,23 +107,11 @@ export default function WithdrawForm() {
 
 
   return (
-    <Box sx={{ maxWidth: 600, mx: 'auto' }}>
-      <Alert severity="info" sx={{ mb: 2 }}>
-        <Typography variant="body2" gutterBottom>
-          <strong>Withdraw Functionality Not Available</strong>
-        </Typography>
-        <Typography variant="body2">
-          The smart contract currently only implements supply functionality (Phase 1). 
-          Withdraw functionality will be added in future phases.
-        </Typography>
-        <Typography variant="body2" sx={{ mt: 1 }}>
-          Your supplied balance: {suppliedBalance}
-        </Typography>
-      </Alert>
+    <Box sx={{ maxWidth: 500, mx: 'auto' }}>
 
       {showSuccess && (
         <Alert severity="success" sx={{ mb: 2 }}>
-          Successfully withdrew {amount} ETH from the confidential lending vault!
+          Successfully withdrew ETH!
         </Alert>
       )}
 
@@ -128,20 +121,10 @@ export default function WithdrawForm() {
         </Alert>
       )}
 
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Withdraw ETH from Confidential Lending Vault
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Withdraw your encrypted shares from the confidential lending vault.
-          All transactions are encrypted using FHE technology.
-        </Typography>
-      </Box>
-
-      <Box sx={{ mb: 3 }}>
-        <TextField
+      <TextField
           fullWidth
-          label="Amount (ETH)"
+          label="Amount"
+          size="small"
           type="number"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
@@ -152,7 +135,7 @@ export default function WithdrawForm() {
                 size="small"
                 onClick={handleMaxAmount}
                 disabled={true} // Disabled because withdraw function doesn't exist in smart contract
-                sx={{ ml: 1 }}
+                sx={{ ml: 1, minWidth: 'auto', px: 1 }}
               >
                 MAX
               </Button>
@@ -160,53 +143,47 @@ export default function WithdrawForm() {
           }}
           helperText={
             suppliedBalance !== 'Encrypted' 
-              ? `Available: ${suppliedBalance} (Withdraw coming soon)` 
-              : 'Loading supplied balance...'
+              ? `Balance: ${suppliedBalance}` 
+              : 'Loading balance...'
           }
         />
-      </Box>
 
-      <Divider sx={{ my: 2 }} />
+      <Divider sx={{ my: 1.5 }} />
 
-      <Box sx={{ mb: 3 }}>
+      <Box sx={{ mb: 2 }}>
         <Typography variant="subtitle2" gutterBottom>
-          Transaction Summary
+          Summary
         </Typography>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="body2">Amount to Withdraw:</Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+          <Typography variant="body2">Amount:</Typography>
           <Typography variant="body2">{amount || '0'} ETH</Typography>
         </Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="body2">Interest Earned:</Typography>
-          <Typography variant="body2">5% APY</Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+          <Typography variant="body2">APY:</Typography>
+          <Typography variant="body2">5%</Typography>
         </Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
           <Typography variant="body2">Status:</Typography>
-          <Chip
-            label="Encrypted"
-            size="small"
-            color="primary"
-            icon={<AccountBalance />}
-          />
+          <Typography variant="body2" color="text.secondary">Coming Soon</Typography>
         </Box>
       </Box>
 
       <Button
         fullWidth
         variant="contained"
-        size="large"
+        size="medium"
         onClick={handleWithdraw}
         disabled={true} // Disabled because withdraw function doesn't exist in smart contract
         startIcon={<Send />}
-        sx={{ py: 1.5 }}
+        sx={{ py: 1 }}
       >
-        Withdraw ETH (Coming Soon)
+        Coming Soon
       </Button>
 
       {hash && (
-        <Box sx={{ mt: 2, textAlign: 'center' }}>
-          <Typography variant="body2" color="text.secondary">
-            Transaction Hash: {hash.slice(0, 10)}...{hash.slice(-8)}
+        <Box sx={{ mt: 1.5, textAlign: 'center' }}>
+          <Typography variant="caption" color="text.secondary">
+            {hash?.slice(0, 10)}...{hash?.slice(-8)}
           </Typography>
         </Box>
       )}

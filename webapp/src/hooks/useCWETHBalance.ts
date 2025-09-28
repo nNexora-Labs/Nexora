@@ -21,7 +21,7 @@ const CWETH_ABI = [
       {
         "internalType": "euint64",
         "name": "",
-        "type": "euint64"
+        "type": "bytes32"
       }
     ],
     "stateMutability": "view",

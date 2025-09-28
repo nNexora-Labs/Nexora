@@ -1,0 +1,16 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "contracts": {
+    "ConfidentialWETH": "0xb95048EbAd461028C90798E6fec517BB8Ae019B9",
+    "ConfidentialLendingVault": "0xA1FBd9931EBB8B6dDc2a695B40335B742BEBCee6"
+  },
+  "note": "Using working addresses for development with additional features",
+  "features": {
+    "supply": true,
+    "withdraw": "planned",
+    "borrow": "planned",
+    "repay": "planned"
+  },
+  "lastUpdated": "2025-09-27T15:54:20.684Z"
+}

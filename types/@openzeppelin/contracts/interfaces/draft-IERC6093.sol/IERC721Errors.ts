@@ -16,13 +16,13 @@ import type {
   TypedListener,
 } from "../../../../common";
 
-export interface SepoliaConfigInterface extends Interface {}
+export interface IERC721ErrorsInterface extends Interface {}
 
-export interface SepoliaConfig extends BaseContract {
-  connect(runner?: ContractRunner | null): SepoliaConfig;
+export interface IERC721Errors extends BaseContract {
+  connect(runner?: ContractRunner | null): IERC721Errors;
   waitForDeployment(): Promise<this>;
 
-  interface: SepoliaConfigInterface;
+  interface: IERC721ErrorsInterface;
 
   queryFilter<TCEvent extends TypedContractEvent>(
     event: TCEvent,

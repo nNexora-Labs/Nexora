@@ -21,7 +21,7 @@ import { getFHEInstance } from '../utils/fhe';
 const VAULT_ABI = [
   {
     "inputs": [
-      { "internalType": "bytes32", "name": "encryptedAmount", "type": "bytes32" },
+      { "internalType": "externalEuint64", "name": "encryptedAmount", "type": "bytes32" },
       { "internalType": "bytes", "name": "inputProof", "type": "bytes" }
     ],
     "name": "supply",
@@ -83,7 +83,7 @@ const CWETH_ABI = [
         "type": "address"
       },
       {
-        "internalType": "bytes32",
+        "internalType": "externalEuint64",
         "name": "encryptedAmount",
         "type": "bytes32"
       },
@@ -96,7 +96,7 @@ const CWETH_ABI = [
     "name": "confidentialTransferFrom",
     "outputs": [
       {
-        "internalType": "bytes32",
+        "internalType": "euint64",
         "name": "transferred",
         "type": "bytes32"
       }
@@ -401,6 +401,7 @@ export default function SupplyForm() {
             throw new Error('Unsupported encrypted payload type');
           };
           
+          // Format as bytes32 (fixed 32 bytes) for externalEuint64
           const formattedEncryptedAmount = toHex(encryptedAmountHandle);
           const formattedInputProof = toHex(inputProofRaw);
           
@@ -449,12 +450,12 @@ export default function SupplyForm() {
   }
 
   return (
-    <Box sx={{ maxWidth: 600, mx: 'auto' }}>
-          {showSuccess && (
-            <Alert severity="success" sx={{ mb: 2 }}>
-              {isApproved ? 'Successfully supplied encrypted cWETH to the confidential lending vault!' : 'Successfully set vault as operator! Now click Supply again to complete the encrypted transfer.'}
-            </Alert>
-          )}
+    <Box sx={{ maxWidth: 500, mx: 'auto' }}>
+      {showSuccess && (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          {isApproved ? 'Successfully supplied cWETH!' : 'Operator set! Click Supply again to complete.'}
+        </Alert>
+      )}
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
@@ -462,30 +463,30 @@ export default function SupplyForm() {
         </Alert>
       )}
 
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  Supply cWETH to Confidential Lending Vault
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Supply your confidential WETH (cWETH) tokens to the lending vault.
-                  All balances and transactions are encrypted using FHE technology.
-                </Typography>
-              </Box>
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="h6" gutterBottom>
+          Supply cWETH
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Supply confidential WETH tokens to earn yield
+        </Typography>
+      </Box>
 
-      <Box sx={{ mb: 3 }}>
+      <Box sx={{ mb: 2 }}>
         <TextField
           fullWidth
-          label="Amount (cWETH)"
+          label="Amount"
           type="number"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
+          size="small"
           InputProps={{
             endAdornment: (
               <Button
                 size="small"
                 onClick={handleMaxAmount}
                 disabled={!cWETHBalance || cWETHBalance === '0x0000000000000000000000000000000000000000000000000000000000000000'}
-                sx={{ ml: 1 }}
+                sx={{ ml: 1, minWidth: 'auto', px: 1 }}
               >
                 MAX
               </Button>
@@ -493,31 +494,31 @@ export default function SupplyForm() {
           }}
           helperText={
             isLoadingBalance 
-              ? 'Loading cWETH balance...'
+              ? 'Loading balance...'
               : cWETHBalance && cWETHBalance !== '0x0000000000000000000000000000000000000000000000000000000000000000' 
-              ? `cWETH Balance: Available (encrypted)` 
+              ? `Balance: Available` 
               : cWETHBalance === '0x0000000000000000000000000000000000000000000000000000000000000000'
-              ? `cWETH Balance: 0.0000 cWETH`
-              : 'No cWETH balance found'
+              ? `Balance: 0.0000 cWETH`
+              : 'No balance found'
           }
         />
       </Box>
 
-      <Divider sx={{ my: 2 }} />
+      <Divider sx={{ my: 1.5 }} />
 
-      <Box sx={{ mb: 3 }}>
+      <Box sx={{ mb: 2 }}>
         <Typography variant="subtitle2" gutterBottom>
-          Transaction Summary
+          Summary
         </Typography>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body2">Amount to Supply:</Typography>
-                  <Typography variant="body2">{amount || '0'} cWETH</Typography>
-                </Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="body2">Interest Rate:</Typography>
-          <Typography variant="body2">5% APY</Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+          <Typography variant="body2">Amount:</Typography>
+          <Typography variant="body2">{amount || '0'} cWETH</Typography>
         </Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+          <Typography variant="body2">APY:</Typography>
+          <Typography variant="body2">5%</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
           <Typography variant="body2">Status:</Typography>
           <Chip
             label="Encrypted"
@@ -531,33 +532,33 @@ export default function SupplyForm() {
       <Button
         fullWidth
         variant="contained"
-        size="large"
+        size="medium"
         onClick={handleSupply}
-            disabled={!isValidAmount || isPending || isConfirming || isEncrypting}
-            startIcon={
-              isPending || isConfirming || isEncrypting ? (
-                <CircularProgress size={20} />
-              ) : (
-                <Send />
-              )
-            }
-        sx={{ py: 1.5 }}
+        disabled={!isValidAmount || isPending || isConfirming || isEncrypting}
+        startIcon={
+          isPending || isConfirming || isEncrypting ? (
+            <CircularProgress size={16} />
+          ) : (
+            <Send />
+          )
+        }
+        sx={{ py: 1 }}
       >
-            {isPending
-              ? 'Confirming Transaction...'
-              : isConfirming
-              ? 'Processing...'
-              : isEncrypting
-              ? 'Encrypting Amount...'
-              : isApproved
-              ? 'Supply cWETH (Encrypted)'
-              : 'Set Operator'}
+        {isPending
+          ? 'Confirming...'
+          : isConfirming
+          ? 'Processing...'
+          : isEncrypting
+          ? 'Encrypting...'
+          : isApproved
+          ? 'Supply cWETH'
+          : 'Set Operator'}
       </Button>
 
       {hash && (
-        <Box sx={{ mt: 2, textAlign: 'center' }}>
-          <Typography variant="body2" color="text.secondary">
-            Transaction Hash: {hash.slice(0, 10)}...{hash.slice(-8)}
+        <Box sx={{ mt: 1.5, textAlign: 'center' }}>
+          <Typography variant="caption" color="text.secondary">
+            {hash.slice(0, 10)}...{hash.slice(-8)}
           </Typography>
         </Box>
       )}

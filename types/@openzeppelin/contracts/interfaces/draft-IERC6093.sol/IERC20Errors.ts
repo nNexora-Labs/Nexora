@@ -16,13 +16,13 @@ import type {
   TypedListener,
 } from "../../../../common";
 
-export interface EthereumConfigInterface extends Interface {}
+export interface IERC20ErrorsInterface extends Interface {}
 
-export interface EthereumConfig extends BaseContract {
-  connect(runner?: ContractRunner | null): EthereumConfig;
+export interface IERC20Errors extends BaseContract {
+  connect(runner?: ContractRunner | null): IERC20Errors;
   waitForDeployment(): Promise<this>;
 
-  interface: EthereumConfigInterface;
+  interface: IERC20ErrorsInterface;
 
   queryFilter<TCEvent extends TypedContractEvent>(
     event: TCEvent,

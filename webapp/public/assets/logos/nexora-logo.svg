@@ -1,0 +1,40 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Main gradient for the N -->
+    <linearGradient id="nexoraGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3498db;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#2980b9;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2c3e50;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Subtle glow effect -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="1" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background circle with subtle gradient -->
+  <circle cx="16" cy="16" r="15" fill="url(#nexoraGradient)" opacity="0.1"/>
+  
+  <!-- Main N letter with creative design -->
+  <g filter="url(#glow)">
+    <!-- Left vertical stroke -->
+    <rect x="6" y="8" width="3" height="16" rx="1.5" fill="url(#nexoraGradient)"/>
+    
+    <!-- Diagonal stroke with creative curve -->
+    <path d="M9 8 Q16 16 23 8" stroke="url(#nexoraGradient)" stroke-width="3" stroke-linecap="round" fill="none"/>
+    
+    <!-- Right vertical stroke -->
+    <rect x="23" y="8" width="3" height="16" rx="1.5" fill="url(#nexoraGradient)"/>
+    
+    <!-- Creative accent - small dot representing innovation -->
+    <circle cx="16" cy="20" r="1.5" fill="#3498db" opacity="0.8"/>
+  </g>
+  
+  <!-- Subtle border for definition -->
+  <circle cx="16" cy="16" r="15" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" fill="none"/>
+</svg>

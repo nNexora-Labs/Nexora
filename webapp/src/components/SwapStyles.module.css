@@ -1,0 +1,432 @@
+.overlayBackdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--swap-backdrop-bg, rgba(0, 0, 0, 0.25));
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.swapLayout {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.swapPanel {
+  position: relative;
+  background: var(--swap-panel-bg, linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%));
+  border: var(--swap-panel-border, 1px solid rgba(255, 255, 255, 0.1));
+  border-radius: 16px;
+  box-shadow: var(--swap-panel-shadow, 0 16px 36px rgba(0, 0, 0, 0.7));
+  width: 400px;
+  min-width: 400px;
+  max-height: 500px;
+  color: var(--swap-panel-text, #fff);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.swapHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-bottom: var(--swap-header-border, 1px solid rgba(255, 255, 255, 0.1));
+}
+
+.swapTitle {
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 16px;
+  background: var(--swap-title-gradient, linear-gradient(45deg, #ecf0f1, #bdc3c7));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.swapBody {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  flex: 1;
+  justify-content: space-between;
+  overflow-y: auto;
+}
+
+
+.tokenSection {
+  background: var(--swap-token-bg, linear-gradient(135deg, #34495e 0%, #2c3e50 100%));
+  border: var(--swap-token-border, 1px solid rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.tokenHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.tokenRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.tokenBadge {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(45deg, #34495e, #2c3e50);
+  box-shadow: 0 4px 12px rgba(52, 73, 94, 0.3);
+  font-size: 12px;
+}
+
+.tokenSymbol {
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.amountInputWrap {
+  margin-left: auto;
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.amountDisplay {
+  width: 100%;
+  max-width: 110px;
+  padding: 5px 6px;
+  text-align: right;
+  background: var(--swap-amount-bg, rgba(255, 255, 255, 0.08));
+  border: var(--swap-amount-border, 1px solid rgba(255, 255, 255, 0.15));
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--swap-amount-text, #fff);
+}
+
+.switchWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.switchGap {
+  margin: 1px 0;
+}
+
+.switchButton {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: var(--swap-switch-bg, linear-gradient(45deg, #34495e, #2c3e50));
+  box-shadow: var(--swap-switch-shadow, 0 6px 16px rgba(52, 73, 94, 0.4));
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.switchButton:hover {
+  transform: translateY(-2px);
+  background: var(--swap-switch-hover-bg, linear-gradient(45deg, #2c3e50, #34495e));
+  box-shadow: var(--swap-switch-hover-shadow, 0 8px 20px rgba(52, 73, 94, 0.5));
+}
+
+.detailsCard {
+  background: var(--swap-details-bg, linear-gradient(135deg, #34495e 0%, #2c3e50 100%));
+  border: var(--swap-details-border, 1px solid rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.detailRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.detailRow:last-child {
+  margin-bottom: 0;
+}
+
+.actionsRow {
+  display: flex;
+  gap: 12px;
+}
+
+.actionsSpacer {
+  margin-top: 2px;
+}
+
+.primaryAction {
+  width: 100%;
+  padding: 8px 12px;
+  min-height: 32px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1;
+  background: var(--swap-button-bg, rgba(255, 255, 255, 0.1));
+  color: var(--swap-button-text, rgba(255, 255, 255, 0.8));
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.primaryAction:disabled {
+  background: var(--swap-button-bg, rgba(255, 255, 255, 0.1)) !important;
+  color: var(--swap-button-text, rgba(255, 255, 255, 0.8)) !important;
+  cursor: not-allowed !important;
+  opacity: 0.6;
+}
+
+.advancedRow {
+  display: none;
+}
+
+.advancedActions {
+  display: flex;
+  gap: 8px;
+}
+
+.networkRow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.closeButton {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+}
+
+.boxSpacing {
+  margin-bottom: 4px;
+  position: relative;
+}
+
+/* New input-with-suffix layout */
+.inputRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--swap-input-bg, rgba(255, 255, 255, 0.06));
+  border: var(--swap-input-border, 1px solid rgba(255, 255, 255, 0.15));
+  border-radius: 10px;
+  padding: 10px 10px;
+  box-shadow: var(--swap-input-shadow, 0 2px 10px rgba(0, 0, 0, 0.15) inset);
+}
+
+.inputField {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--swap-input-text, #fff);
+  font-weight: var(--swap-input-weight, 800);
+  font-size: 16px;
+  padding: 6px 2px;
+  min-width: 0;
+}
+
+/* Hide number input spinners */
+.inputField::-webkit-outer-spin-button,
+.inputField::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.inputField[type=number] {
+  -moz-appearance: textfield;
+}
+
+.readOnlyField {
+  color: var(--swap-readonly-text, rgba(255, 255, 255, 0.8));
+}
+
+.inputSuffix {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tokenSelectorBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--swap-selector-bg, rgba(255, 255, 255, 0.08));
+  border: var(--swap-selector-border, 1px solid rgba(255, 255, 255, 0.2));
+  color: var(--swap-selector-text, #fff);
+  cursor: pointer;
+}
+
+.tokenSelectorBtn img {
+  width: 16px;
+  height: 16px;
+}
+
+.caret {
+  opacity: 0.8;
+  font-size: 12px;
+}
+
+.suffixSymbol {
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.maxButtonChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 22px;
+  padding: 0 6px;
+  font-size: 10px;
+  color: var(--swap-max-text, rgba(255, 255, 255, 0.85));
+  background: var(--swap-max-bg, rgba(255, 255, 255, 0.05));
+  border: var(--swap-max-border, 1px solid rgba(255, 255, 255, 0.2));
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.maxButtonChip:hover {
+  background: var(--swap-max-hover-bg, rgba(255, 255, 255, 0.1));
+}
+
+.approxChip {
+  min-width: 24px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--swap-approx-text, rgba(255, 255, 255, 0.6));
+  background: var(--swap-approx-bg, rgba(255, 255, 255, 0.05));
+  border-radius: 6px;
+  border: var(--swap-approx-border, 1px solid rgba(255, 255, 255, 0.1));
+}
+
+.inlineDropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 10px;
+  left: 10px;
+  background: var(--swap-dropdown-bg, rgba(44, 62, 80, 0.95));
+  border-radius: 8px;
+  border: var(--swap-dropdown-border, 1px solid rgba(255, 255, 255, 0.2));
+  box-shadow: var(--swap-dropdown-shadow, 0 4px 16px rgba(0, 0, 0, 0.3));
+  backdrop-filter: blur(10px);
+  z-index: 1000;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.dropdownItem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: transparent;
+  color: var(--swap-dropdown-text, rgba(255, 255, 255, 0.9));
+  border: none;
+  border-bottom: var(--swap-dropdown-item-border, 1px solid rgba(255, 255, 255, 0.08));
+  text-align: left;
+  cursor: pointer;
+}
+
+.dropdownItem:last-child {
+  border-bottom: none;
+}
+
+.dropdownItem:disabled {
+  color: var(--swap-dropdown-disabled-text, rgba(255, 255, 255, 0.4));
+  cursor: default;
+}
+
+.dropdownLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dropdownLeft img {
+  width: 20px;
+  height: 20px;
+}
+
+.dropdownName {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.dropdownTicker {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--swap-dropdown-ticker-bg, rgba(255, 255, 255, 0.08));
+}
+
+.dropdownStatus {
+  font-size: 10px;
+  color: var(--swap-dropdown-status-text, rgba(255, 255, 255, 0.6));
+}
+
+/* Custom scrollbar for swap panel */
+.swapPanel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.swapPanel::-webkit-scrollbar-track {
+  background: var(--swap-scrollbar-track, rgba(255, 255, 255, 0.1));
+  border-radius: 3px;
+}
+
+.swapPanel::-webkit-scrollbar-thumb {
+  background: var(--swap-scrollbar-thumb, rgba(255, 255, 255, 0.3));
+  border-radius: 3px;
+}
+
+.swapPanel::-webkit-scrollbar-thumb:hover {
+  background: var(--swap-scrollbar-thumb-hover, rgba(255, 255, 255, 0.5));
+}
+
+@media (max-width: 599px) {
+  .swapPanel {
+    width: 92vw;
+    min-width: 0;
+    max-height: 90vh;
+  }
+  .amountDisplay {
+    max-width: 150px;
+  }
+  .inputRow {
+    padding: 8px 8px;
+  }
+}

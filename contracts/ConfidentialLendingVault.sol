@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IConfidentialFungibleTokenReceiver} from "@openzeppelin/confidential-contracts/interfaces/IConfidentialFungibleTokenReceiver.sol";
 import {ConfidentialFungibleToken} from "@openzeppelin/confidential-contracts/token/ConfidentialFungibleToken.sol";
-import {FHE, euint32, externalEuint32, euint64, externalEuint64, ebool} from "@fhevm/solidity/lib/FHE.sol";
+import "@fhevm/solidity/lib/FHE.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -42,6 +42,12 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
     constructor(address _asset) Ownable(msg.sender) {
         asset = IERC20(_asset);
         lastUpdateTime = block.timestamp;
+
+        // Initialize encrypted state variables
+        _encryptedTotalShares = FHE.asEuint64(0);
+        _encryptedTotalAssets = FHE.asEuint64(0);
+        FHE.allowThis(_encryptedTotalShares);
+        FHE.allowThis(_encryptedTotalAssets);
     }
 
     /// @notice Handle incoming confidential transfers from cWETH
@@ -59,29 +65,36 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
     ) external override returns (ebool) {
         // Only accept transfers from the cWETH contract
         require(msg.sender == address(asset), "ConfidentialLendingVault: Only cWETH transfers allowed");
-        
+
         // Use euint64 directly for internal calculations
-        // Note: In FHEVM, we work directly with encrypted values
         euint64 encryptedAmount = amount;
-        
+
         // Calculate shares based on current rate (encrypted)
         // For Phase 1, we'll use a simple 1:1 ratio
         euint64 encryptedShares = encryptedAmount; // 1:1 ratio for now
-        
-        // Update encrypted state
-        _encryptedShares[from] = FHE.add(_encryptedShares[from], encryptedShares);
+
+        // Update encrypted state - handle uninitialized balances
+        euint64 currentUserShares = _encryptedShares[from];
+        if (!FHE.isInitialized(currentUserShares)) {
+            currentUserShares = FHE.asEuint64(0);
+        }
+
+        euint64 newUserShares = FHE.add(currentUserShares, encryptedShares);
+        _encryptedShares[from] = newUserShares;
+
+        // Update totals
         _encryptedTotalShares = FHE.add(_encryptedTotalShares, encryptedShares);
         _encryptedTotalAssets = FHE.add(_encryptedTotalAssets, encryptedAmount);
-        
+
         // Allow contract and user to access encrypted values
-        FHE.allowThis(_encryptedShares[from]);
-        FHE.allow(_encryptedShares[from], from);
+        FHE.allowThis(newUserShares);
+        FHE.allow(newUserShares, from);
         FHE.allowThis(_encryptedTotalShares);
         FHE.allowThis(_encryptedTotalAssets);
-        
+
         // Emit CONFIDENTIAL event (no amounts exposed)
         emit ConfidentialSupply(from);
-        
+
         // Return true to accept the transfer
         return FHE.asEbool(true);
     }
