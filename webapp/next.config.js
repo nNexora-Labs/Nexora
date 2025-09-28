@@ -17,12 +17,7 @@ const nextConfig = {
     unoptimized: true, // For static exports
   },
   
-  // Environment variables
-  env: {
-    CUSTOM_KEY: process.env.CUSTOM_KEY,
-  },
-  
-  // Headers for security
+
   async headers() {
     return [
       {

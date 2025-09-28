@@ -8,11 +8,12 @@ import "@fhevm/solidity/lib/FHE.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SepoliaConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
 
 /// @title Confidential Lending Vault
 /// @notice ERC-4626 analogous vault for confidential lending with encrypted balances
 /// @dev This contract implements supply-only functionality for Phase 1
-contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFungibleTokenReceiver {
+contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFungibleTokenReceiver, SepoliaConfig {
     using SafeERC20 for IERC20;
 
     // Events - CONFIDENTIAL: No plaintext amounts exposed

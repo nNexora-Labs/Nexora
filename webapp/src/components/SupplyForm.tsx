@@ -15,7 +15,7 @@ import {
   Chip,
 } from '@mui/material';
 import { Send, AccountBalance } from '@mui/icons-material';
-import { getFHEInstance } from '../utils/fhe';
+import { getFHEInstance, reinitializeFHEForNewContracts } from '../utils/fhe';
 
 // Contract ABI for supplying cWETH to the vault
 const VAULT_ABI = [
@@ -150,6 +150,7 @@ export default function SupplyForm() {
   const [isApproved, setIsApproved] = useState(false);
   const [approvalHash, setApprovalHash] = useState<string | null>(null);
   const [isEncrypting, setIsEncrypting] = useState(false);
+  const [needsReinitialization, setNeedsReinitialization] = useState(false);
 
   // Contract address (will be set after deployment)
   const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x0000000000000000000000000000000000000000';
@@ -369,6 +370,7 @@ export default function SupplyForm() {
           console.log('FHE instance obtained');
           
           // Create encrypted input bound to the vault (pull pattern)
+          console.log('Creating encrypted input for vault:', VAULT_ADDRESS, 'user:', address);
           const input = (fheInstance as any).createEncryptedInput(
             VAULT_ADDRESS as `0x${string}`,
             address as `0x${string}`
@@ -424,7 +426,22 @@ export default function SupplyForm() {
           
         } catch (encryptError) {
           console.error('Encryption/Transfer failed:', encryptError);
-          throw new Error('Failed to encrypt transfer amount or execute transfer');
+          
+          // Check if this is an FHEVM initialization error for the vault
+          if (encryptError instanceof Error) {
+            const errorMessage = encryptError.message.toLowerCase();
+            if (errorMessage.includes('fhe') || 
+                errorMessage.includes('encrypt') ||
+                errorMessage.includes('instance') ||
+                errorMessage.includes('vault') ||
+                errorMessage.includes('contract')) {
+              console.log('FHEVM vault encryption error detected:', encryptError.message);
+              setNeedsReinitialization(true);
+              throw new Error(`Vault encryption failed: ${encryptError.message}. Click "Reinitialize FHEVM" to fix this.`);
+            }
+          }
+          
+          throw new Error(`Failed to encrypt transfer amount: ${encryptError}`);
         } finally {
           setIsEncrypting(false);
         }
@@ -460,6 +477,23 @@ export default function SupplyForm() {
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           Transaction failed: {error.message}
+          {needsReinitialization && (
+            <Box sx={{ mt: 1 }}>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => {
+                  reinitializeFHEForNewContracts();
+                  setNeedsReinitialization(false);
+                  setShowSuccess(true);
+                  setTimeout(() => setShowSuccess(false), 3000);
+                }}
+                sx={{ mt: 1 }}
+              >
+                Reinitialize FHEVM for New Contracts
+              </Button>
+            </Box>
+          )}
         </Alert>
       )}
 
@@ -554,6 +588,27 @@ export default function SupplyForm() {
           ? 'Supply cWETH'
           : 'Set Operator'}
       </Button>
+
+      {/* Manual FHEVM re-initialization button for troubleshooting */}
+      {cWETHBalance && cWETHBalance !== '0x0000000000000000000000000000000000000000000000000000000000000000' && isApproved && (
+        <Box sx={{ mt: 2, textAlign: 'center' }}>
+          <Button
+            size="small"
+            variant="outlined"
+            color="secondary"
+            onClick={() => {
+              console.log('Manual FHEVM re-initialization triggered');
+              reinitializeFHEForNewContracts();
+              setNeedsReinitialization(false);
+              setShowSuccess(true);
+              setTimeout(() => setShowSuccess(false), 3000);
+            }}
+            sx={{ fontSize: '0.75rem' }}
+          >
+            🔄 Reinitialize FHEVM (if supply fails)
+          </Button>
+        </Box>
+      )}
 
       {hash && (
         <Box sx={{ mt: 1.5, textAlign: 'center' }}>

@@ -111,6 +111,19 @@ export const getFHEInstance = async (provider?: any): Promise<FhevmInstance> => 
       const aclAddress = relayerSDK.SepoliaConfig.aclContractAddress;
       let cachedKey = publicKeyStorage.get(aclAddress);
       
+      // Clear cache for new contract addresses to force re-initialization
+      const currentCWETHAddress = process.env.NEXT_PUBLIC_CWETH_ADDRESS;
+      const currentVaultAddress = process.env.NEXT_PUBLIC_VAULT_ADDRESS;
+      
+      // If contract addresses changed, clear the cache
+      if (currentCWETHAddress && currentVaultAddress) {
+        const cacheKey = `${currentCWETHAddress}-${currentVaultAddress}`;
+        if (!publicKeyStorage.has(cacheKey)) {
+          console.log('New contract addresses detected, clearing FHEVM cache...');
+          publicKeyStorage.clear();
+        }
+      }
+      
       console.log('Creating FHE instance...');
       
       // Create config with or without public key (like the official example)
@@ -183,6 +196,32 @@ export const getFHEInstance = async (provider?: any): Promise<FhevmInstance> => 
 export const cleanupFHEInstance = () => {
   fheInstance = null;
   isInitializing = false;
+};
+
+// Force re-initialization for new contract addresses
+export const reinitializeFHEForNewContracts = () => {
+  console.log('Forcing FHEVM re-initialization for new contracts...');
+  console.log('Current contract addresses:', {
+    cWETH: process.env.NEXT_PUBLIC_CWETH_ADDRESS,
+    vault: process.env.NEXT_PUBLIC_VAULT_ADDRESS
+  });
+  
+  fheInstance = null;
+  isInitializing = false;
+  publicKeyStorage.clear();
+  
+  // Also clear any cached encryption data in localStorage
+  if (typeof window !== 'undefined') {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.includes('fhevm') || key.includes('encrypt') || key.includes('relayer'))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    console.log('Cleared localStorage encryption cache:', keysToRemove);
+  }
 };
 
 // Create encrypted input buffer for contract interaction

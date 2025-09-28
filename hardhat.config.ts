@@ -36,6 +36,11 @@ const config: HardhatUserConfig = {
     hardhat: {
       chainId: 31337,
     },
+    localhost: {
+      url: "http://localhost:8545",
+      chainId: 31337,
+      accounts: [PRIVATE_KEY],
+    },
     anvil: {
       accounts: [PRIVATE_KEY],
       chainId: 31337,

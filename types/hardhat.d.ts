@@ -14,6 +14,14 @@ import * as Contracts from ".";
 declare module "hardhat/types/runtime" {
   interface HardhatEthersHelpers extends HardhatEthersHelpersBase {
     getContractFactory(
+      name: "EthereumConfig",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.EthereumConfig__factory>;
+    getContractFactory(
+      name: "SepoliaConfig",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.SepoliaConfig__factory>;
+    getContractFactory(
       name: "FHE",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.FHE__factory>;
@@ -54,29 +62,9 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.Ownable__factory>;
     getContractFactory(
-      name: "IERC1155Errors",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.IERC1155Errors__factory>;
-    getContractFactory(
-      name: "IERC20Errors",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.IERC20Errors__factory>;
-    getContractFactory(
-      name: "IERC721Errors",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.IERC721Errors__factory>;
-    getContractFactory(
       name: "IERC1363",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.IERC1363__factory>;
-    getContractFactory(
-      name: "ERC20",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.ERC20__factory>;
-    getContractFactory(
-      name: "IERC20Metadata",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.IERC20Metadata__factory>;
     getContractFactory(
       name: "IERC20",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -103,6 +91,16 @@ declare module "hardhat/types/runtime" {
     ): Promise<Contracts.ConfidentialWETH__factory>;
 
     getContractAt(
+      name: "EthereumConfig",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.EthereumConfig>;
+    getContractAt(
+      name: "SepoliaConfig",
+      address: string | ethers.Addressable,
+      signer?: ethers.Signer
+    ): Promise<Contracts.SepoliaConfig>;
+    getContractAt(
       name: "FHE",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
@@ -153,35 +151,10 @@ declare module "hardhat/types/runtime" {
       signer?: ethers.Signer
     ): Promise<Contracts.Ownable>;
     getContractAt(
-      name: "IERC1155Errors",
-      address: string | ethers.Addressable,
-      signer?: ethers.Signer
-    ): Promise<Contracts.IERC1155Errors>;
-    getContractAt(
-      name: "IERC20Errors",
-      address: string | ethers.Addressable,
-      signer?: ethers.Signer
-    ): Promise<Contracts.IERC20Errors>;
-    getContractAt(
-      name: "IERC721Errors",
-      address: string | ethers.Addressable,
-      signer?: ethers.Signer
-    ): Promise<Contracts.IERC721Errors>;
-    getContractAt(
       name: "IERC1363",
       address: string | ethers.Addressable,
       signer?: ethers.Signer
     ): Promise<Contracts.IERC1363>;
-    getContractAt(
-      name: "ERC20",
-      address: string | ethers.Addressable,
-      signer?: ethers.Signer
-    ): Promise<Contracts.ERC20>;
-    getContractAt(
-      name: "IERC20Metadata",
-      address: string | ethers.Addressable,
-      signer?: ethers.Signer
-    ): Promise<Contracts.IERC20Metadata>;
     getContractAt(
       name: "IERC20",
       address: string | ethers.Addressable,
@@ -214,6 +187,14 @@ declare module "hardhat/types/runtime" {
     ): Promise<Contracts.ConfidentialWETH>;
 
     deployContract(
+      name: "EthereumConfig",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.EthereumConfig>;
+    deployContract(
+      name: "SepoliaConfig",
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.SepoliaConfig>;
+    deployContract(
       name: "FHE",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.FHE>;
@@ -254,29 +235,9 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.Ownable>;
     deployContract(
-      name: "IERC1155Errors",
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.IERC1155Errors>;
-    deployContract(
-      name: "IERC20Errors",
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.IERC20Errors>;
-    deployContract(
-      name: "IERC721Errors",
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.IERC721Errors>;
-    deployContract(
       name: "IERC1363",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.IERC1363>;
-    deployContract(
-      name: "ERC20",
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.ERC20>;
-    deployContract(
-      name: "IERC20Metadata",
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.IERC20Metadata>;
     deployContract(
       name: "IERC20",
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -303,6 +264,16 @@ declare module "hardhat/types/runtime" {
     ): Promise<Contracts.ConfidentialWETH>;
 
     deployContract(
+      name: "EthereumConfig",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.EthereumConfig>;
+    deployContract(
+      name: "SepoliaConfig",
+      args: any[],
+      signerOrOptions?: ethers.Signer | DeployContractOptions
+    ): Promise<Contracts.SepoliaConfig>;
+    deployContract(
       name: "FHE",
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
@@ -353,35 +324,10 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.Ownable>;
     deployContract(
-      name: "IERC1155Errors",
-      args: any[],
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.IERC1155Errors>;
-    deployContract(
-      name: "IERC20Errors",
-      args: any[],
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.IERC20Errors>;
-    deployContract(
-      name: "IERC721Errors",
-      args: any[],
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.IERC721Errors>;
-    deployContract(
       name: "IERC1363",
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.IERC1363>;
-    deployContract(
-      name: "ERC20",
-      args: any[],
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.ERC20>;
-    deployContract(
-      name: "IERC20Metadata",
-      args: any[],
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.IERC20Metadata>;
     deployContract(
       name: "IERC20",
       args: any[],

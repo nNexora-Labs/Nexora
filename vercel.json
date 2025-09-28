@@ -11,13 +11,5 @@
       "src": "/(.*)",
       "dest": "webapp/$1"
     }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  },
-  "functions": {
-    "webapp/pages/api/**/*.js": {
-      "runtime": "nodejs18.x"
-    }
-  }
+  ]
 }

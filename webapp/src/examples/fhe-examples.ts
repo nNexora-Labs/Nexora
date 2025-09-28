@@ -64,14 +64,16 @@ export const withdrawEncryptedShares = async (
 // Example: How to get and decrypt user's encrypted balance
 export const getUserEncryptedBalance = async (
   contractInstance: any,
-  userAddress: string
+  userAddress: string,
+  contractAddress: string,
+  signer: any
 ) => {
   try {
     // Step 1: Get encrypted balance from contract
     const encryptedBalance = await contractInstance.getEncryptedBalance(userAddress);
 
     // Step 2: Decrypt the balance for UI display
-    const decryptedBalance = await decryptUserData(encryptedBalance, userAddress);
+    const decryptedBalance = await decryptUserData(encryptedBalance, userAddress, contractAddress, signer);
 
     return decryptedBalance;
   } catch (error) {
@@ -115,7 +117,9 @@ export const completeSupplyFlow = async (
   vaultAddress: string,
   userAddress: string,
   ethAmount: number,
-  contractInstance: any
+  contractInstance: any,
+  contractAddress: string,
+  signer: any
 ) => {
   try {
     // Convert ETH to wei
@@ -141,7 +145,7 @@ export const completeSupplyFlow = async (
     const encryptedBalance = await contractInstance.getEncryptedBalance(userAddress);
     
     // Step 5: Decrypt balance for display
-    const decryptedBalance = await decryptUserData(encryptedBalance, userAddress);
+    const decryptedBalance = await decryptUserData(encryptedBalance, userAddress, contractAddress, signer);
 
     return {
       transaction: supplyTx,

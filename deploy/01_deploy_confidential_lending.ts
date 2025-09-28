@@ -16,6 +16,7 @@ const deployConfidentialLending: DeployFunction = async function (hre: HardhatRu
     args: [],
     log: true,
     waitConfirmations: 1,
+    gasLimit: 5000000, // Manual gas limit
   });
 
   console.log("ConfidentialWETH deployed to:", cWETH.address);
@@ -27,6 +28,7 @@ const deployConfidentialLending: DeployFunction = async function (hre: HardhatRu
     args: [cWETH.address],
     log: true,
     waitConfirmations: 1,
+    gasLimit: 5000000, // Manual gas limit
   });
 
   console.log("ConfidentialLendingVault deployed to:", vault.address);
