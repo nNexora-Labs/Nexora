@@ -130,7 +130,11 @@ const CWETH_ABI = [
   }
 ] as const;
 
-export default function SupplyForm() {
+interface SupplyFormProps {
+  onTransactionSuccess?: () => Promise<void>;
+}
+
+export default function SupplyForm({ onTransactionSuccess }: SupplyFormProps = {}) {
   const { address, isConnected } = useAccount();
   const { data: balance } = useBalance({ address });
   const { writeContract, data: hash, isPending, error } = useWriteContract();
@@ -325,10 +329,18 @@ export default function SupplyForm() {
       setApprovalHash(null);
       setIsApproved(false);
       setTimeout(() => setShowSuccess(false), 5000);
+      
+      // Refresh all dashboard balances
+      if (onTransactionSuccess) {
+        console.log('🔄 Refreshing dashboard balances after supply...');
+        onTransactionSuccess().catch((error) => {
+          console.error('Error refreshing balances:', error);
+        });
+      }
     } else if (isReceiptError) {
       console.log('❌ Transaction receipt shows error - transaction failed on-chain');
     }
-  }, [isSuccess, isReceiptError, approvalHash, checkOperatorStatus, hash, error]);
+  }, [isSuccess, isReceiptError, approvalHash, checkOperatorStatus, hash, error, onTransactionSuccess]);
 
   const handleMaxAmount = () => {
     // Since we can't decrypt the exact balance, we'll set a reasonable amount

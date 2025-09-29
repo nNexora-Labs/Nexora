@@ -47,9 +47,9 @@ export default function WithdrawForm() {
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
   
   // Master decryption hook
-  const { masterSignature } = useMasterDecryption();
+  const { masterSignature, getMasterSignature } = useMasterDecryption();
   
-  const { suppliedBalance, isDecrypting, hasSupplied, refetchEncryptedShares } = useSuppliedBalance(masterSignature);
+  const { suppliedBalance, isDecrypting, hasSupplied, refetchEncryptedShares } = useSuppliedBalance(masterSignature, getMasterSignature);
   
   // Handle transaction success
   useEffect(() => {
@@ -213,83 +213,255 @@ export default function WithdrawForm() {
 
 
   return (
-    <Box sx={{ maxWidth: 500, mx: 'auto' }}>
+    <Box sx={{ maxWidth: 350, mx: 'auto', p: 1, position: 'relative' }}>
+      {/* Close Button */}
+      <Button
+        onClick={() => {
+          // Close the dialog by triggering a custom event or using parent component logic
+          const event = new CustomEvent('closeWithdrawDialog');
+          window.dispatchEvent(event);
+        }}
+        sx={{
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          minWidth: 'auto',
+          p: 0.5,
+          borderRadius: '50%',
+          color: 'text.secondary',
+          '&:hover': {
+            background: 'action.hover'
+          }
+        }}
+      >
+        ✕
+      </Button>
+      
+      {/* Header */}
+      <Box sx={{ mb: 1.5, textAlign: 'center' }}>
+        <Typography variant="h6" gutterBottom sx={{ mb: 1, fontWeight: 600 }}>
+          Withdraw cWETH
+        </Typography>
+      </Box>
 
       {showSuccess && (
-        <Alert severity="success" sx={{ mb: 2 }}>
-          Successfully withdrew ETH!
+        <Alert 
+          severity="success" 
+          sx={{ 
+            mb: 1.5, 
+            borderRadius: 2,
+            transition: 'all 0.3s ease-in-out',
+            opacity: 0,
+            animation: 'slideInDown 0.4s ease-in-out forwards',
+            '@keyframes slideInDown': {
+              '0%': { opacity: 0, transform: 'translateY(-20px)' },
+              '100%': { opacity: 1, transform: 'translateY(0)' }
+            }
+          }}
+        >
+          <Typography variant="body2">
+            Successfully withdrew {amount} ETH!
+          </Typography>
         </Alert>
       )}
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          Transaction failed: {error.message}
+        <Alert 
+          severity="error" 
+          sx={{ 
+            mb: 1.5, 
+            borderRadius: 2,
+            transition: 'all 0.3s ease-in-out',
+            opacity: 0,
+            animation: 'slideInDown 0.4s ease-in-out forwards',
+            '@keyframes slideInDown': {
+              '0%': { opacity: 0, transform: 'translateY(-20px)' },
+              '100%': { opacity: 1, transform: 'translateY(0)' }
+            }
+          }}
+        >
+          <Typography variant="body2">
+            Transaction failed: {error.message}
+          </Typography>
         </Alert>
       )}
 
+      {/* Amount Input */}
+      <Box sx={{ mb: 1 }}>
         <TextField
           fullWidth
-          label="Amount"
-          size="small"
+          label="Withdrawal Amount"
           type="number"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           disabled={isPending || isConfirming}
+          placeholder="0.00"
           InputProps={{
+            startAdornment: (
+              <Typography variant="body1" sx={{ mr: 1, color: 'text.secondary' }}>
+                ETH
+              </Typography>
+            ),
             endAdornment: (
               <Button
                 size="small"
+                variant="outlined"
                 onClick={handleMaxAmount}
                 disabled={isPending || isConfirming || !hasSupplied}
-                sx={{ ml: 1, minWidth: 'auto', px: 1 }}
+                sx={{ 
+                  ml: 1, 
+                  minWidth: 'auto', 
+                  px: 1.5,
+                  fontSize: '0.75rem',
+                  textTransform: 'none',
+                  borderRadius: 1
+                }}
               >
                 MAX
               </Button>
             ),
           }}
           helperText={
-            hasSupplied 
-              ? `Balance: ${suppliedBalance}` 
-              : 'No supplied balance found'
+            hasSupplied ? `Available: ${suppliedBalance}` : 'No balance available'
           }
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              borderRadius: 2,
+              fontSize: '1rem'
+            },
+            // Hide the number input spinners
+            '& input[type=number]': {
+              '-moz-appearance': 'textfield',
+            },
+            '& input[type=number]::-webkit-outer-spin-button': {
+              '-webkit-appearance': 'none',
+              margin: 0,
+            },
+            '& input[type=number]::-webkit-inner-spin-button': {
+              '-webkit-appearance': 'none',
+              margin: 0,
+            }
+          }}
         />
+      </Box>
 
-      <Divider sx={{ my: 1.5 }} />
-
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="subtitle2" gutterBottom>
+      {/* Transaction Summary */}
+      <Box sx={{ 
+        mb: 1.5, 
+        p: 1, 
+        border: '1px solid',
+        borderColor: 'divider',
+        borderRadius: 2,
+        backgroundColor: 'background.paper',
+        transition: 'all 0.2s ease-in-out',
+        '&:hover': {
+          borderColor: 'primary.main',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+        }
+      }}>
+        <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, mb: 0.5 }}>
           Summary
         </Typography>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-          <Typography variant="body2">Amount:</Typography>
-          <Typography variant="body2">{amount || '0'} ETH</Typography>
+        
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+          <Typography variant="body2" color="text.secondary">Amount</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+            {amount ? `${parseFloat(amount).toFixed(4)} ETH` : '0.0000 ETH'}
+          </Typography>
         </Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-          <Typography variant="body2">APY:</Typography>
-          <Typography variant="body2">5%</Typography>
+        
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+          <Typography variant="body2" color="text.secondary">Fee</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+            ~0.001 ETH
+          </Typography>
         </Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-          <Typography variant="body2">Status:</Typography>
-          <Typography variant="body2" color="text.secondary">
+        
+        <Divider sx={{ my: 0.5 }} />
+        
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>Total</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            {amount ? `${(parseFloat(amount) + 0.001).toFixed(4)} ETH` : '0.0000 ETH'}
+          </Typography>
+        </Box>
+        
+        <Box sx={{ 
+          mt: 0.5, 
+          p: 0.5, 
+          backgroundColor: 'action.hover', 
+          borderRadius: 1,
+          transition: 'background-color 0.2s ease-in-out'
+        }}>
+          <Typography variant="caption" color="text.secondary">
             {isPending ? 'Pending...' : isConfirming ? 'Confirming...' : 'Ready'}
           </Typography>
         </Box>
       </Box>
 
+      {/* Submit Button */}
       <Button
         fullWidth
         variant="contained"
         size="medium"
         onClick={handleWithdraw}
         disabled={!isValidAmount || isPending || isConfirming || !hasSupplied}
-        startIcon={isPending || isConfirming ? <CircularProgress size={20} /> : <Send />}
-        sx={{ py: 1 }}
+        startIcon={
+          isPending || isConfirming ? (
+            <CircularProgress size={18} color="inherit" />
+          ) : (
+            <Send />
+          )
+        }
+        sx={{ 
+          py: 1.2,
+          borderRadius: 2,
+          fontSize: '0.95rem',
+          fontWeight: 600,
+          textTransform: 'none',
+          boxShadow: 2,
+          transition: 'all 0.15s ease-in-out',
+          '&:hover': {
+            boxShadow: 4,
+            transform: 'translateY(-1px)',
+            scale: 1.02
+          },
+          '&:active': {
+            transform: 'translateY(1px) scale(0.98)',
+            boxShadow: 1,
+            transition: 'all 0.1s ease-in-out'
+          },
+          '&:focus': {
+            outline: 'none',
+            boxShadow: '0 0 0 3px rgba(25, 118, 210, 0.3)'
+          },
+          '&:disabled': {
+            opacity: 0.6,
+            transform: 'none',
+            scale: 1,
+            boxShadow: 2
+          }
+        }}
       >
         {isPending ? 'Withdrawing...' : isConfirming ? 'Confirming...' : 'Withdraw'}
       </Button>
 
+      {/* Transaction Hash */}
       {hash && (
-        <Box sx={{ mt: 1.5, textAlign: 'center' }}>
+        <Box sx={{ 
+          mt: 1, 
+          p: 0.5, 
+          backgroundColor: 'action.hover', 
+          borderRadius: 1,
+          textAlign: 'center',
+          transition: 'all 0.2s ease-in-out',
+          opacity: 0,
+          animation: 'fadeIn 0.3s ease-in-out forwards',
+          '@keyframes fadeIn': {
+            '0%': { opacity: 0, transform: 'translateY(10px)' },
+            '100%': { opacity: 1, transform: 'translateY(0)' }
+          }
+        }}>
           <Typography variant="caption" color="text.secondary">
             {hash?.slice(0, 10)}...{hash?.slice(-8)}
           </Typography>

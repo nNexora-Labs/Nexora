@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAccount, useWalletClient } from 'wagmi';
-import { decryptUserData, getFHEInstance } from '../utils/fhe';
+import { getFHEInstance } from '../utils/fhe';
 import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
 import { ethers } from 'ethers';
 
@@ -29,7 +29,7 @@ const CWETH_ABI = [
   }
 ] as const;
 
-export const useCWETHBalance = (masterSignature: string | null) => {
+export const useCWETHBalance = (masterSignature: string | null, getMasterSignature: () => FhevmDecryptionSignature | null) => {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
   
@@ -44,10 +44,8 @@ export const useCWETHBalance = (masterSignature: string | null) => {
   const [isLoadingBalance, setIsLoadingBalance] = useState<boolean>(false);
 
   // Refs for stable references
-  const decryptionSignatureRef = useRef<string | null>(null);
   const lastEncryptedBalanceRef = useRef<string | null>(null);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isDecryptingRef = useRef(false);
 
   // Simple balance fetch function - no dependencies
   const fetchBalance = useCallback(async () => {
@@ -116,11 +114,6 @@ export const useCWETHBalance = (masterSignature: string | null) => {
           const isAllZeros = balanceData === '0x0000000000000000000000000000000000000000000000000000000000000000';
           setHasCWETH(!isAllZeros);
           console.log('🔍 Balance check:', { balanceData, isAllZeros, hasCWETH: !isAllZeros });
-          
-          // Auto-decrypt if we have a session (COMMENTED OUT FOR NOW)
-          // if (isDecrypted && decryptionSignatureRef.current && !isAllZeros) {
-          //   setTimeout(() => decryptBalance(), 100);
-          // }
         }
       } else {
         console.log('🔍 No balance data or empty result:', result.data);
@@ -134,7 +127,7 @@ export const useCWETHBalance = (masterSignature: string | null) => {
     } finally {
       setIsLoadingBalance(false);
     }
-  }, [address, CWETH_ADDRESS, isDecrypted]);
+  }, [address, CWETH_ADDRESS]);
 
   // Simple decrypt function - uses master signature
   const decryptBalance = useCallback(async () => {
@@ -142,37 +135,35 @@ export const useCWETHBalance = (masterSignature: string | null) => {
       return;
     }
 
+    // Prevent multiple simultaneous decryption attempts
+    if (isDecryptingRef.current) {
+      console.log('🔒 cWETH decryption already in progress, skipping...');
+      return;
+    }
+
+    isDecryptingRef.current = true;
+    setIsDecrypting(true);
+    
     try {
-      setIsDecrypting(true);
-      
+      // Get the master signature object
+      const masterSig = getMasterSignature();
+      if (!masterSig) {
+        throw new Error('Master signature not available');
+      }
+
       // Get FHE instance
       const fheInstance = await getFHEInstance();
       
-      // Create signer
-      const provider = new ethers.BrowserProvider(walletClient);
-      const signer = await provider.getSigner();
-      
-      // Use master signature for decryption
-      const sig = await FhevmDecryptionSignature.loadOrSign(
-        fheInstance as any,
-        [CWETH_ADDRESS],
-        signer
-      );
-
-      if (!sig) {
-        throw new Error('Failed to create decryption signature');
-      }
-
-      // Decrypt balance
+      // Decrypt balance using master signature
       const result = await fheInstance.userDecrypt(
         [{ handle: encryptedBalance, contractAddress: CWETH_ADDRESS }],
-        sig.privateKey,
-        sig.publicKey,
-        sig.signature,
-        sig.contractAddresses,
-        sig.userAddress,
-        sig.startTimestamp,
-        sig.durationDays
+        masterSig.privateKey,
+        masterSig.publicKey,
+        masterSig.signature,
+        masterSig.contractAddresses,
+        masterSig.userAddress,
+        masterSig.startTimestamp,
+        masterSig.durationDays
       );
 
       const decryptedValue = result[encryptedBalance];
@@ -189,94 +180,42 @@ export const useCWETHBalance = (masterSignature: string | null) => {
         setCWETHBalance(`${ethValue.toFixed(8)} cWETH`);
         setHasCWETH(ethValue > 0);
         setIsDecrypted(true);
-        decryptionSignatureRef.current = sig.signature;
+        console.log('✅ cWETH balance decrypted:', ethValue);
       }
     } catch (error) {
-      console.error('Decryption failed:', error);
+      console.error('cWETH decryption failed:', error);
       setCWETHBalance('••••••••');
     } finally {
       setIsDecrypting(false);
+      isDecryptingRef.current = false;
     }
-  }, [isConnected, address, encryptedBalance, walletClient, masterSignature, CWETH_ADDRESS]);
-
-  // Simple polling - no dependencies (COMMENTED OUT FOR NOW)
-  // const startPolling = useCallback(() => {
-  //   if (pollingIntervalRef.current) {
-  //     clearInterval(pollingIntervalRef.current);
-  //   }
-  //   
-  //   pollingIntervalRef.current = setInterval(() => {
-  //     fetchBalance();
-  //   }, 5000); // Poll every 5 seconds
-  // }, [fetchBalance]);
-
-  // const stopPolling = useCallback(() => {
-  //   if (pollingIntervalRef.current) {
-  //     clearInterval(pollingIntervalRef.current);
-  //     pollingIntervalRef.current = null;
-  //   }
-  // }, []);
+  }, [isConnected, address, encryptedBalance, walletClient, masterSignature, getMasterSignature, CWETH_ADDRESS]);
 
   // Initialize when address changes
   useEffect(() => {
     if (address && isConnected) {
       fetchBalance();
-      // startPolling(); // COMMENTED OUT FOR NOW
     } else {
-      // stopPolling(); // COMMENTED OUT FOR NOW
       setEncryptedBalance(null);
       setCWETHBalance('••••••••');
       setHasCWETH(false);
       setIsDecrypted(false);
     }
-    
-    // return () => stopPolling(); // COMMENTED OUT FOR NOW
-  }, [address, isConnected, fetchBalance]); // Removed startPolling, stopPolling from dependencies
+  }, [address, isConnected, fetchBalance]);
 
   // Auto-decrypt when master signature becomes available
   useEffect(() => {
-    if (masterSignature && encryptedBalance && !isLoadingBalance) {
+    if (masterSignature && encryptedBalance && !isLoadingBalance && hasCWETH) {
       decryptBalance();
     } else if (!masterSignature) {
       lockBalance();
     }
-  }, [masterSignature, encryptedBalance, isLoadingBalance, decryptBalance]);
-
-  // Load stored signature (COMMENTED OUT FOR NOW - NO AUTO-DECRYPTION)
-  // useEffect(() => {
-  //   if (typeof window !== 'undefined' && address) {
-  //     const storedSignature = localStorage.getItem(`fhe_cweth_decryption_${address}`);
-  //     if (storedSignature) {
-  //       decryptionSignatureRef.current = storedSignature;
-  //       setIsDecrypted(true);
-  //     }
-  //   }
-  // }, [address]);
-
-  // Cleanup on unmount (COMMENTED OUT FOR NOW)
-  // useEffect(() => {
-  //   return () => {
-  //     stopPolling();
-  //     if (updateTimeoutRef.current) {
-  //       clearTimeout(updateTimeoutRef.current);
-  //     }
-  //   };
-  // }, [stopPolling]);
+  }, [masterSignature, encryptedBalance, isLoadingBalance, hasCWETH, decryptBalance]);
 
   // Simple refresh function
   const forceRefresh = useCallback(() => {
     fetchBalance();
   }, [fetchBalance]);
-
-  // Simple clear decryption
-  const clearDecryption = useCallback(() => {
-    if (address) {
-      localStorage.removeItem(`fhe_cweth_decryption_${address}`);
-      decryptionSignatureRef.current = null;
-      setIsDecrypted(false);
-      setCWETHBalance('••••••••');
-    }
-  }, [address]);
 
   // Simple lock function
   const lockBalance = useCallback(() => {
@@ -307,7 +246,6 @@ export const useCWETHBalance = (masterSignature: string | null) => {
     isLoadingBalance,
     isDecrypted,
     isUpdating: isDecrypting || isLoadingBalance,
-    clearDecryption,
     lockBalance,
     forceRefresh,
   };

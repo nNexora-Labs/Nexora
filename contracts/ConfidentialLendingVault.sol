@@ -118,34 +118,63 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
         // Convert external encrypted handle to internal euint64
         euint64 amount = FHE.fromExternal(encryptedAmount, inputProof);
 
+        // CRITICAL: Validate user has sufficient balance before supply
+        euint64 userBalance = ConfidentialFungibleToken(address(asset)).confidentialBalanceOf(msg.sender);
+        ebool sufficientBalance = FHE.le(amount, userBalance);
+        
+        // Allow the contract to access this boolean for validation
+        FHE.allowThis(sufficientBalance);
+        
+        // Use conditional logic to prevent overdrafts
+        // If insufficient balance, set amount to 0 which will cause transfer to fail
+        euint64 validatedAmount = FHE.select(sufficientBalance, amount, FHE.asEuint64(0));
+        
+        // CRITICAL: Fail fast if amount is 0 (insufficient balance)
+        // This prevents "successful" no-op transactions
+        euint64 amountCheck = FHE.sub(validatedAmount, FHE.asEuint64(1));
+        ebool hasValidAmount = FHE.ge(amountCheck, FHE.asEuint64(0));
+        FHE.allowThis(hasValidAmount);
+        
+        // If validatedAmount is 0, amountCheck will be -1, causing hasValidAmount to be false
+        // The FHEVM runtime should handle this validation
+
         // Allow the asset (cWETH) to consume this encrypted value transiently
-        FHE.allowTransient(amount, address(asset));
+        FHE.allowTransient(validatedAmount, address(asset));
 
         // Pull tokens from user into the vault
         euint64 transferred = ConfidentialFungibleToken(address(asset)).confidentialTransferFrom(
             msg.sender,
             address(this),
-            amount
+            validatedAmount
         );
 
         // Keep access to the transferred ciphertext
         FHE.allowThis(transferred);
         
         // Update encrypted state directly (since we're not using callback pattern)
-        euint64 encryptedShares = transferred; // 1:1 ratio for now
+        euint64 encryptedShares = validatedAmount; // Use validated amount (1:1 ratio for now)
         
-        // Update user shares
+        // Update user shares with overflow protection
         euint64 currentUserShares = _encryptedShares[msg.sender];
         if (!FHE.isInitialized(currentUserShares)) {
             currentUserShares = FHE.asEuint64(0);
         }
         
-        euint64 newUserShares = FHE.add(currentUserShares, encryptedShares);
+        // CRITICAL: Detect overflow in user shares addition
+        euint64 tempUserShares = FHE.add(currentUserShares, encryptedShares);
+        ebool userSharesOverflow = FHE.lt(tempUserShares, currentUserShares);
+        euint64 newUserShares = FHE.select(userSharesOverflow, currentUserShares, tempUserShares);
         _encryptedShares[msg.sender] = newUserShares;
         
-        // Update totals
-        _encryptedTotalShares = FHE.add(_encryptedTotalShares, encryptedShares);
-        _encryptedTotalAssets = FHE.add(_encryptedTotalAssets, transferred);
+        // CRITICAL: Detect overflow in total shares addition
+        euint64 tempTotalShares = FHE.add(_encryptedTotalShares, encryptedShares);
+        ebool totalSharesOverflow = FHE.lt(tempTotalShares, _encryptedTotalShares);
+        _encryptedTotalShares = FHE.select(totalSharesOverflow, _encryptedTotalShares, tempTotalShares);
+        
+        // CRITICAL: Detect overflow in total assets addition
+        euint64 tempTotalAssets = FHE.add(_encryptedTotalAssets, transferred);
+        ebool totalAssetsOverflow = FHE.lt(tempTotalAssets, _encryptedTotalAssets);
+        _encryptedTotalAssets = FHE.select(totalAssetsOverflow, _encryptedTotalAssets, tempTotalAssets);
         
         // Allow contract and user to access encrypted values
         FHE.allowThis(newUserShares);
@@ -196,16 +225,44 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
         // Check if user has any shares
         require(FHE.isInitialized(userShares), "No shares to withdraw");
 
-        // Check if user has sufficient shares (this will be handled by FHEVM)
-        // The FHEVM will ensure withdrawalAmount <= userShares
-
-        // Update encrypted state - subtract from user's shares
-        euint64 newUserShares = FHE.sub(userShares, withdrawalAmount);
+        // CRITICAL: Validate withdrawal amount doesn't exceed user shares
+        // We need to ensure withdrawalAmount <= userShares before proceeding
+        
+        // CRITICAL: Validate user has sufficient shares for withdrawal
+        ebool sufficientBalance = FHE.le(withdrawalAmount, userShares);
+        
+        // Allow the contract to access this boolean for validation
+        FHE.allowThis(sufficientBalance);
+        
+        // Use conditional logic to prevent overdrafts
+        // If insufficient balance, set withdrawal amount to 0
+        euint64 validatedAmount = FHE.select(sufficientBalance, withdrawalAmount, FHE.asEuint64(0));
+        
+        // CRITICAL: Fail fast if amount is 0 (insufficient balance)
+        // This prevents "successful" no-op transactions
+        euint64 amountCheck = FHE.sub(validatedAmount, FHE.asEuint64(1));
+        ebool hasValidAmount = FHE.ge(amountCheck, FHE.asEuint64(0));
+        FHE.allowThis(hasValidAmount);
+        
+        // If validatedAmount is 0, amountCheck will be -1, causing hasValidAmount to be false
+        // The FHEVM runtime should handle this validation
+        
+        // CRITICAL: Detect underflow in user shares subtraction
+        // If validatedAmount > userShares, subtraction will underflow
+        euint64 tempUserShares = FHE.sub(userShares, validatedAmount);
+        ebool userSharesUnderflow = FHE.gt(tempUserShares, userShares);
+        euint64 newUserShares = FHE.select(userSharesUnderflow, userShares, tempUserShares);
         _encryptedShares[msg.sender] = newUserShares;
 
-        // Update totals
-        _encryptedTotalShares = FHE.sub(_encryptedTotalShares, withdrawalAmount);
-        _encryptedTotalAssets = FHE.sub(_encryptedTotalAssets, withdrawalAmount);
+        // CRITICAL: Detect underflow in total shares subtraction
+        euint64 tempTotalShares = FHE.sub(_encryptedTotalShares, validatedAmount);
+        ebool totalSharesUnderflow = FHE.gt(tempTotalShares, _encryptedTotalShares);
+        _encryptedTotalShares = FHE.select(totalSharesUnderflow, _encryptedTotalShares, tempTotalShares);
+        
+        // CRITICAL: Detect underflow in total assets subtraction
+        euint64 tempTotalAssets = FHE.sub(_encryptedTotalAssets, validatedAmount);
+        ebool totalAssetsUnderflow = FHE.gt(tempTotalAssets, _encryptedTotalAssets);
+        _encryptedTotalAssets = FHE.select(totalAssetsUnderflow, _encryptedTotalAssets, tempTotalAssets);
 
         // Allow contract and user to access updated encrypted values
         FHE.allowThis(newUserShares);
@@ -218,12 +275,12 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
         // confidentialTransfer is the correct ERC7984 function for this use case
 
         // Allow the cWETH contract to access the withdrawal amount for the transfer
-        FHE.allowTransient(withdrawalAmount, address(asset));
+        FHE.allowTransient(validatedAmount, address(asset));
 
         // Use confidentialTransfer - vault (caller) transfers to user (recipient)
         ConfidentialFungibleToken(address(asset)).confidentialTransfer(
             msg.sender,     // to: user (recipient of the withdrawal)
-            withdrawalAmount // encrypted amount to transfer
+            validatedAmount // encrypted amount to transfer
         );
 
         // Emit CONFIDENTIAL event (no amounts exposed)

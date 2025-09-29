@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAccount, useWalletClient } from 'wagmi';
-import { decryptUserData, getFHEInstance } from '../utils/fhe';
+import { getFHEInstance } from '../utils/fhe';
 import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
 import { ethers } from 'ethers';
 
@@ -23,7 +23,7 @@ const VAULT_ABI = [
   }
 ] as const;
 
-export const useVaultTVL = (masterSignature: string | null) => {
+export const useVaultTVL = (masterSignature: string | null, getMasterSignature: () => FhevmDecryptionSignature | null) => {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
   
@@ -34,6 +34,9 @@ export const useVaultTVL = (masterSignature: string | null) => {
   const [tvLBalance, setTVLBalance] = useState<string>('••••••••');
   const [isLoadingTVL, setIsLoadingTVL] = useState<boolean>(false);
   const [decryptionError, setDecryptionError] = useState<string | null>(null);
+
+  // Refs for preventing multiple simultaneous decryption attempts
+  const isDecryptingRef = useRef(false);
 
   // Fetch encrypted TVL from contract
   const fetchEncryptedTVL = useCallback(async () => {
@@ -107,41 +110,50 @@ export const useVaultTVL = (masterSignature: string | null) => {
 
   // Decrypt TVL using master signature
   const decryptTVL = useCallback(async () => {
+    console.log('🔍 decryptTVL called with:', {
+      isConnected,
+      address,
+      encryptedTVL: encryptedTVL ? 'present' : 'missing',
+      walletClient: walletClient ? 'present' : 'missing',
+      masterSignature: masterSignature ? 'present' : 'missing'
+    });
+    
     if (!isConnected || !address || !encryptedTVL || !walletClient || !masterSignature) {
+      console.log('❌ decryptTVL: Missing requirements, returning early');
       return;
     }
 
+    // Prevent multiple simultaneous decryption attempts
+    if (isDecryptingRef.current) {
+      console.log('🔒 TVL decryption already in progress, skipping...');
+      return;
+    }
+
+    isDecryptingRef.current = true;
+    
     try {
+      console.log('🔄 Starting vaultTVL decryption...');
       setDecryptionError(null);
       
+      // Get the master signature object
+      const masterSig = getMasterSignature();
+      if (!masterSig) {
+        throw new Error('Master signature not available');
+      }
+
       // Get FHE instance
       const fheInstance = await getFHEInstance();
       
-      // Create signer
-      const provider = new ethers.BrowserProvider(walletClient);
-      const signer = await provider.getSigner();
-      
-      // Use the master signature for decryption
-      const sig = await FhevmDecryptionSignature.loadOrSign(
-        fheInstance as any,
-        [VAULT_ADDRESS],
-        signer
-      );
-
-      if (!sig) {
-        throw new Error('Failed to create decryption signature');
-      }
-
-      // Decrypt TVL
+      // Decrypt TVL using master signature
       const result = await fheInstance.userDecrypt(
         [{ handle: encryptedTVL, contractAddress: VAULT_ADDRESS }],
-        sig.privateKey,
-        sig.publicKey,
-        sig.signature,
-        sig.contractAddresses,
-        sig.userAddress,
-        sig.startTimestamp,
-        sig.durationDays
+        masterSig.privateKey,
+        masterSig.publicKey,
+        masterSig.signature,
+        masterSig.contractAddresses,
+        masterSig.userAddress,
+        masterSig.startTimestamp,
+        masterSig.durationDays
       );
 
       const decryptedValue = result[encryptedTVL];
@@ -156,14 +168,19 @@ export const useVaultTVL = (masterSignature: string | null) => {
         }
         
         setTVLBalance(`${ethValue.toFixed(4)} ETH`);
-        console.log('✅ Vault TVL decrypted:', ethValue);
+        console.log('✅ Vault TVL decrypted successfully:', ethValue);
+      } else {
+        console.log('❌ No decrypted value received for vaultTVL');
+        setTVLBalance('••••••••');
       }
     } catch (error) {
-      console.error('TVL decryption failed:', error);
+      console.error('❌ TVL decryption failed:', error);
       setDecryptionError(error instanceof Error ? error.message : 'Decryption failed');
       setTVLBalance('••••••••');
+    } finally {
+      isDecryptingRef.current = false;
     }
-  }, [isConnected, address, encryptedTVL, walletClient, masterSignature, VAULT_ADDRESS]);
+  }, [isConnected, address, encryptedTVL, walletClient, masterSignature, getMasterSignature, VAULT_ADDRESS]);
 
   // Lock TVL (reset to encrypted state)
   const lockTVL = useCallback(() => {
@@ -184,9 +201,18 @@ export const useVaultTVL = (masterSignature: string | null) => {
 
   // Auto-decrypt when master signature becomes available
   useEffect(() => {
+    console.log('🔍 VaultTVL auto-decrypt check:', {
+      masterSignature: masterSignature ? 'present' : 'missing',
+      encryptedTVL: encryptedTVL ? 'present' : 'missing',
+      isLoadingTVL,
+      hasTVL
+    });
+    
     if (masterSignature && encryptedTVL && !isLoadingTVL) {
+      console.log('🔄 Triggering vaultTVL decryption...');
       decryptTVL();
     } else if (!masterSignature) {
+      console.log('🔒 Locking vaultTVL (no master signature)');
       lockTVL();
     }
   }, [masterSignature, encryptedTVL, isLoadingTVL, decryptTVL, lockTVL]);

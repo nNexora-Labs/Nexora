@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAccount, useReadContract, useWalletClient } from 'wagmi';
-import { decryptUserData, getFHEInstance } from '../utils/fhe';
+import { getFHEInstance } from '../utils/fhe';
 import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
 import { ethers } from 'ethers';
 
@@ -29,7 +29,7 @@ const VAULT_ABI = [
   }
 ] as const;
 
-export const useSuppliedBalance = (masterSignature: string | null) => {
+export const useSuppliedBalance = (masterSignature: string | null, getMasterSignature: () => FhevmDecryptionSignature | null) => {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
   
@@ -40,6 +40,9 @@ export const useSuppliedBalance = (masterSignature: string | null) => {
 
   // Contract address
   const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x0000000000000000000000000000000000000000';
+
+  // Refs for preventing multiple simultaneous decryption attempts
+  const isDecryptingRef = useRef(false);
 
   // Read encrypted shares from contract
   const { data: encryptedShares, refetch: refetchEncryptedShares } = useReadContract({
@@ -66,7 +69,7 @@ export const useSuppliedBalance = (masterSignature: string | null) => {
       setHasSupplied(hasEncryptedShares);
       
       if (!hasEncryptedShares) {
-        setSuppliedBalance('No supplies found');
+        setSuppliedBalance('••••••••');
         console.log('🔍 useSuppliedBalance: No shares found, encryptedShares:', encryptedShares);
       } else {
         setSuppliedBalance('••••••••');
@@ -89,46 +92,41 @@ export const useSuppliedBalance = (masterSignature: string | null) => {
       return;
     }
 
+    // Prevent multiple simultaneous decryption attempts
+    if (isDecryptingRef.current) {
+      console.log('🔒 Supplied balance decryption already in progress, skipping...');
+      return;
+    }
+
+    isDecryptingRef.current = true;
     setIsDecrypting(true);
     
     try {
       console.log('Starting decryption process...');
       console.log('Encrypted shares ciphertext:', encryptedShares);
       
+      // Get the master signature object
+      const masterSig = getMasterSignature();
+      if (!masterSig) {
+        throw new Error('Master signature not available');
+      }
+
       // Get FHE instance
       const fheInstance = await getFHEInstance();
       console.log('FHE instance created');
       
-      // Create signer
-      const provider = new ethers.BrowserProvider(walletClient);
-      const signer = await provider.getSigner();
-      
-      // Use master signature for decryption
+      // Decrypt balance using master signature
       console.log('Using master signature for decryption...');
-      
-      // Load or create signature
-      const sig = await FhevmDecryptionSignature.loadOrSign(
-        fheInstance as any,
-        [VAULT_ADDRESS],
-        signer
-      );
-
-      if (!sig) {
-        throw new Error('Failed to create decryption signature');
-      }
-
-      // Decrypt balance using real FHEVM decryption
-      console.log('Attempting to decrypt encrypted shares...');
       
       const result = await fheInstance.userDecrypt(
         [{ handle: encryptedShares, contractAddress: VAULT_ADDRESS }],
-        sig.privateKey,
-        sig.publicKey,
-        sig.signature,
-        sig.contractAddresses,
-        sig.userAddress,
-        sig.startTimestamp,
-        sig.durationDays
+        masterSig.privateKey,
+        masterSig.publicKey,
+        masterSig.signature,
+        masterSig.contractAddresses,
+        masterSig.userAddress,
+        masterSig.startTimestamp,
+        masterSig.durationDays
       );
 
       const decryptedValue = result[encryptedShares];
@@ -146,18 +144,20 @@ export const useSuppliedBalance = (masterSignature: string | null) => {
         setHasSupplied(ethValue > 0);
         setIsDecrypting(false);
         
-        console.log('Decryption successful:', ethValue);
+        console.log('✅ Supplied balance decrypted:', ethValue);
       } else {
         throw new Error('No decrypted value returned');
       }
 
     } catch (error) {
-      console.error('Decryption failed:', error);
-      setSuppliedBalance('Decryption Failed');
+      console.error('Supplied balance decryption failed:', error);
+      setSuppliedBalance('••••••••');
       setHasSupplied(false);
       setIsDecrypting(false);
+    } finally {
+      isDecryptingRef.current = false;
     }
-  }, [isConnected, address, encryptedShares, masterSignature, walletClient, VAULT_ADDRESS]);
+  }, [isConnected, address, encryptedShares, masterSignature, walletClient, getMasterSignature, VAULT_ADDRESS]);
 
   // Auto-decrypt when master signature becomes available
   useEffect(() => {

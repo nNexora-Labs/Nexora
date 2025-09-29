@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAccount, useWalletClient } from 'wagmi';
 import { getFHEInstance } from '../utils/fhe';
 import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
@@ -42,7 +42,7 @@ const VAULT_ABI = [
   }
 ] as const;
 
-export const useSharePercentage = (masterSignature: string | null) => {
+export const useSharePercentage = (masterSignature: string | null, getMasterSignature: () => FhevmDecryptionSignature | null) => {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
   
@@ -54,6 +54,9 @@ export const useSharePercentage = (masterSignature: string | null) => {
   const [sharePercentage, setSharePercentage] = useState<string>('••••••••');
   const [isDecrypting, setIsDecrypting] = useState<boolean>(false);
   const [hasShares, setHasShares] = useState<boolean>(false);
+
+  // Refs for preventing multiple simultaneous decryption attempts
+  const isDecryptingRef = useRef(false);
 
   // Fetch encrypted shares from contract
   const fetchEncryptedShares = useCallback(async () => {
@@ -151,40 +154,38 @@ export const useSharePercentage = (masterSignature: string | null) => {
       return;
     }
 
+    // Prevent multiple simultaneous decryption attempts
+    if (isDecryptingRef.current) {
+      console.log('🔒 Share percentage decryption already in progress, skipping...');
+      return;
+    }
+
+    isDecryptingRef.current = true;
+    setIsDecrypting(true);
+    
     try {
-      setIsDecrypting(true);
-      
+      // Get the master signature object
+      const masterSig = getMasterSignature();
+      if (!masterSig) {
+        throw new Error('Master signature not available');
+      }
+
       // Get FHE instance
       const fheInstance = await getFHEInstance();
       
-      // Create signer
-      const provider = new ethers.BrowserProvider(walletClient);
-      const signer = await provider.getSigner();
-      
-      // Load or create signature
-      const sig = await FhevmDecryptionSignature.loadOrSign(
-        fheInstance as any,
-        [VAULT_ADDRESS],
-        signer
-      );
-
-      if (!sig) {
-        throw new Error('Failed to create decryption signature');
-      }
-
-      // Decrypt both user shares and total shares
+      // Decrypt both user shares and total shares using master signature
       const result = await fheInstance.userDecrypt(
         [
           { handle: encryptedUserShares, contractAddress: VAULT_ADDRESS },
           { handle: encryptedTotalShares, contractAddress: VAULT_ADDRESS }
         ],
-        sig.privateKey,
-        sig.publicKey,
-        sig.signature,
-        sig.contractAddresses,
-        sig.userAddress,
-        sig.startTimestamp,
-        sig.durationDays
+        masterSig.privateKey,
+        masterSig.publicKey,
+        masterSig.signature,
+        masterSig.contractAddresses,
+        masterSig.userAddress,
+        masterSig.startTimestamp,
+        masterSig.durationDays
       );
 
       const userSharesValue = result[encryptedUserShares];
@@ -229,8 +230,10 @@ export const useSharePercentage = (masterSignature: string | null) => {
       console.error('Share percentage calculation failed:', error);
       setSharePercentage('••••••••');
       setIsDecrypting(false);
+    } finally {
+      isDecryptingRef.current = false;
     }
-  }, [isConnected, address, encryptedUserShares, encryptedTotalShares, masterSignature, walletClient, VAULT_ADDRESS]);
+  }, [isConnected, address, encryptedUserShares, encryptedTotalShares, masterSignature, walletClient, getMasterSignature, VAULT_ADDRESS]);
 
   // Initialize when component mounts
   useEffect(() => {

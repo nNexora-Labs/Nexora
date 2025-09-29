@@ -40,13 +40,26 @@ interface SupplyPosition {
 export default function PositionList() {
   const { address, isConnected } = useAccount();
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
+
+  // Listen for close dialog event
+  useEffect(() => {
+    const handleCloseDialog = () => {
+      setWithdrawDialogOpen(false);
+    };
+    
+    window.addEventListener('closeWithdrawDialog', handleCloseDialog);
+    
+    return () => {
+      window.removeEventListener('closeWithdrawDialog', handleCloseDialog);
+    };
+  }, []);
   const [positions, setPositions] = useState<SupplyPosition[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
   // Master decryption hook
-  const { masterSignature } = useMasterDecryption();
+  const { masterSignature, getMasterSignature } = useMasterDecryption();
   
-  const { suppliedBalance, isDecrypting, hasSupplied } = useSuppliedBalance(masterSignature);
+  const { suppliedBalance, isDecrypting, hasSupplied } = useSuppliedBalance(masterSignature, getMasterSignature);
 
   // Load aggregated supply positions per asset
   const loadSupplyPositions = async () => {
@@ -199,18 +212,18 @@ export default function PositionList() {
       <Dialog 
         open={withdrawDialogOpen} 
         onClose={() => setWithdrawDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
+        maxWidth={false}
+        PaperProps={{
+          sx: {
+            maxWidth: '380px',
+            width: 'auto',
+            borderRadius: '16px'
+          }
+        }}
       >
-        <DialogTitle>Withdraw cWETH</DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ p: 0 }}>
           <WithdrawForm />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setWithdrawDialogOpen(false)}>
-            Close
-          </Button>
-        </DialogActions>
       </Dialog>
     </Box>
   );

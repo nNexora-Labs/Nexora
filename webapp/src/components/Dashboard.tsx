@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAccount, useBalance, useConnect, useDisconnect, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { useSuppliedBalance } from '../hooks/useSuppliedBalance';
 import { useCWETHBalance } from '../hooks/useCWETHBalance';
@@ -27,7 +27,7 @@ import {
   ListItemText,
   IconButton,
 } from '@mui/material';
-import { AccountBalanceWallet, TrendingUp, ContentCopy, ExpandMore, Close, SwapHoriz } from '@mui/icons-material';
+import { AccountBalanceWallet, TrendingUp, ContentCopy, ExpandMore, Close, SwapHoriz, Lock, LockOpen } from '@mui/icons-material';
 import SupplyForm from './SupplyForm';
 import WithdrawForm from './WithdrawForm';
 import RepayForm from './RepayForm';
@@ -66,14 +66,34 @@ export default function Dashboard() {
     masterSignature,
     unlockAllBalances, 
     lockAllBalances, 
-    canDecrypt: canMasterDecrypt 
+    canDecrypt: canMasterDecrypt,
+    getMasterSignature
   } = useMasterDecryption();
 
   // Individual balance hooks - now use master signature
-  const { suppliedBalance, isDecrypting: isDecryptingSupplied, hasSupplied } = useSuppliedBalance(masterSignature);
-  const { formattedBalance: cWETHBalance, hasCWETH, isDecrypted: isCWETHDecrypted } = useCWETHBalance(masterSignature);
-  const { formattedTVL: vaultTVL, hasTVL, isDecrypted: isTVLDecrypted } = useVaultTVL(masterSignature);
-  const { sharePercentage, hasShares, isDecrypting: isDecryptingShares } = useSharePercentage(masterSignature);
+  const { suppliedBalance, isDecrypting: isDecryptingSupplied, hasSupplied, refetchEncryptedShares } = useSuppliedBalance(masterSignature, getMasterSignature);
+  const { formattedBalance: cWETHBalance, hasCWETH, isDecrypted: isCWETHDecrypted, isDecrypting: isDecryptingCWETH, refetchCWETHBalance } = useCWETHBalance(masterSignature, getMasterSignature);
+  const { formattedTVL: vaultTVL, hasTVL, isDecrypted: isTVLDecrypted, refreshTVL } = useVaultTVL(masterSignature, getMasterSignature);
+  const { sharePercentage, hasShares, isDecrypting: isDecryptingShares, refreshShares } = useSharePercentage(masterSignature, getMasterSignature);
+  
+  // Check if any decryption is in progress
+  const isAnyDecrypting = isDecryptingSupplied || isDecryptingCWETH || isDecryptingShares || isMasterDecrypting;
+
+  // Refresh all blockchain data
+  const refreshAllBalances = useCallback(async () => {
+    console.log('🔄 Refreshing all blockchain data...');
+    try {
+      await Promise.all([
+        refetchEncryptedShares(),
+        refetchCWETHBalance(),
+        refreshTVL(),
+        refreshShares()
+      ]);
+      console.log('✅ All blockchain data refreshed');
+    } catch (error) {
+      console.error('❌ Error refreshing blockchain data:', error);
+    }
+  }, [refetchEncryptedShares, refetchCWETHBalance, refreshTVL, refreshShares]);
   
   // Debug logging
   console.log('🔍 Dashboard values:', { 
@@ -85,7 +105,11 @@ export default function Dashboard() {
     hasSupplied,
     hasCWETH,
     hasTVL,
-    hasShares
+    hasShares,
+    isAnyDecrypting,
+    masterSignature: masterSignature ? 'present' : 'missing',
+    isCWETHDecrypted,
+    isTVLDecrypted
   });
   const [activeTab, setActiveTab] = useState<'dashboard' | 'supply' | 'borrow' | 'portfolio'>('dashboard');
   const [walletInfoAnchor, setWalletInfoAnchor] = useState<null | HTMLElement>(null);
@@ -698,6 +722,73 @@ export default function Dashboard() {
                     </Box>
                   )}
                 </Box>
+
+                {/* Lock/Unlock Icon with Status */}
+                {canMasterDecrypt && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <IconButton
+                      onClick={isAllDecrypted ? lockAllBalances : unlockAllBalances}
+                      disabled={isMasterDecrypting}
+                      sx={{
+                        width: '28px',
+                        height: '28px',
+                        background: isDarkMode 
+                          ? 'linear-gradient(135deg, #34495e 0%, #2c3e50 100%)'
+                          : 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)',
+                        color: isAllDecrypted 
+                          ? (isDarkMode ? '#e74c3c' : '#c0392b') // Red for unlock (can lock)
+                          : (isDarkMode ? '#27ae60' : '#2ecc71'), // Green for lock (can unlock)
+                        border: isDarkMode 
+                          ? '1px solid rgba(255, 255, 255, 0.1)'
+                          : '1px solid rgba(52, 152, 219, 0.2)',
+                        borderRadius: '4px',
+                        boxShadow: isDarkMode 
+                          ? '0 4px 14px 0 rgba(52, 73, 94, 0.3)'
+                          : '0 4px 14px 0 rgba(52, 152, 219, 0.3)',
+                        '&:hover': {
+                          background: isDarkMode 
+                            ? 'linear-gradient(135deg, #2c3e50 0%, #34495e 100%)'
+                            : 'linear-gradient(135deg, #2980b9 0%, #3498db 100%)',
+                          boxShadow: isDarkMode 
+                            ? '0 6px 20px 0 rgba(52, 73, 94, 0.4)'
+                            : '0 6px 20px 0 rgba(52, 152, 219, 0.4)',
+                          transform: 'translateY(-1px)',
+                          color: isAllDecrypted 
+                            ? (isDarkMode ? '#c0392b' : '#e74c3c')
+                            : (isDarkMode ? '#2ecc71' : '#27ae60')
+                        },
+                        '&:disabled': {
+                          opacity: 0.6,
+                          cursor: 'not-allowed'
+                        },
+                        transition: 'all 0.3s ease'
+                      }}
+                      title={isAllDecrypted ? 'Lock all balances' : 'Unlock all balances'}
+                    >
+                      {isMasterDecrypting ? (
+                        <CircularProgress size={16} sx={{ color: 'inherit' }} />
+                      ) : isAllDecrypted ? (
+                        <LockOpen sx={{ fontSize: '16px' }} />
+                      ) : (
+                        <Lock sx={{ fontSize: '16px' }} />
+                      )}
+                    </IconButton>
+                    
+                    {/* Status Indicator */}
+                    <Box sx={{ 
+                      width: '6px', 
+                      height: '6px', 
+                      borderRadius: '50%', 
+                      background: isAllDecrypted 
+                        ? (isDarkMode ? '#27ae60' : '#2ecc71') // Green when unlocked
+                        : (isDarkMode ? '#e74c3c' : '#c0392b'), // Red when locked
+                      opacity: isMasterDecrypting ? 0.5 : 1,
+                      transition: 'all 0.3s ease'
+                    }} 
+                    title={isAllDecrypted ? 'Balances unlocked' : 'Balances locked'}
+                    />
+                  </Box>
+                )}
               
                 {/* Swap Button */}
               <Button
@@ -861,25 +952,8 @@ export default function Dashboard() {
                 }}>
                   <Box>
                   </Box>
-                  <Box sx={{ textAlign: { xs: 'left', sm: 'right' }, mt: { xs: 1, sm: 0 } }}>
-                    <Typography variant="h6" sx={{ 
-                      opacity: isDarkMode ? 0.8 : 0.7,
-                      fontSize: { xs: '1rem', sm: '1.25rem' },
-                      color: isDarkMode ? 'white' : '#000000',
-                      fontWeight: isDarkMode ? '500' : '300'
-                    }}>
-                      Total Supply
-                </Typography>
-                    <Typography variant="h3" sx={{ 
-                      fontWeight: isDarkMode ? '600' : '500',
-                      fontSize: { xs: '1.5rem', sm: '2rem', md: '3rem' },
-                      color: isDarkMode ? 'white' : '#000000',
-                      fontFamily: 'sans-serif'
-                    }}>
-                      {suppliedBalance}
-                      </Typography>
-                    </Box>
         </Box>
+
                     
                 <Grid container spacing={{ xs: 2, sm: 3 }}>
                   <Grid item xs={6} sm={6} md={3}>
@@ -941,6 +1015,27 @@ export default function Dashboard() {
                         {sharePercentage}
                       </Typography>
                   </Box>
+                  </Grid>
+                  <Grid item xs={6} sm={6} md={3}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="body2" sx={{ 
+                        opacity: isDarkMode ? 0.8 : 0.7, 
+                        mb: 1,
+                        fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                        color: isDarkMode ? 'white' : '#000000',
+                        fontWeight: isDarkMode ? '500' : '300'
+                      }}>
+                        Supplied Balance
+                  </Typography>
+                      <Typography variant="h5" sx={{ 
+                        fontWeight: isDarkMode ? '600' : '400',
+                        fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                        color: isDarkMode ? 'white' : '#000000',
+                        fontFamily: 'sans-serif'
+                      }}>
+                        {suppliedBalance}
+                      </Typography>
+        </Box>
                   </Grid>
                   <Grid item xs={6} sm={6} md={3}>
                     <Box sx={{ textAlign: 'center' }}>
@@ -3509,7 +3604,7 @@ export default function Dashboard() {
                 ✕
               </Button>
             </Box>
-            <SupplyForm />
+            <SupplyForm onTransactionSuccess={refreshAllBalances} />
           </Box>
         </Box>
       )}
