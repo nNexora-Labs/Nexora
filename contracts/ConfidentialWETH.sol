@@ -121,4 +121,5 @@ contract ConfidentialWETH is ConfidentialFungibleToken, Ownable, SepoliaConfig {
 
         return transferred;
     }
+
 }

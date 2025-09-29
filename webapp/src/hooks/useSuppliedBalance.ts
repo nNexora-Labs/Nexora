@@ -60,15 +60,20 @@ export const useSuppliedBalance = (masterSignature: string | null) => {
       const hasEncryptedShares = encryptedShares && 
         typeof encryptedShares === 'string' && 
         encryptedShares !== '0x' && 
+        encryptedShares !== '0x0000000000000000000000000000000000000000000000000000000000000000' &&
         encryptedShares.length > 2;
       
       setHasSupplied(hasEncryptedShares);
       
       if (!hasEncryptedShares) {
         setSuppliedBalance('No supplies found');
+        console.log('🔍 useSuppliedBalance: No shares found, encryptedShares:', encryptedShares);
       } else {
         setSuppliedBalance('••••••••');
+        console.log('🔍 useSuppliedBalance: Shares found, encryptedShares:', encryptedShares);
       }
+    } else {
+      console.log('🔍 useSuppliedBalance: No encryptedShares data');
     }
   }, [encryptedShares]);
 

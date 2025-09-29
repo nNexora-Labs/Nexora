@@ -569,7 +569,7 @@ export default function Dashboard() {
                       borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(44, 62, 80, 0.3)',
                       color: isDarkMode ? 'white' : '#000000',
                       minWidth: { xs: '40px', sm: '120px', md: 'auto' },
-                      width: { xs: '40px', sm: '120px', md: 'auto' },
+                      width: { xs: '40px', sm: '120px', md: 'auto' },height: '28px',
                       px: { xs: 0.5, sm: 1.5 },
                       pl: { xs: 0.5, sm: 1.5 },
                       fontSize: { xs: '0.7rem', sm: '0.75rem' },
@@ -710,7 +710,7 @@ export default function Dashboard() {
                       : 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)',
                     color: isDarkMode ? 'white' : '#000000',
                     fontWeight: '600',
-                    px: { xs: 2, sm: 3 },height: '27px',
+                    px: { xs: 2, sm: 3 },height: '28px',
                     textTransform: 'none',
                     fontSize: { xs: '0.7rem', sm: '0.75rem' },
                     boxShadow: isDarkMode 
@@ -739,9 +739,16 @@ export default function Dashboard() {
                   display: 'flex', 
                   alignItems: 'center', 
                   gap: 1,
+                  height: '28px',
                   background: isDarkMode 
-                    ? 'rgba(255, 255, 255, 0.1)'
-                    : 'rgba(44, 62, 80, 0.1)',height: '27px',
+                    ? 'linear-gradient(135deg, #34495e 0%, #2c3e50 100%)'
+                    : 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)',
+                  boxShadow: isDarkMode 
+                      ? '0 4px 14px 0 rgba(52, 73, 94, 0.3)'
+                      : '0 4px 14px 0 rgba(52, 152, 219, 0.3)',
+                  border: isDarkMode 
+                      ? '1px solid rgba(255, 255, 255, 0.1)'
+                      : '1px solid rgba(52, 152, 219, 0.2)',
                   borderRadius: '4px', // Match network selector border radius
                   px: { xs: 1, sm: 2 },
                   py: { xs: 0.5, sm: 1 },

@@ -1,7 +1,7 @@
 const { ethers } = require("hardhat");
 
 async function main() {
-  const vaultAddr = "0xff0154c4f4ed81e3345d35c881d1ca6db4d280ee"; 
+  const vaultAddr = "0x6b8833f582760434620D1bff197D3ec661d95723"; 
   const provider = ethers.provider; // uses network in hardhat config
   const abi = [
     "function asset() view returns (address)",

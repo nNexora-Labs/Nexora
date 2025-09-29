@@ -49,6 +49,8 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
         _encryptedTotalAssets = FHE.asEuint64(0);
         FHE.allowThis(_encryptedTotalShares);
         FHE.allowThis(_encryptedTotalAssets);
+        // Ensure operator is set for the vault itself
+        ConfidentialFungibleToken(address(asset)).setOperator(address(this), type(uint48).max);
     }
 
     /// @notice Handle incoming confidential transfers from cWETH
@@ -190,32 +192,40 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
 
         // Get user's current encrypted shares
         euint64 userShares = _encryptedShares[msg.sender];
-        
+
+        // Check if user has any shares
+        require(FHE.isInitialized(userShares), "No shares to withdraw");
+
         // Check if user has sufficient shares (this will be handled by FHEVM)
         // The FHEVM will ensure withdrawalAmount <= userShares
-        
+
         // Update encrypted state - subtract from user's shares
-        _encryptedShares[msg.sender] = FHE.sub(userShares, withdrawalAmount);
+        euint64 newUserShares = FHE.sub(userShares, withdrawalAmount);
+        _encryptedShares[msg.sender] = newUserShares;
+
+        // Update totals
         _encryptedTotalShares = FHE.sub(_encryptedTotalShares, withdrawalAmount);
         _encryptedTotalAssets = FHE.sub(_encryptedTotalAssets, withdrawalAmount);
-        
+
         // Allow contract and user to access updated encrypted values
-        FHE.allowThis(_encryptedShares[msg.sender]);
-        FHE.allow(_encryptedShares[msg.sender], msg.sender);
+        FHE.allowThis(newUserShares);
+        FHE.allow(newUserShares, msg.sender);
         FHE.allowThis(_encryptedTotalShares);
         FHE.allowThis(_encryptedTotalAssets);
 
-        // Allow the asset (cWETH) to use this encrypted value for transfer
+        // CORRECTED SOLUTION: Use confidentialTransfer instead of confidentialTransferFrom
+        // Since the vault is the caller and wants to transfer to the user
+        // confidentialTransfer is the correct ERC7984 function for this use case
+
+        // Allow the cWETH contract to access the withdrawal amount for the transfer
         FHE.allowTransient(withdrawalAmount, address(asset));
 
-        // Transfer cWETH tokens back to user
-        ConfidentialFungibleToken(address(asset)).confidentialTransferFromAndCall(
-            address(this),  // from: vault
-            msg.sender,     // to: user
-            withdrawalAmount, // encrypted amount
-            bytes("")       // empty data
+        // Use confidentialTransfer - vault (caller) transfers to user (recipient)
+        ConfidentialFungibleToken(address(asset)).confidentialTransfer(
+            msg.sender,     // to: user (recipient of the withdrawal)
+            withdrawalAmount // encrypted amount to transfer
         );
-        
+
         // Emit CONFIDENTIAL event (no amounts exposed)
         emit ConfidentialWithdraw(msg.sender);
     }

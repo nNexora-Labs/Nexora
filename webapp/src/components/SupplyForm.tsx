@@ -139,7 +139,7 @@ export default function SupplyForm() {
   if (error) {
     console.error('Wagmi writeContract error:', error);
   }
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  const { isLoading: isConfirming, isSuccess, isError: isReceiptError } = useWaitForTransactionReceipt({ hash });
   const { data: walletClient } = useWalletClient();
 
   const [amount, setAmount] = useState('');
@@ -301,7 +301,14 @@ export default function SupplyForm() {
   }, [hash, isApproved]);
 
   useEffect(() => {
-    console.log('Transaction success effect triggered:', { isSuccess, approvalHash, isApproved });
+    console.log('Transaction success effect triggered:', { 
+      isSuccess, 
+      isReceiptError, 
+      approvalHash, 
+      isApproved, 
+      hash,
+      error: error?.message 
+    });
     
     if (isSuccess && approvalHash) {
       // Operator permission was successful, now check operator status
@@ -312,14 +319,16 @@ export default function SupplyForm() {
       }, 2000); // Wait 2 seconds for the transaction to be mined
     } else if (isSuccess && !approvalHash) {
       // This is the supply transaction success
-      console.log('Supply transaction successful');
+      console.log('✅ Supply transaction successful!');
       setShowSuccess(true);
       setAmount('');
       setApprovalHash(null);
       setIsApproved(false);
       setTimeout(() => setShowSuccess(false), 5000);
+    } else if (isReceiptError) {
+      console.log('❌ Transaction receipt shows error - transaction failed on-chain');
     }
-  }, [isSuccess, approvalHash, checkOperatorStatus]);
+  }, [isSuccess, isReceiptError, approvalHash, checkOperatorStatus, hash, error]);
 
   const handleMaxAmount = () => {
     // Since we can't decrypt the exact balance, we'll set a reasonable amount
@@ -475,9 +484,9 @@ export default function SupplyForm() {
         </Alert>
       )}
 
-      {error && (
+      {(isReceiptError || (error && !hash)) && (
         <Alert severity="error" sx={{ mb: 2 }}>
-          Transaction failed: {error.message}
+          Transaction failed: {isReceiptError ? 'Transaction was reverted on-chain' : error?.message}
           {needsReinitialization && (
             <Box sx={{ mt: 1 }}>
               <Button
