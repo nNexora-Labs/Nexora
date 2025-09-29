@@ -421,6 +421,7 @@ export default function SupplyForm() {
               formattedEncryptedAmount, // encrypted handle for externalEuint64
               formattedInputProof // input proof
             ],
+            gas: BigInt(800000), // Increase gas limit for FHE operations
           });
           console.log('Supply submitted to vault...');
           

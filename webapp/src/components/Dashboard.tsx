@@ -32,6 +32,8 @@ import SupplyForm from './SupplyForm';
 import WithdrawForm from './WithdrawForm';
 import RepayForm from './RepayForm';
 import ETHToCWETHConverter from './ETHToCWETHConverter';
+import PositionList from './PositionList';
+import TransactionHistoryTable from './TransactionHistoryTable';
 import styles from './SwapStyles.module.css';
 import { encryptAndRegister } from '../utils/fhe';
 
@@ -1685,89 +1687,7 @@ export default function Dashboard() {
                 
                 {/* My Supply Position */}
                 {supplySubTab === 'position' && (
-                  <>
-                    {/* Positions Header */}
-                    <Box sx={{
-                      display: { xs: 'none', sm: 'flex' },
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      p: 2,
-                      borderRadius: '8px',
-                      background: isDarkMode 
-                        ? 'rgba(255, 255, 255, 0.08)'
-                        : 'rgba(44, 62, 80, 0.08)',
-                      border: isDarkMode 
-                        ? '1px solid rgba(255, 255, 255, 0.15)'
-                        : '1px solid rgba(44, 62, 80, 0.15)',
-                      mb: 1
-                    }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: '200px' }}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: '600', opacity: 0.8 }}>
-                          Asset
-                        </Typography>
-        </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Box sx={{ textAlign: 'center', minWidth: '100px' }}>
-                          <Typography variant="subtitle2" sx={{ fontWeight: '600', opacity: 0.8 }}>
-                            Supplied
-                          </Typography>
-                  </Box>
-                        <Box sx={{ textAlign: 'center', minWidth: '100px' }}>
-                          <Typography variant="subtitle2" sx={{ fontWeight: '600', opacity: 0.8 }}>
-                            APY
-                  </Typography>
-                        </Box>
-                        <Box sx={{ textAlign: 'center', minWidth: '100px' }}>
-                          <Typography variant="subtitle2" sx={{ fontWeight: '600', opacity: 0.8 }}>
-                            Earned
-                          </Typography>
-                        </Box>
-                        <Box sx={{ minWidth: '100px' }}>
-                          <Typography variant="subtitle2" sx={{ fontWeight: '600', opacity: 0.8 }}>
-                            Action
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </Box>
-                    
-                    {/* Empty State */}
-                    <Box sx={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      py: 6,
-                      px: 3,
-                      textAlign: 'center'
-                    }}>
-                      <Typography variant="h6" sx={{ mb: 2, opacity: 0.7 }}>
-                        No Supply Positions
-                      </Typography>
-                      <Typography variant="body2" sx={{ opacity: 0.6, mb: 3 }}>
-                        Start supplying assets to earn interest
-                      </Typography>
-                      <Button
-                        variant="contained"
-                        size="small"
-                        onClick={() => setSupplySubTab('supply')}
-                        sx={{
-                          background: 'linear-gradient(135deg, #4caf50 0%, #45a049 100%)',
-                          color: 'white',
-                          fontWeight: '600',
-                          px: 3,
-                          py: 1,
-                          borderRadius: '6px',
-                          textTransform: 'none',
-                          '&:hover': {
-                            background: 'linear-gradient(135deg, #45a049 0%, #4caf50 100%)',
-                            transform: 'translateY(-1px)'
-                          }
-                        }}
-                      >
-                        Start Supplying
-                      </Button>
-                    </Box>
-                  </>
+                  <PositionList />
                 )}
               </CardContent>
             </Card>
@@ -2847,40 +2767,7 @@ export default function Dashboard() {
                 
                 {/* Transaction History Content */}
                 {portfolioSubTab === 'history' && (
-                  <>
-                    <Card sx={{
-                      background: isDarkMode 
-                        ? 'rgba(255, 255, 255, 0.05)'
-                        : 'rgba(44, 62, 80, 0.05)',
-                      border: isDarkMode 
-                        ? '1px solid rgba(255, 255, 255, 0.1)'
-                        : '1px solid rgba(44, 62, 80, 0.1)'
-                    }}>
-                      <CardContent sx={{ p: 3 }}>
-                        <Typography variant="h6" sx={{ fontWeight: '600', mb: 3, fontFamily: 'sans-serif' }}>
-                          Transaction History
-                        </Typography>
-                        
-                        {/* Empty State */}
-                        <Box sx={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          py: 6,
-                          px: 3,
-                          textAlign: 'center'
-                        }}>
-                          <Typography variant="h6" sx={{ mb: 2, opacity: 0.7 }}>
-                            No Transactions Yet
-                          </Typography>
-                          <Typography variant="body2" sx={{ opacity: 0.6, mb: 3 }}>
-                            Your transaction history will appear here once you start using the protocol
-                          </Typography>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  </>
+                  <TransactionHistoryTable isDarkMode={isDarkMode} />
                 )}
               </CardContent>
             </Card>

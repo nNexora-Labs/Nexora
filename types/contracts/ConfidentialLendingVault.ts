@@ -136,7 +136,10 @@ export interface ConfidentialLendingVaultInterface extends Interface {
     functionFragment: "transferOwnership",
     values: [AddressLike]
   ): string;
-  encodeFunctionData(functionFragment: "withdraw", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "withdraw",
+    values: [BytesLike, BytesLike]
+  ): string;
 
   decodeFunctionResult(
     functionFragment: "ETH_PRICE_USDC",
@@ -371,7 +374,11 @@ export interface ConfidentialLendingVault extends BaseContract {
     "nonpayable"
   >;
 
-  withdraw: TypedContractMethod<[], [void], "nonpayable">;
+  withdraw: TypedContractMethod<
+    [encryptedAmount: BytesLike, inputProof: BytesLike],
+    [void],
+    "nonpayable"
+  >;
 
   getFunction<T extends ContractMethod = ContractMethod>(
     key: string | FunctionFragment
@@ -455,7 +462,11 @@ export interface ConfidentialLendingVault extends BaseContract {
   ): TypedContractMethod<[newOwner: AddressLike], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "withdraw"
-  ): TypedContractMethod<[], [void], "nonpayable">;
+  ): TypedContractMethod<
+    [encryptedAmount: BytesLike, inputProof: BytesLike],
+    [void],
+    "nonpayable"
+  >;
 
   getEvent(
     key: "ConfidentialSupply"

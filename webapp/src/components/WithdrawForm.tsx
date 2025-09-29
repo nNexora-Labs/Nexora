@@ -22,7 +22,18 @@ import { useMasterDecryption } from '../hooks/useMasterDecryption';
 // Contract ABI for withdraw function
 const VAULT_ABI = [
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "externalEuint64",
+        "name": "encryptedAmount",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "inputProof",
+        "type": "bytes"
+      }
+    ],
     "name": "withdraw",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -86,11 +97,12 @@ export default function WithdrawForm() {
         amountInWei
       );
 
-      // Call the contract's withdraw function
+      // Call the contract's withdraw function with encrypted amount and proof
       await writeContract({
         address: VAULT_ADDRESS as `0x${string}`,
         abi: VAULT_ABI,
         functionName: 'withdraw',
+        args: [ciphertexts.ciphertext, ciphertexts.proof],
       });
     } catch (err) {
       console.error('Withdraw failed:', err);
@@ -121,20 +133,20 @@ export default function WithdrawForm() {
         </Alert>
       )}
 
-      <TextField
+        <TextField
           fullWidth
           label="Amount"
           size="small"
           type="number"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          disabled={true} // Disabled because withdraw function doesn't exist in smart contract
+          disabled={isPending || isConfirming}
           InputProps={{
             endAdornment: (
               <Button
                 size="small"
                 onClick={handleMaxAmount}
-                disabled={true} // Disabled because withdraw function doesn't exist in smart contract
+                disabled={isPending || isConfirming || !hasSupplied}
                 sx={{ ml: 1, minWidth: 'auto', px: 1 }}
               >
                 MAX
@@ -164,7 +176,9 @@ export default function WithdrawForm() {
         </Box>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
           <Typography variant="body2">Status:</Typography>
-          <Typography variant="body2" color="text.secondary">Coming Soon</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {isPending ? 'Pending...' : isConfirming ? 'Confirming...' : 'Ready'}
+          </Typography>
         </Box>
       </Box>
 
@@ -173,11 +187,11 @@ export default function WithdrawForm() {
         variant="contained"
         size="medium"
         onClick={handleWithdraw}
-        disabled={true} // Disabled because withdraw function doesn't exist in smart contract
-        startIcon={<Send />}
+        disabled={!isValidAmount || isPending || isConfirming || !hasSupplied}
+        startIcon={isPending || isConfirming ? <CircularProgress size={20} /> : <Send />}
         sx={{ py: 1 }}
       >
-        Coming Soon
+        {isPending ? 'Withdrawing...' : isConfirming ? 'Confirming...' : 'Withdraw'}
       </Button>
 
       {hash && (

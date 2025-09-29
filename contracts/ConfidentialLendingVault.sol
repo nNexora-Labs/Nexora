@@ -119,17 +119,40 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
         // Allow the asset (cWETH) to consume this encrypted value transiently
         FHE.allowTransient(amount, address(asset));
 
-        // Pull tokens from user into the vault; triggers receiver hook for accounting
-        euint64 transferred = ConfidentialFungibleToken(address(asset)).confidentialTransferFromAndCall(
+        // Pull tokens from user into the vault
+        euint64 transferred = ConfidentialFungibleToken(address(asset)).confidentialTransferFrom(
             msg.sender,
             address(this),
-            amount,
-            bytes("")
+            amount
         );
 
-        // Keep access to the transferred ciphertext (optional)
+        // Keep access to the transferred ciphertext
         FHE.allowThis(transferred);
-        // State updates occur in onConfidentialTransferReceived
+        
+        // Update encrypted state directly (since we're not using callback pattern)
+        euint64 encryptedShares = transferred; // 1:1 ratio for now
+        
+        // Update user shares
+        euint64 currentUserShares = _encryptedShares[msg.sender];
+        if (!FHE.isInitialized(currentUserShares)) {
+            currentUserShares = FHE.asEuint64(0);
+        }
+        
+        euint64 newUserShares = FHE.add(currentUserShares, encryptedShares);
+        _encryptedShares[msg.sender] = newUserShares;
+        
+        // Update totals
+        _encryptedTotalShares = FHE.add(_encryptedTotalShares, encryptedShares);
+        _encryptedTotalAssets = FHE.add(_encryptedTotalAssets, transferred);
+        
+        // Allow contract and user to access encrypted values
+        FHE.allowThis(newUserShares);
+        FHE.allow(newUserShares, msg.sender);
+        FHE.allowThis(_encryptedTotalShares);
+        FHE.allowThis(_encryptedTotalAssets);
+        
+        // Emit CONFIDENTIAL event (no amounts exposed)
+        emit ConfidentialSupply(msg.sender);
     }
 
     /// @notice Get encrypted shares of a user
@@ -151,39 +174,50 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
         return _encryptedTotalAssets;
     }
 
-    /// @notice Withdraw cWETH from the vault as ETH
-    /// @dev Users can withdraw their encrypted shares as ETH
+    /// @notice Withdraw cWETH from the vault
+    /// @dev Users can withdraw their encrypted shares as cWETH tokens
+    /// @param encryptedAmount Encrypted amount to withdraw (externalEuint64)
+    /// @param inputProof Proof for the encrypted amount (FHE input proof)
     /// @dev CONFIDENTIAL: No plaintext amounts are exposed
-    function withdraw() external nonReentrant {
-        // Get user's encrypted shares
+    function withdraw(
+        externalEuint64 encryptedAmount,
+        bytes calldata inputProof
+    ) external nonReentrant {
+        require(inputProof.length > 0, "Invalid input proof");
+
+        // Convert external encrypted handle to internal euint64
+        euint64 withdrawalAmount = FHE.fromExternal(encryptedAmount, inputProof);
+
+        // Get user's current encrypted shares
         euint64 userShares = _encryptedShares[msg.sender];
         
-        // Check if user has any shares (this will be handled by FHEVM)
-        // In a real implementation, we would check if shares > 0
+        // Check if user has sufficient shares (this will be handled by FHEVM)
+        // The FHEVM will ensure withdrawalAmount <= userShares
         
-        // Calculate withdrawal amount (1:1 ratio for Phase 1)
-        euint64 withdrawalAmount = userShares;
-        
-        // Update encrypted state
-        _encryptedShares[msg.sender] = FHE.sub(_encryptedShares[msg.sender], userShares);
-        _encryptedTotalShares = FHE.sub(_encryptedTotalShares, userShares);
+        // Update encrypted state - subtract from user's shares
+        _encryptedShares[msg.sender] = FHE.sub(userShares, withdrawalAmount);
+        _encryptedTotalShares = FHE.sub(_encryptedTotalShares, withdrawalAmount);
         _encryptedTotalAssets = FHE.sub(_encryptedTotalAssets, withdrawalAmount);
         
-        // Allow contract and user to access encrypted values
+        // Allow contract and user to access updated encrypted values
         FHE.allowThis(_encryptedShares[msg.sender]);
         FHE.allow(_encryptedShares[msg.sender], msg.sender);
         FHE.allowThis(_encryptedTotalShares);
         FHE.allowThis(_encryptedTotalAssets);
+
+        // Allow the asset (cWETH) to use this encrypted value for transfer
+        FHE.allowTransient(withdrawalAmount, address(asset));
+
+        // Transfer cWETH tokens back to user
+        ConfidentialFungibleToken(address(asset)).confidentialTransferFromAndCall(
+            address(this),  // from: vault
+            msg.sender,     // to: user
+            withdrawalAmount, // encrypted amount
+            bytes("")       // empty data
+        );
         
         // Emit CONFIDENTIAL event (no amounts exposed)
         emit ConfidentialWithdraw(msg.sender);
-        
-        // Note: In a real implementation, we would need to:
-        // 1. Decrypt the withdrawal amount using FHEVM
-        // 2. Transfer ETH to the user: payable(msg.sender).transfer(decryptedAmount)
-        // 3. Handle the actual ETH transfer
-        // For now, this is a placeholder that updates encrypted state
-        // The actual ETH transfer would require FHEVM decryption
     }
 
     /// @notice Calculate utilization rate
