@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAccount, useReadContract, useWalletClient } from 'wagmi';
+import { useAccount, useWalletClient } from 'wagmi';
 import { getFHEInstance } from '../utils/fhe';
 import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
 import { ethers } from 'ethers';
@@ -33,6 +33,7 @@ export const useSuppliedBalance = (masterSignature: string | null, getMasterSign
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
   
+  const [encryptedShares, setEncryptedShares] = useState<string | null>(null);
   const [suppliedBalance, setSuppliedBalance] = useState<string>('••••••••');
   const [isDecrypting, setIsDecrypting] = useState(false);
   const [hasSupplied, setHasSupplied] = useState(false);
@@ -44,16 +45,87 @@ export const useSuppliedBalance = (masterSignature: string | null, getMasterSign
   // Refs for preventing multiple simultaneous decryption attempts
   const isDecryptingRef = useRef(false);
 
-  // Read encrypted shares from contract
-  const { data: encryptedShares, refetch: refetchEncryptedShares } = useReadContract({
-    address: VAULT_ADDRESS as `0x${string}`,
-    abi: VAULT_ABI,
-    functionName: 'getEncryptedShares',
-    args: address ? [address] : undefined,
-    query: {
-      enabled: !!address && !!VAULT_ADDRESS && VAULT_ADDRESS !== '0x0000000000000000000000000000000000000000' && typeof window !== 'undefined',
-    },
-  });
+  // Fetch encrypted shares from contract
+  const fetchEncryptedShares = useCallback(async () => {
+    if (!address || !VAULT_ADDRESS || VAULT_ADDRESS === '0x0000000000000000000000000000000000000000') {
+      return;
+    }
+
+    try {
+      // Create public client for raw calls
+      const { createPublicClient, http, encodeFunctionData } = await import('viem');
+      const { sepolia } = await import('wagmi/chains');
+      
+      const rpcUrls = [
+        process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/edae100994ea476180577c9218370251'
+      ];
+      
+      let publicClient;
+      let lastError;
+      
+      for (const rpcUrl of rpcUrls) {
+        try {
+          console.log(`🔄 Fetching encrypted shares from: ${rpcUrl}`);
+          publicClient = createPublicClient({
+            chain: sepolia,
+            transport: http(rpcUrl),
+          });
+          
+          // Test the connection
+          await publicClient.getBlockNumber();
+          console.log(`✅ Connected to ${rpcUrl}`);
+          
+          // Encode function call for getEncryptedShares
+          const data = encodeFunctionData({
+            abi: VAULT_ABI,
+            functionName: 'getEncryptedShares',
+            args: [address],
+          });
+          
+          // Make the contract call
+          const result = await publicClient.call({
+            to: VAULT_ADDRESS as `0x${string}`,
+            data,
+          });
+          
+          if (result.data && result.data !== '0x') {
+            const sharesData = result.data as `0x${string}`;
+            console.log('✅ Encrypted shares fetched:', sharesData);
+            console.log('🔍 Encrypted shares length:', sharesData.length);
+            setEncryptedShares(sharesData);
+            break; // Success, exit the loop
+          } else {
+            console.log('⚠️ No shares data received');
+            setEncryptedShares(null);
+          }
+          
+        } catch (error) {
+          console.error(`❌ Failed to connect to ${rpcUrl}:`, error);
+          lastError = error;
+          continue; // Try next RPC URL
+        }
+      }
+      
+      if (!publicClient) {
+        throw lastError || new Error('Failed to connect to any RPC endpoint');
+      }
+      
+    } catch (error) {
+      console.error('Failed to fetch encrypted shares:', error);
+      setEncryptedShares(null);
+    }
+  }, [address, VAULT_ADDRESS]);
+
+  // Initialize when address changes
+  useEffect(() => {
+    if (address && isConnected) {
+      fetchEncryptedShares();
+    } else {
+      setEncryptedShares(null);
+      setSuppliedBalance('••••••••');
+      setHasSupplied(false);
+    }
+  }, [address, isConnected, fetchEncryptedShares]);
 
   // Check if user has any encrypted shares
   useEffect(() => {
@@ -130,6 +202,7 @@ export const useSuppliedBalance = (masterSignature: string | null, getMasterSign
       );
 
       const decryptedValue = result[encryptedShares];
+      console.log('🔍 Raw decrypted value for supplied balance:', decryptedValue, 'Type:', typeof decryptedValue);
       if (decryptedValue !== undefined) {
         let ethValue: number;
         if (typeof decryptedValue === 'bigint') {
@@ -184,7 +257,7 @@ export const useSuppliedBalance = (masterSignature: string | null, getMasterSign
     canDecrypt,
     decryptBalance,
     encryptedShares,
-    refetchEncryptedShares,
+    refetchEncryptedShares: fetchEncryptedShares,
     clearDecryption: () => {
       setSuppliedBalance('••••••••');
       setCanDecrypt(false);

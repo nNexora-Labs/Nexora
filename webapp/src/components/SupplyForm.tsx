@@ -15,7 +15,9 @@ import {
   Chip,
 } from '@mui/material';
 import { Send, AccountBalance } from '@mui/icons-material';
-import { getFHEInstance, reinitializeFHEForNewContracts } from '../utils/fhe';
+import { getFHEInstance } from '../utils/fhe';
+import { useMasterDecryption } from '../hooks/useMasterDecryption';
+import { useGasFee } from '../hooks/useGasFee';
 
 // Contract ABI for supplying cWETH to the vault
 const VAULT_ABI = [
@@ -132,9 +134,12 @@ const CWETH_ABI = [
 
 interface SupplyFormProps {
   onTransactionSuccess?: () => Promise<void>;
+  cWETHBalance?: string;
+  hasCWETH?: boolean;
+  isDecrypted?: boolean;
 }
 
-export default function SupplyForm({ onTransactionSuccess }: SupplyFormProps = {}) {
+export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWETHBalance, hasCWETH: propHasCWETH, isDecrypted: propIsDecrypted }: SupplyFormProps = {}) {
   const { address, isConnected } = useAccount();
   const { data: balance } = useBalance({ address });
   const { writeContract, data: hash, isPending, error } = useWriteContract();
@@ -146,89 +151,95 @@ export default function SupplyForm({ onTransactionSuccess }: SupplyFormProps = {
   const { isLoading: isConfirming, isSuccess, isError: isReceiptError } = useWaitForTransactionReceipt({ hash });
   const { data: walletClient } = useWalletClient();
 
+  // Master decryption hook
+  const { masterSignature, getMasterSignature } = useMasterDecryption();
+  
+  // Gas fee hook for real network fees
+  const { calculateNetworkFee, isLoading: isGasLoading, getGasPriceInGwei, refetchGasPrice } = useGasFee();
+  
+  // Use props for cWETH balance instead of hook
+  const cWETHBalance = propCWETHBalance || '••••••••';
+  const hasCWETH = propHasCWETH || false;
+  const isDecrypted = propIsDecrypted || false;
+
   const [amount, setAmount] = useState('');
   const [isValidAmount, setIsValidAmount] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [cWETHBalance, setCWETHBalance] = useState<string | null>(null);
-  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   const [isApproved, setIsApproved] = useState(false);
   const [approvalHash, setApprovalHash] = useState<string | null>(null);
   const [isEncrypting, setIsEncrypting] = useState(false);
-  const [needsReinitialization, setNeedsReinitialization] = useState(false);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
 
   // Contract address (will be set after deployment)
   const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x0000000000000000000000000000000000000000';
   const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
   
 
-  // Function to fetch cWETH balance using raw contract call
-  const fetchCWETHBalance = useCallback(async () => {
-    if (!address || !CWETH_ADDRESS || CWETH_ADDRESS === '0x0000000000000000000000000000000000000000') {
-      return;
-    }
-
-    try {
-      setIsLoadingBalance(true);
-      
-      // Create a simple public client for raw calls
-      const { createPublicClient, http, encodeFunctionData } = await import('viem');
-      const { sepolia } = await import('wagmi/chains');
-      
-      // Use your dedicated Infura RPC endpoint
-      const rpcUrls = [
-        process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/edae100994ea476180577c9218370251'
-      ];
-      
-      let publicClient;
-      for (const rpcUrl of rpcUrls) {
-        try {
-          publicClient = createPublicClient({
-            chain: sepolia,
-            transport: http(rpcUrl),
-          });
-          break; // If successful, use this client
-        } catch (error) {
-          console.log(`Failed to connect to ${rpcUrl}, trying next...`);
-          continue;
-        }
-      }
-      
-      if (!publicClient) {
-        throw new Error('All RPC endpoints failed');
-      }
-
-      // Make raw contract call
-      const result = await publicClient.call({
-        to: CWETH_ADDRESS as `0x${string}`,
-        data: encodeFunctionData({
-          abi: CWETH_ABI,
-          functionName: 'getEncryptedBalance',
-          args: [address as `0x${string}`],
-        }),
-      });
-
-      if (result.data && result.data !== '0x') {
-        const balanceData = result.data as `0x${string}`;
-        setCWETHBalance(balanceData);
-      } else {
-        setCWETHBalance('0x0000000000000000000000000000000000000000000000000000000000000000');
-      }
-    } catch (error) {
-      console.error('Failed to fetch cWETH balance:', error);
-      setCWETHBalance(null);
-    } finally {
-      setIsLoadingBalance(false);
-    }
-  }, [address, CWETH_ADDRESS]);
-
-  // Fetch balance when address changes
+  // Balance validation with decryption and gas fees
   useEffect(() => {
-    if (address && isConnected) {
-      fetchCWETHBalance();
+    console.log('🔍 SupplyForm validation:', { amount, hasCWETH, cWETHBalance, isDecrypted });
+    
+    // Clear previous error
+    setBalanceError(null);
+    
+    if (amount && hasCWETH) {
+      const amountWei = parseFloat(amount);
+      
+      // If balance is decrypted (contains 'cWETH'), validate against actual balance
+      if (isDecrypted && cWETHBalance.includes('cWETH')) {
+        const balanceWei = parseFloat(cWETHBalance.replace(' cWETH', ''));
+        
+        // Calculate total cost including gas fees
+        const protocolFee = 0.00001; // cWETH
+        const networkFeeStr = calculateNetworkFee('SUPPLY');
+        const networkFeeValue = parseFloat(networkFeeStr.replace(' ETH', ''));
+        const totalCost = amountWei + protocolFee + networkFeeValue;
+        
+        const isValid = amountWei > 0 && totalCost <= balanceWei;
+        setIsValidAmount(isValid);
+        
+        if (totalCost > balanceWei) {
+          setBalanceError(`Insufficient balance! You have ${balanceWei.toFixed(4)} cWETH available, but need ${totalCost.toFixed(6)} cWETH (including fees).`);
+        }
+        
+        console.log('🔍 Decrypted balance validation with fees:', { 
+          amountWei, 
+          balanceWei, 
+          protocolFee, 
+          networkFeeValue, 
+          totalCost, 
+          isValid 
+        });
+      } else {
+        // If balance is encrypted (••••••••), just check if amount is positive
+        // User can enter any positive amount since we can't decrypt to validate
+        const isValid = amountWei > 0;
+        setIsValidAmount(isValid);
+        console.log('🔍 Encrypted balance validation:', { amountWei, isValid });
+      }
     } else {
-      setCWETHBalance(null);
+      setIsValidAmount(false);
+      if (amount && !hasCWETH) {
+        setBalanceError('❌ No cWETH balance available');
+      }
+      console.log('🔍 Validation failed:', { hasAmount: !!amount, hasCWETH });
     }
-  }, [address, isConnected, fetchCWETHBalance]);
+  }, [amount, cWETHBalance, hasCWETH, isDecrypted, calculateNetworkFee]);
+
+  // Calculate total cost including real network fee
+  const calculateTotalCost = (): string => {
+    if (!amount) return '0.00000 ETH';
+    
+    const amountValue = parseFloat(amount);
+    const protocolFee = 0.00001;
+    
+    // Extract network fee value from the calculated fee string
+    const networkFeeStr = calculateNetworkFee('SUPPLY');
+    const networkFeeValue = parseFloat(networkFeeStr.replace(' ETH', ''));
+    
+    const total = amountValue + protocolFee + networkFeeValue;
+    return `${total.toFixed(6)} ETH`;
+  };
 
   // Function to check if vault is operator
   const checkOperatorStatus = useCallback(async () => {
@@ -343,11 +354,19 @@ export default function SupplyForm({ onTransactionSuccess }: SupplyFormProps = {
   }, [isSuccess, isReceiptError, approvalHash, checkOperatorStatus, hash, error, onTransactionSuccess]);
 
   const handleMaxAmount = () => {
-    // Since we can't decrypt the exact balance, we'll set a reasonable amount
-    // User can adjust as needed
-    const hasCWETH = cWETHBalance && cWETHBalance !== '0x0000000000000000000000000000000000000000000000000000000000000000';
-    if (hasCWETH) {
-      setAmount('0.1'); // Set a small amount as default
+    // If balance is decrypted (contains 'cWETH'), use the actual amount
+    if (isDecrypted && cWETHBalance.includes('cWETH')) {
+      const balanceWei = parseFloat(cWETHBalance.replace(' cWETH', ''));
+      setAmount(balanceWei.toString());
+      console.log('🔍 MAX button: Set amount to decrypted balance:', balanceWei);
+    } else if (hasCWETH) {
+      // If balance is encrypted but we have cWETH, set a reasonable amount
+      // Since we can't see the exact balance, set a moderate amount
+      setAmount('0.5');
+      console.log('🔍 MAX button: Set amount to moderate default (encrypted balance)');
+    } else {
+      // No cWETH balance available
+      console.log('🔍 MAX button: No cWETH balance available');
     }
   };
 
@@ -458,8 +477,7 @@ export default function SupplyForm({ onTransactionSuccess }: SupplyFormProps = {
                 errorMessage.includes('vault') ||
                 errorMessage.includes('contract')) {
               console.log('FHEVM vault encryption error detected:', encryptError.message);
-              setNeedsReinitialization(true);
-              throw new Error(`Vault encryption failed: ${encryptError.message}. Click "Reinitialize FHEVM" to fix this.`);
+              throw new Error(`Vault encryption failed: ${encryptError.message}`);
             }
           }
           
@@ -489,116 +507,279 @@ export default function SupplyForm({ onTransactionSuccess }: SupplyFormProps = {
   }
 
   return (
-    <Box sx={{ maxWidth: 500, mx: 'auto' }}>
+    <Box sx={{ 
+      maxWidth: 350, 
+      mx: 'auto', 
+      p: 1, 
+      position: 'relative',
+      border: '1px solid',
+      borderColor: 'divider',
+      borderRadius: 2,
+      backgroundColor: 'background.paper',
+      boxShadow: 2
+    }}>
+      {/* Close Button */}
+      <Button
+        onClick={() => {
+          // Close the dialog by triggering a custom event or using parent component logic
+          const event = new CustomEvent('closeSupplyDialog');
+          window.dispatchEvent(event);
+        }}
+        sx={{
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          minWidth: 'auto',
+          p: 0.5,
+          borderRadius: '50%',
+          color: 'text.secondary',
+          '&:hover': {
+            background: 'action.hover'
+          }
+        }}
+      >
+        ✕
+      </Button>
+      
+      {/* Header */}
+      <Box sx={{ mb: 1.5, textAlign: 'center' }}>
+        <Typography variant="h6" gutterBottom sx={{ mb: 1, fontWeight: 600 }}>
+          Supply cWETH
+        </Typography>
+      </Box>
+
       {showSuccess && (
-        <Alert severity="success" sx={{ mb: 2 }}>
-          {isApproved ? 'Successfully supplied cWETH!' : 'Operator set! Click Supply again to complete.'}
+        <Alert 
+          severity="success" 
+          sx={{ 
+            mb: 1.5, 
+            borderRadius: 2,
+            transition: 'all 0.3s ease-in-out',
+            opacity: 0,
+            animation: 'slideInDown 0.4s ease-in-out forwards',
+            '@keyframes slideInDown': {
+              '0%': { opacity: 0, transform: 'translateY(-20px)' },
+              '100%': { opacity: 1, transform: 'translateY(0)' }
+            }
+          }}
+        >
+          <Typography variant="body2">
+            {isApproved ? 'Successfully supplied cWETH!' : 'Operator set! Click Supply again to complete.'}
+          </Typography>
         </Alert>
       )}
 
       {(isReceiptError || (error && !hash)) && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          Transaction failed: {isReceiptError ? 'Transaction was reverted on-chain' : error?.message}
-          {needsReinitialization && (
-            <Box sx={{ mt: 1 }}>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={() => {
-                  reinitializeFHEForNewContracts();
-                  setNeedsReinitialization(false);
-                  setShowSuccess(true);
-                  setTimeout(() => setShowSuccess(false), 3000);
-                }}
-                sx={{ mt: 1 }}
-              >
-                Reinitialize FHEVM for New Contracts
-              </Button>
-            </Box>
-          )}
+        <Alert 
+          severity="error" 
+          sx={{ 
+            mb: 1.5, 
+            borderRadius: 2,
+            transition: 'all 0.3s ease-in-out',
+            opacity: 0,
+            animation: 'slideInDown 0.4s ease-in-out forwards',
+            '@keyframes slideInDown': {
+              '0%': { opacity: 0, transform: 'translateY(-20px)' },
+              '100%': { opacity: 1, transform: 'translateY(0)' }
+            }
+          }}
+        >
+          <Typography variant="body2">
+            Transaction failed: {isReceiptError ? 'Transaction was reverted on-chain' : error?.message}
+          </Typography>
         </Alert>
       )}
 
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="h6" gutterBottom>
-          Supply cWETH
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Supply confidential WETH tokens to earn yield
-        </Typography>
-      </Box>
+      {balanceError && (
+        <Alert 
+          severity="warning" 
+          sx={{ 
+            mb: 1.5, 
+            borderRadius: 2,
+            transition: 'all 0.3s ease-in-out',
+            opacity: 0,
+            animation: 'slideInDown 0.4s ease-in-out forwards',
+            '@keyframes slideInDown': {
+              '0%': { opacity: 0, transform: 'translateY(-20px)' },
+              '100%': { opacity: 1, transform: 'translateY(0)' }
+            }
+          }}
+        >
+          <Typography variant="body2">
+            {balanceError}
+          </Typography>
+        </Alert>
+      )}
 
-      <Box sx={{ mb: 2 }}>
+      {/* Amount Input */}
+      <Box sx={{ mb: 1 }}>
         <TextField
           fullWidth
-          label="Amount"
+          label="Supply Amount"
           type="number"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          size="small"
+          disabled={isPending || isConfirming || isEncrypting}
+          placeholder="0.00"
           InputProps={{
+            startAdornment: (
+              <Typography variant="body1" sx={{ mr: 1, color: 'text.secondary' }}>
+                cWETH
+              </Typography>
+            ),
             endAdornment: (
               <Button
                 size="small"
+                variant="outlined"
                 onClick={handleMaxAmount}
-                disabled={!cWETHBalance || cWETHBalance === '0x0000000000000000000000000000000000000000000000000000000000000000'}
-                sx={{ ml: 1, minWidth: 'auto', px: 1 }}
+                disabled={isPending || isConfirming || !hasCWETH}
+                sx={{ 
+                  ml: 1, 
+                  minWidth: 'auto', 
+                  px: 1.5,
+                  fontSize: '0.75rem',
+                  textTransform: 'none',
+                  borderRadius: 1
+                }}
               >
                 MAX
               </Button>
             ),
           }}
           helperText={
-            isLoadingBalance 
-              ? 'Loading balance...'
-              : cWETHBalance && cWETHBalance !== '0x0000000000000000000000000000000000000000000000000000000000000000' 
-              ? `Balance: Available` 
-              : cWETHBalance === '0x0000000000000000000000000000000000000000000000000000000000000000'
-              ? `Balance: 0.0000 cWETH`
-              : 'No balance found'
+            hasCWETH 
+              ? isDecrypted && cWETHBalance.includes('cWETH')
+                ? `Available: ${cWETHBalance}`
+                : 'Available: Balance encrypted (••••••••)'
+              : 'No cWETH balance available'
           }
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              borderRadius: 2,
+              fontSize: '1rem'
+            },
+            // Hide the number input spinners
+            '& input[type=number]': {
+              '-moz-appearance': 'textfield',
+            },
+            '& input[type=number]::-webkit-outer-spin-button': {
+              '-webkit-appearance': 'none',
+              margin: 0,
+            },
+            '& input[type=number]::-webkit-inner-spin-button': {
+              '-webkit-appearance': 'none',
+              margin: 0,
+            }
+          }}
         />
       </Box>
 
-      <Divider sx={{ my: 1.5 }} />
-
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="subtitle2" gutterBottom>
+      {/* Transaction Summary */}
+      <Box sx={{ 
+        mb: 1.5, 
+        p: 1, 
+        border: '1px solid',
+        borderColor: 'divider',
+        borderRadius: 2,
+        backgroundColor: 'background.paper',
+        transition: 'all 0.2s ease-in-out',
+        '&:hover': {
+          borderColor: 'primary.main',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+        }
+      }}>
+        <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, mb: 0.5 }}>
           Summary
         </Typography>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-          <Typography variant="body2">Amount:</Typography>
-          <Typography variant="body2">{amount || '0'} cWETH</Typography>
+        
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+          <Typography variant="body2" color="text.secondary">Amount</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+            {amount ? `${parseFloat(amount).toFixed(4)} cWETH` : '0.0000 cWETH'}
+          </Typography>
         </Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-          <Typography variant="body2">APY:</Typography>
-          <Typography variant="body2">5%</Typography>
+        
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+          <Typography variant="body2" color="text.secondary">Protocol Fee</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+            0.00001 cWETH
+          </Typography>
         </Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-          <Typography variant="body2">Status:</Typography>
-          <Chip
-            label="Encrypted"
-            size="small"
-            color="primary"
-            icon={<AccountBalance />}
-          />
+        
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+          <Typography variant="body2" color="text.secondary">Network Fee</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+            {isGasLoading ? 'Loading...' : calculateNetworkFee('SUPPLY')}
+          </Typography>
+        </Box>
+        
+        <Divider sx={{ my: 0.5 }} />
+        
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>Total</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            {isGasLoading ? 'Loading...' : calculateTotalCost()}
+          </Typography>
+        </Box>
+        
+        <Divider sx={{ my: 0.5 }} />
+        
+        <Box sx={{ 
+          mt: 0.5, 
+          p: 0.5, 
+          backgroundColor: 'action.hover', 
+          borderRadius: 1,
+          transition: 'background-color 0.2s ease-in-out'
+        }}>
+          <Typography variant="caption" color="text.secondary">
+            {isPending ? 'Pending...' : isConfirming ? 'Confirming...' : isEncrypting ? 'Encrypting...' : 'Ready'}
+          </Typography>
         </Box>
       </Box>
 
+      {/* Submit Button */}
       <Button
         fullWidth
         variant="contained"
         size="medium"
         onClick={handleSupply}
-        disabled={!isValidAmount || isPending || isConfirming || isEncrypting}
+        disabled={!isValidAmount || isPending || isConfirming || isEncrypting || !hasCWETH}
         startIcon={
           isPending || isConfirming || isEncrypting ? (
-            <CircularProgress size={16} />
+            <CircularProgress size={18} color="inherit" />
           ) : (
             <Send />
           )
         }
-        sx={{ py: 1 }}
+        sx={{ 
+          py: 1.2,
+          borderRadius: 2,
+          fontSize: '0.95rem',
+          fontWeight: 600,
+          textTransform: 'none',
+          boxShadow: 2,
+          transition: 'all 0.15s ease-in-out',
+          '&:hover': {
+            boxShadow: 4,
+            transform: 'translateY(-1px)',
+            scale: 1.02
+          },
+          '&:active': {
+            transform: 'translateY(1px) scale(0.98)',
+            boxShadow: 1,
+            transition: 'all 0.1s ease-in-out'
+          },
+          '&:focus': {
+            outline: 'none',
+            boxShadow: '0 0 0 3px rgba(25, 118, 210, 0.3)'
+          },
+          '&:disabled': {
+            opacity: 0.6,
+            transform: 'none',
+            scale: 1,
+            boxShadow: 2
+          }
+        }}
       >
         {isPending
           ? 'Confirming...'
@@ -611,31 +792,24 @@ export default function SupplyForm({ onTransactionSuccess }: SupplyFormProps = {
           : 'Set Operator'}
       </Button>
 
-      {/* Manual FHEVM re-initialization button for troubleshooting */}
-      {cWETHBalance && cWETHBalance !== '0x0000000000000000000000000000000000000000000000000000000000000000' && isApproved && (
-        <Box sx={{ mt: 2, textAlign: 'center' }}>
-          <Button
-            size="small"
-            variant="outlined"
-            color="secondary"
-            onClick={() => {
-              console.log('Manual FHEVM re-initialization triggered');
-              reinitializeFHEForNewContracts();
-              setNeedsReinitialization(false);
-              setShowSuccess(true);
-              setTimeout(() => setShowSuccess(false), 3000);
-            }}
-            sx={{ fontSize: '0.75rem' }}
-          >
-            🔄 Reinitialize FHEVM (if supply fails)
-          </Button>
-        </Box>
-      )}
-
+      {/* Transaction Hash */}
       {hash && (
-        <Box sx={{ mt: 1.5, textAlign: 'center' }}>
+        <Box sx={{ 
+          mt: 1, 
+          p: 0.5, 
+          backgroundColor: 'action.hover', 
+          borderRadius: 1,
+          textAlign: 'center',
+          transition: 'all 0.2s ease-in-out',
+          opacity: 0,
+          animation: 'fadeIn 0.3s ease-in-out forwards',
+          '@keyframes fadeIn': {
+            '0%': { opacity: 0, transform: 'translateY(10px)' },
+            '100%': { opacity: 1, transform: 'translateY(0)' }
+          }
+        }}>
           <Typography variant="caption" color="text.secondary">
-            {hash.slice(0, 10)}...{hash.slice(-8)}
+            {hash?.slice(0, 10)}...{hash?.slice(-8)}
           </Typography>
         </Box>
       )}

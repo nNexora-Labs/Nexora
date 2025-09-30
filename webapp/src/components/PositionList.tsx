@@ -37,7 +37,14 @@ interface SupplyPosition {
   vault: string;
 }
 
-export default function PositionList() {
+interface PositionListProps {
+  suppliedBalance?: string;
+  hasSupplied?: boolean;
+  isDecrypted?: boolean;
+  onTransactionSuccess?: () => Promise<void>;
+}
+
+export default function PositionList({ suppliedBalance: propSuppliedBalance, hasSupplied: propHasSupplied, isDecrypted: propIsDecrypted, onTransactionSuccess }: PositionListProps = {}) {
   const { address, isConnected } = useAccount();
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
 
@@ -222,7 +229,12 @@ export default function PositionList() {
         }}
       >
         <DialogContent sx={{ p: 0 }}>
-          <WithdrawForm />
+          <WithdrawForm 
+            onTransactionSuccess={onTransactionSuccess}
+            suppliedBalance={propSuppliedBalance}
+            hasSupplied={propHasSupplied}
+            isDecrypted={propIsDecrypted}
+          />
         </DialogContent>
       </Dialog>
     </Box>

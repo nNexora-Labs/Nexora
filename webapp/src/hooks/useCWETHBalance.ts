@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAccount, useWalletClient } from 'wagmi';
+import { useAccount, useReadContract, useWalletClient } from 'wagmi';
 import { getFHEInstance } from '../utils/fhe';
 import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
 import { ethers } from 'ethers';
@@ -36,7 +36,7 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
   const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
 
   // Core state - minimal and stable
-  const [encryptedBalance, setEncryptedBalance] = useState<string | null>(null);
+  const [encryptedBalanceState, setEncryptedBalanceState] = useState<string | null>(null);
   const [cWETHBalance, setCWETHBalance] = useState<string>('••••••••');
   const [hasCWETH, setHasCWETH] = useState<boolean>(false);
   const [isDecrypting, setIsDecrypting] = useState<boolean>(false);
@@ -46,6 +46,20 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
   // Refs for stable references
   const lastEncryptedBalanceRef = useRef<string | null>(null);
   const isDecryptingRef = useRef(false);
+
+  // Read encrypted balance from contract using useReadContract for auto-refresh
+  const { data: encryptedBalance, refetch: refetchEncryptedBalance } = useReadContract({
+    address: CWETH_ADDRESS as `0x${string}`,
+    abi: CWETH_ABI,
+    functionName: 'getEncryptedBalance',
+    args: address ? [address] : undefined,
+    query: {
+      enabled: !!address && !!CWETH_ADDRESS && CWETH_ADDRESS !== '0x0000000000000000000000000000000000000000' && typeof window !== 'undefined',
+      refetchInterval: 2000, // Poll every 2 seconds for real-time updates
+      refetchIntervalInBackground: true, // Continue polling even when tab is not active
+      staleTime: 1000, // Consider data stale after 1 second
+    },
+  });
 
   // Simple balance fetch function - no dependencies
   const fetchBalance = useCallback(async () => {
@@ -122,7 +136,7 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
       }
     } catch (error) {
       console.error('Failed to fetch balance:', error);
-      setEncryptedBalance(null);
+      setEncryptedBalanceState(null);
       setHasCWETH(false);
     } finally {
       setIsLoadingBalance(false);
@@ -156,7 +170,7 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
       
       // Decrypt balance using master signature
       const result = await fheInstance.userDecrypt(
-        [{ handle: encryptedBalance, contractAddress: CWETH_ADDRESS }],
+        [{ handle: encryptedBalanceState, contractAddress: CWETH_ADDRESS }],
         masterSig.privateKey,
         masterSig.publicKey,
         masterSig.signature,
@@ -189,28 +203,69 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
       setIsDecrypting(false);
       isDecryptingRef.current = false;
     }
-  }, [isConnected, address, encryptedBalance, walletClient, masterSignature, getMasterSignature, CWETH_ADDRESS]);
+  }, [isConnected, address, encryptedBalanceState, walletClient, masterSignature, getMasterSignature, CWETH_ADDRESS]);
+
+  // Handle encrypted balance from useReadContract
+  useEffect(() => {
+    if (encryptedBalance) {
+      // Handle different return types from contract call
+      let balanceData: string | null = null;
+      
+      if (typeof encryptedBalance === 'string') {
+        balanceData = encryptedBalance;
+      } else if (typeof encryptedBalance === 'object' && encryptedBalance !== null) {
+        // If it's an object, try to extract the data
+        balanceData = (encryptedBalance as any).data || (encryptedBalance as any).result || null;
+      }
+      
+      console.log('🔍 useCWETHBalance: encryptedBalance received:', balanceData, 'type:', typeof balanceData);
+      
+      // Check if we have valid encrypted balance data
+      const hasEncryptedBalance = balanceData && 
+        typeof balanceData === 'string' && 
+        balanceData !== '0x' && 
+        balanceData !== '0x0000000000000000000000000000000000000000000000000000000000000000' &&
+        balanceData.length > 2;
+      
+      setHasCWETH(hasEncryptedBalance);
+      setEncryptedBalanceState(balanceData);
+      
+      if (!hasEncryptedBalance) {
+        setCWETHBalance('••••••••');
+        console.log('🔍 useCWETHBalance: No balance found, balanceData:', balanceData);
+      } else {
+        setCWETHBalance('••••••••');
+        console.log('🔍 useCWETHBalance: Balance found, balanceData:', balanceData);
+      }
+    } else {
+      console.log('🔍 useCWETHBalance: No encryptedBalance data');
+      setHasCWETH(false);
+      setEncryptedBalanceState(null);
+      setCWETHBalance('••••••••');
+    }
+  }, [encryptedBalance]);
 
   // Initialize when address changes
   useEffect(() => {
     if (address && isConnected) {
-      fetchBalance();
+      // No need to manually fetch - useReadContract handles it
+      console.log('🔍 useCWETHBalance: Address connected, useReadContract will handle fetching');
     } else {
-      setEncryptedBalance(null);
+      setEncryptedBalanceState(null);
       setCWETHBalance('••••••••');
       setHasCWETH(false);
       setIsDecrypted(false);
     }
-  }, [address, isConnected, fetchBalance]);
+  }, [address, isConnected]);
 
   // Auto-decrypt when master signature becomes available
   useEffect(() => {
-    if (masterSignature && encryptedBalance && !isLoadingBalance && hasCWETH) {
+    if (masterSignature && encryptedBalanceState && !isLoadingBalance && hasCWETH) {
       decryptBalance();
     } else if (!masterSignature) {
       lockBalance();
     }
-  }, [masterSignature, encryptedBalance, isLoadingBalance, hasCWETH, decryptBalance]);
+  }, [masterSignature, encryptedBalanceState, isLoadingBalance, hasCWETH, decryptBalance]);
 
   // Simple refresh function
   const forceRefresh = useCallback(() => {
@@ -238,7 +293,7 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
 
   return {
     formattedBalance: cWETHBalance,
-    refetchCWETHBalance: fetchBalance,
+    refetchCWETHBalance: refetchEncryptedBalance,
     hasCWETH,
     canDecrypt,
     decryptBalance,
@@ -247,6 +302,6 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
     isDecrypted,
     isUpdating: isDecrypting || isLoadingBalance,
     lockBalance,
-    forceRefresh,
+    forceRefresh: refetchEncryptedBalance,
   };
 };

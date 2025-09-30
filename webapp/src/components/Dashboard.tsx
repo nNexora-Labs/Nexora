@@ -73,55 +73,8 @@ export default function Dashboard() {
   // Individual balance hooks - now use master signature
   const { suppliedBalance, isDecrypting: isDecryptingSupplied, hasSupplied, refetchEncryptedShares } = useSuppliedBalance(masterSignature, getMasterSignature);
   const { formattedBalance: cWETHBalance, hasCWETH, isDecrypted: isCWETHDecrypted, isDecrypting: isDecryptingCWETH, refetchCWETHBalance } = useCWETHBalance(masterSignature, getMasterSignature);
-  const { 
-    tvlBalance: vaultTVL, 
-    hasTVL, 
-    isDecrypted: isTVLDecrypted, 
-    isDecrypting: isDecryptingTVL,
-    isLoadingTVL: isTVLLoading,
-    canDecrypt: canDecryptTVL,
-    decryptTVL,
-    lockTVL: lockTVLIndividual,
-    fetchEncryptedTVL: fetchTVL
-  } = useVaultTVL();
   const { sharePercentage, hasShares, isDecrypting: isDecryptingShares, refreshShares } = useSharePercentage(masterSignature, getMasterSignature);
   
-  // Check if any decryption is in progress
-  const isAnyDecrypting = isDecryptingSupplied || isDecryptingCWETH || isDecryptingShares || isMasterDecrypting || isDecryptingTVL;
-
-  // Refresh all blockchain data
-  const refreshAllBalances = useCallback(async () => {
-    console.log('🔄 Refreshing all blockchain data...');
-    try {
-      await Promise.all([
-        refetchEncryptedShares(),
-        refetchCWETHBalance(),
-        refreshShares()
-      ]);
-      console.log('✅ All blockchain data refreshed');
-    } catch (error) {
-      console.error('❌ Error refreshing blockchain data:', error);
-    }
-  }, [refetchEncryptedShares, refetchCWETHBalance, refreshShares]);
-  
-  // Debug logging
-  console.log('🔍 Dashboard values:', { 
-    cWETHBalance, 
-    suppliedBalance,
-    vaultTVL,
-    sharePercentage,
-    isAllDecrypted,
-    hasSupplied,
-    hasCWETH,
-    hasTVL,
-    hasShares,
-    isAnyDecrypting,
-    masterSignature: masterSignature ? 'present' : 'missing',
-    isCWETHDecrypted,
-    isTVLDecrypted,
-    canDecryptTVL,
-    isDecryptingTVL
-  });
   const [activeTab, setActiveTab] = useState<'dashboard' | 'supply' | 'borrow' | 'portfolio'>('dashboard');
   const [walletInfoAnchor, setWalletInfoAnchor] = useState<null | HTMLElement>(null);
   const [selectedNetwork, setSelectedNetwork] = useState('Sepolia');
@@ -156,6 +109,7 @@ export default function Dashboard() {
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [showSupplyModal, setShowSupplyModal] = useState(false);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [supplySubTab, setSupplySubTab] = useState('supply'); // 'supply' or 'position'
   const [borrowSubTab, setBorrowSubTab] = useState('borrow'); // 'borrow' or 'position'
   const [portfolioSubTab, setPortfolioSubTab] = useState('overview'); // 'overview' or 'history'
@@ -171,6 +125,77 @@ export default function Dashboard() {
   // Swap functionality hooks
   const { writeContract: writeSwapContract, data: swapHash, isPending: isSwapPending, error: swapError } = useWriteContract();
   const { isLoading: isSwapConfirming, isSuccess: isSwapSuccess } = useWaitForTransactionReceipt({ hash: swapHash });
+
+  // TVL hook - now with transaction pending state
+  const { 
+    tvlBalance: vaultTVL, 
+    hasTVL, 
+    isDecrypted: isTVLDecrypted, 
+    isDecrypting: isDecryptingTVL,
+    isLoadingTVL: isTVLLoading,
+    canDecrypt: canDecryptTVL,
+    decryptTVL,
+    lockTVL: lockTVLIndividual,
+    fetchEncryptedTVL: fetchTVL
+  } = useVaultTVL(masterSignature, getMasterSignature, isSwapPending || isSwapConfirming);
+
+  // Check if any decryption is in progress
+  const isAnyDecrypting = isDecryptingSupplied || isDecryptingCWETH || isDecryptingShares || isMasterDecrypting || isDecryptingTVL;
+
+  // Refresh all blockchain data
+  const refreshAllBalances = useCallback(async () => {
+    console.log('🔄 Refreshing all blockchain data including TVL...');
+    try {
+      await Promise.all([
+        refetchEncryptedShares(),
+        refetchCWETHBalance(),
+        refreshShares(),
+        fetchTVL() // Add TVL refresh
+      ]);
+      console.log('✅ All blockchain data refreshed');
+    } catch (error) {
+      console.error('❌ Error refreshing blockchain data:', error);
+    }
+  }, [refetchEncryptedShares, refetchCWETHBalance, refreshShares, fetchTVL]);
+
+  // Debug logging
+  console.log('🔍 Dashboard values:', { 
+    cWETHBalance, 
+    suppliedBalance,
+    vaultTVL,
+    sharePercentage,
+    isAllDecrypted,
+    hasSupplied,
+    hasCWETH,
+    hasTVL,
+    hasShares,
+    isAnyDecrypting,
+    masterSignature: masterSignature ? 'present' : 'missing',
+    isCWETHDecrypted,
+    isTVLDecrypted,
+    canDecryptTVL,
+    isDecryptingTVL,
+    isDecryptingSupplied,
+    isDecryptingCWETH,
+    isDecryptingShares,
+    isMasterDecrypting
+  });
+
+  // Auto-refresh all balances when transactions complete
+  useEffect(() => {
+    if (isSwapSuccess) {
+      console.log('🎉 Swap transaction completed, refreshing all balances...');
+      refreshAllBalances();
+    }
+  }, [isSwapSuccess, refreshAllBalances]);
+
+  // Immediate TVL refresh when swap transaction completes
+  useEffect(() => {
+    if (isSwapSuccess) {
+      console.log('🎉 Swap completed, immediately refreshing TVL...');
+      fetchTVL();
+    }
+  }, [isSwapSuccess, fetchTVL]);
 
   // Contract addresses
   const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
@@ -188,6 +213,25 @@ export default function Dashboard() {
   // Handle SSR - only run hooks after component is mounted
   useEffect(() => {
     setIsMounted(true);
+  }, []);
+
+  // Handle SupplyForm close event
+  useEffect(() => {
+    const handleCloseSupplyDialog = () => {
+      setShowSupplyModal(false);
+    };
+
+    const handleCloseWithdrawDialog = () => {
+      setShowWithdrawModal(false);
+    };
+
+    window.addEventListener('closeSupplyDialog', handleCloseSupplyDialog);
+    window.addEventListener('closeWithdrawDialog', handleCloseWithdrawDialog);
+    
+    return () => {
+      window.removeEventListener('closeSupplyDialog', handleCloseSupplyDialog);
+      window.removeEventListener('closeWithdrawDialog', handleCloseWithdrawDialog);
+    };
   }, []);
 
 
@@ -1088,35 +1132,6 @@ export default function Dashboard() {
                             {isTVLLoading ? <CircularProgress size={16} /> : <TrendingUp fontSize="small" />}
                           </IconButton>
                         )}
-                        {(canDecryptTVL || true) && hasTVL && (
-                          <IconButton
-                            size="small"
-                            onClick={isTVLDecrypted ? lockTVLIndividual : decryptTVL}
-                            disabled={isDecryptingTVL}
-                            sx={{
-                              color: isTVLDecrypted ? (isDarkMode ? '#4caf50' : '#2e7d32') : (isDarkMode ? '#ff9800' : '#f57c00'),
-                              '&:hover': {
-                                backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.04)',
-                              },
-                              '&:disabled': {
-                                color: isDarkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.26)',
-                              },
-                              minWidth: 'auto',
-                              width: '24px',
-                              height: '24px',
-                              fontSize: '14px'
-                            }}
-                            title={isTVLDecrypted ? 'Lock TVL' : 'Decrypt TVL'}
-                          >
-                            {isDecryptingTVL ? (
-                              <CircularProgress size={16} />
-                            ) : isTVLDecrypted ? (
-                              <LockOpen fontSize="small" />
-                            ) : (
-                              <Lock fontSize="small" />
-                            )}
-                          </IconButton>
-                        )}
                       </Box>
         </Box>
                   </Grid>
@@ -1851,7 +1866,12 @@ export default function Dashboard() {
                 
                 {/* My Supply Position */}
                 {supplySubTab === 'position' && (
-                  <PositionList />
+                  <PositionList 
+                    suppliedBalance={suppliedBalance}
+                    hasSupplied={hasSupplied}
+                    isDecrypted={isDecryptingSupplied}
+                    onTransactionSuccess={refreshAllBalances}
+                  />
                 )}
               </CardContent>
             </Card>
@@ -3626,48 +3646,37 @@ export default function Dashboard() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          zIndex: 9999,
-          p: 2
+          zIndex: 9999
         }}>
-          <Box sx={{
-            background: isDarkMode 
-              ? 'linear-gradient(135deg, #2c3e50 0%, #34495e 100%)'
-              : 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
-            color: isDarkMode ? 'white' : '#000000',
-            borderRadius: '16px',
-            p: 4,
-            maxWidth: '500px',
-            width: '100%',
-            maxHeight: '90vh',
-            overflow: 'auto',
-            border: isDarkMode 
-              ? '1px solid rgba(255, 255, 255, 0.2)'
-              : '1px solid rgba(44, 62, 80, 0.2)',
-            boxShadow: isDarkMode 
-              ? '0 8px 32px rgba(0, 0, 0, 0.4)'
-              : '0 8px 32px rgba(0, 0, 0, 0.15)'
-          }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-              <Typography variant="h5" sx={{ fontWeight: '600', color: isDarkMode ? 'white' : '#000000', fontFamily: 'sans-serif' }}>
-                Supply cWETH
-              </Typography>
-              <Button
-                onClick={() => setShowSupplyModal(false)}
-                sx={{
-                  color: isDarkMode ? 'white' : '#000000',
-                  minWidth: 'auto',
-                  p: 1,
-                  borderRadius: '50%',
-                  '&:hover': {
-                    background: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(44, 62, 80, 0.1)'
-                  }
-                }}
-              >
-                ✕
-              </Button>
-            </Box>
-            <SupplyForm onTransactionSuccess={refreshAllBalances} />
-          </Box>
+          <SupplyForm 
+            onTransactionSuccess={refreshAllBalances} 
+            cWETHBalance={cWETHBalance}
+            hasCWETH={hasCWETH}
+            isDecrypted={isCWETHDecrypted}
+          />
+        </Box>
+      )}
+
+      {/* Withdraw Modal */}
+      {showWithdrawModal && (
+        <Box sx={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: isDarkMode ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999
+        }}>
+          <WithdrawForm 
+            onTransactionSuccess={refreshAllBalances} 
+            suppliedBalance={suppliedBalance}
+            hasSupplied={hasSupplied}
+            isDecrypted={isDecryptingSupplied}
+          />
         </Box>
       )}
 

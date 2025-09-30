@@ -16,8 +16,8 @@ import {
 } from '@mui/material';
 import { Send, AccountBalance } from '@mui/icons-material';
 import { getFHEInstance } from '../utils/fhe';
-import { useSuppliedBalance } from '../hooks/useSuppliedBalance';
 import { useMasterDecryption } from '../hooks/useMasterDecryption';
+import { useGasFee } from '../hooks/useGasFee';
 
 // Contract ABI for withdraw function
 const VAULT_ABI = [
@@ -41,7 +41,14 @@ const VAULT_ABI = [
   }
 ] as const;
 
-export default function WithdrawForm() {
+interface WithdrawFormProps {
+  onTransactionSuccess?: () => Promise<void>;
+  suppliedBalance?: string;
+  hasSupplied?: boolean;
+  isDecrypted?: boolean;
+}
+
+export default function WithdrawForm({ onTransactionSuccess, suppliedBalance: propSuppliedBalance, hasSupplied: propHasSupplied, isDecrypted: propIsDecrypted }: WithdrawFormProps = {}) {
   const { address, isConnected } = useAccount();
   const { writeContract, data: hash, isPending, error } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
@@ -49,7 +56,13 @@ export default function WithdrawForm() {
   // Master decryption hook
   const { masterSignature, getMasterSignature } = useMasterDecryption();
   
-  const { suppliedBalance, isDecrypting, hasSupplied, refetchEncryptedShares } = useSuppliedBalance(masterSignature, getMasterSignature);
+  // Gas fee hook for real network fees
+  const { calculateNetworkFee, isLoading: isGasLoading, getGasPriceInGwei } = useGasFee();
+  
+  // Use props for supplied balance instead of hook
+  const suppliedBalance = propSuppliedBalance || '••••••••';
+  const hasSupplied = propHasSupplied || false;
+  const isDecrypted = propIsDecrypted || false;
   
   // Handle transaction success
   useEffect(() => {
@@ -58,25 +71,32 @@ export default function WithdrawForm() {
       setShowSuccess(true);
       setAmount('');
       setIsValidAmount(false);
-      // Refetch encrypted shares to update the balance
-      refetchEncryptedShares();
+      
+      // Call onTransactionSuccess to refresh balances in Dashboard
+      if (onTransactionSuccess) {
+        onTransactionSuccess();
+      }
       
       // Hide success message after 5 seconds
       setTimeout(() => {
         setShowSuccess(false);
       }, 5000);
     }
-  }, [isSuccess, hash, refetchEncryptedShares]);
+  }, [isSuccess, hash, onTransactionSuccess]);
 
   const [amount, setAmount] = useState('');
   const [isValidAmount, setIsValidAmount] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
 
   // Contract address
   const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x0000000000000000000000000000000000000000';
 
   useEffect(() => {
     console.log('🔍 WithdrawForm validation:', { amount, hasSupplied, suppliedBalance });
+    
+    // Clear previous error
+    setBalanceError(null);
     
     // Check if we have a valid amount and the user has supplied
     if (amount && hasSupplied) {
@@ -85,9 +105,28 @@ export default function WithdrawForm() {
       // If balance is decrypted (contains 'ETH'), validate against actual balance
       if (suppliedBalance.includes('ETH')) {
         const suppliedWei = parseFloat(suppliedBalance.replace(' ETH', ''));
-        const isValid = amountWei > 0 && amountWei <= suppliedWei;
+        
+        // Calculate total cost including gas fees
+        const protocolFee = 0.00001; // cWETH
+        const networkFeeStr = calculateNetworkFee('WITHDRAW');
+        const networkFeeValue = parseFloat(networkFeeStr.replace(' ETH', ''));
+        const totalCost = amountWei + protocolFee + networkFeeValue;
+        
+        const isValid = amountWei > 0 && totalCost <= suppliedWei;
         setIsValidAmount(isValid);
-        console.log('🔍 Decrypted balance validation:', { amountWei, suppliedWei, isValid });
+        
+          if (totalCost > suppliedWei) {
+            setBalanceError(`Insufficient balance! You have ${suppliedWei.toFixed(4)} cWETH available, but need ${totalCost.toFixed(6)} cWETH (including fees).`);
+          }
+        
+        console.log('🔍 Decrypted balance validation with fees:', { 
+          amountWei, 
+          suppliedWei, 
+          protocolFee, 
+          networkFeeValue, 
+          totalCost, 
+          isValid 
+        });
       } else {
         // If balance is encrypted (••••••••), just check if amount is positive
         // User can enter any positive amount since we can't decrypt to validate
@@ -97,27 +136,40 @@ export default function WithdrawForm() {
       }
     } else {
       setIsValidAmount(false);
+      if (amount && !hasSupplied) {
+        setBalanceError('No supplied balance available');
+      }
       console.log('🔍 Validation failed:', { hasAmount: !!amount, hasSupplied });
     }
-  }, [amount, suppliedBalance, hasSupplied]);
+  }, [amount, suppliedBalance, hasSupplied, calculateNetworkFee]);
 
-  useEffect(() => {
-    if (isSuccess) {
-      setShowSuccess(true);
-      setAmount('');
-      refetchEncryptedShares(); // Refresh supplied balance
-      setTimeout(() => setShowSuccess(false), 5000);
-    }
-  }, [isSuccess, refetchEncryptedShares]);
+  // Calculate total cost including real network fee
+  const calculateTotalCost = (): string => {
+    if (!amount) return '0.00000 ETH';
+    
+    const amountValue = parseFloat(amount);
+    const protocolFee = 0.00001;
+    
+    // Extract network fee value from the calculated fee string
+    const networkFeeStr = calculateNetworkFee('WITHDRAW');
+    const networkFeeValue = parseFloat(networkFeeStr.replace(' ETH', ''));
+    
+    const total = amountValue + protocolFee + networkFeeValue;
+    return `${total.toFixed(6)} ETH`;
+  };
 
   const handleMaxAmount = () => {
-    // If balance is decrypted (contains 'ETH'), use the actual amount
+    // If balance contains 'ETH', use the actual amount (regardless of isDecrypted flag)
     if (suppliedBalance.includes('ETH')) {
-      setAmount(suppliedBalance.replace(' ETH', ''));
+      const balanceWei = parseFloat(suppliedBalance.replace(' ETH', ''));
+      setAmount(balanceWei.toString());
+      console.log('🔍 MAX button: Set amount to supplied balance:', balanceWei);
+    } else if (hasSupplied) {
+      // If we have supplied balance but it's encrypted (••••••••), we can't set exact amount
+      console.log('🔍 MAX button: Balance is encrypted, cannot set exact amount');
     } else {
-      // If balance is encrypted, set a reasonable default amount
-      // User can adjust as needed since we can't decrypt to show exact balance
-      setAmount('0.1');
+      // No supplied balance available
+      console.log('🔍 MAX button: No supplied balance available');
     }
   };
 
@@ -286,6 +338,27 @@ export default function WithdrawForm() {
         </Alert>
       )}
 
+      {balanceError && (
+        <Alert 
+          severity="warning" 
+          sx={{ 
+            mb: 1.5, 
+            borderRadius: 2,
+            transition: 'all 0.3s ease-in-out',
+            opacity: 0,
+            animation: 'slideInDown 0.4s ease-in-out forwards',
+            '@keyframes slideInDown': {
+              '0%': { opacity: 0, transform: 'translateY(-20px)' },
+              '100%': { opacity: 1, transform: 'translateY(0)' }
+            }
+          }}
+        >
+          <Typography variant="body2">
+            {balanceError}
+          </Typography>
+        </Alert>
+      )}
+
       {/* Amount Input */}
       <Box sx={{ mb: 1 }}>
         <TextField
@@ -299,7 +372,7 @@ export default function WithdrawForm() {
           InputProps={{
             startAdornment: (
               <Typography variant="body1" sx={{ mr: 1, color: 'text.secondary' }}>
-                ETH
+                cWETH
               </Typography>
             ),
             endAdornment: (
@@ -322,7 +395,11 @@ export default function WithdrawForm() {
             ),
           }}
           helperText={
-            hasSupplied ? `Available: ${suppliedBalance}` : 'No balance available'
+            hasSupplied 
+              ? suppliedBalance.includes('ETH')
+                ? `Available: ${suppliedBalance.replace(' ETH', ' cWETH')}`
+                : `Available: ${suppliedBalance}`
+              : 'No supplied balance available'
           }
           sx={{
             '& .MuiOutlinedInput-root': {
@@ -366,14 +443,21 @@ export default function WithdrawForm() {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
           <Typography variant="body2" color="text.secondary">Amount</Typography>
           <Typography variant="body2" sx={{ fontWeight: 500 }}>
-            {amount ? `${parseFloat(amount).toFixed(4)} ETH` : '0.0000 ETH'}
+            {amount ? `${parseFloat(amount).toFixed(4)} cWETH` : '0.0000 cWETH'}
           </Typography>
         </Box>
         
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-          <Typography variant="body2" color="text.secondary">Fee</Typography>
+          <Typography variant="body2" color="text.secondary">Protocol Fee</Typography>
           <Typography variant="body2" sx={{ fontWeight: 500 }}>
-            ~0.001 ETH
+            0.00001 cWETH
+          </Typography>
+        </Box>
+        
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+          <Typography variant="body2" color="text.secondary">Network Fee</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+            {isGasLoading ? 'Loading...' : calculateNetworkFee('WITHDRAW')}
           </Typography>
         </Box>
         
@@ -382,19 +466,7 @@ export default function WithdrawForm() {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>Total</Typography>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            {amount ? `${(parseFloat(amount) + 0.001).toFixed(4)} ETH` : '0.0000 ETH'}
-          </Typography>
-        </Box>
-        
-        <Box sx={{ 
-          mt: 0.5, 
-          p: 0.5, 
-          backgroundColor: 'action.hover', 
-          borderRadius: 1,
-          transition: 'background-color 0.2s ease-in-out'
-        }}>
-          <Typography variant="caption" color="text.secondary">
-            {isPending ? 'Pending...' : isConfirming ? 'Confirming...' : 'Ready'}
+            {isGasLoading ? 'Loading...' : calculateTotalCost()}
           </Typography>
         </Box>
       </Box>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAccount, useWalletClient } from 'wagmi';
+import { useAccount, useReadContract, useWalletClient } from 'wagmi';
 import { getFHEInstance } from '../utils/fhe';
 import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
 import { ethers } from 'ethers';
@@ -49,14 +49,80 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
   const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x0000000000000000000000000000000000000000';
 
   // Core state
-  const [encryptedUserShares, setEncryptedUserShares] = useState<string | null>(null);
-  const [encryptedTotalShares, setEncryptedTotalShares] = useState<string | null>(null);
+  const [encryptedUserSharesState, setEncryptedUserSharesStateState] = useState<string | null>(null);
+  const [encryptedTotalSharesState, setEncryptedTotalSharesStateState] = useState<string | null>(null);
   const [sharePercentage, setSharePercentage] = useState<string>('••••••••');
   const [isDecrypting, setIsDecrypting] = useState<boolean>(false);
   const [hasShares, setHasShares] = useState<boolean>(false);
 
   // Refs for preventing multiple simultaneous decryption attempts
   const isDecryptingRef = useRef(false);
+
+  // Read encrypted user shares from contract using useReadContract for auto-refresh
+  const { data: encryptedUserShares, refetch: refetchUserShares } = useReadContract({
+    address: VAULT_ADDRESS as `0x${string}`,
+    abi: VAULT_ABI,
+    functionName: 'getEncryptedShares',
+    args: address ? [address] : undefined,
+    query: {
+      enabled: !!address && !!VAULT_ADDRESS && VAULT_ADDRESS !== '0x0000000000000000000000000000000000000000' && typeof window !== 'undefined',
+      refetchInterval: 2000, // Poll every 2 seconds for real-time updates
+      refetchIntervalInBackground: true, // Continue polling even when tab is not active
+      staleTime: 1000, // Consider data stale after 1 second
+    },
+  });
+
+  // Read encrypted total shares from contract using useReadContract for auto-refresh
+  const { data: encryptedTotalShares, refetch: refetchTotalShares } = useReadContract({
+    address: VAULT_ADDRESS as `0x${string}`,
+    abi: VAULT_ABI,
+    functionName: 'getEncryptedTotalShares',
+    args: [],
+    query: {
+      enabled: !!VAULT_ADDRESS && VAULT_ADDRESS !== '0x0000000000000000000000000000000000000000' && typeof window !== 'undefined',
+      refetchInterval: 2000, // Poll every 2 seconds for real-time updates
+      refetchIntervalInBackground: true, // Continue polling even when tab is not active
+      staleTime: 1000, // Consider data stale after 1 second
+    },
+  });
+
+  // Handle encrypted user shares from useReadContract
+  useEffect(() => {
+    if (encryptedUserShares) {
+      // Handle different return types from contract call
+      let userSharesData: string | null = null;
+      
+      if (typeof encryptedUserShares === 'string') {
+        userSharesData = encryptedUserShares;
+      } else if (typeof encryptedUserShares === 'object' && encryptedUserShares !== null) {
+        userSharesData = (encryptedUserShares as any).data || (encryptedUserShares as any).result || null;
+      }
+      
+      console.log('🔍 useSharePercentage: encryptedUserShares received:', userSharesData);
+      setEncryptedUserSharesStateState(userSharesData);
+    } else {
+      setEncryptedUserSharesStateState(null);
+    }
+  }, [encryptedUserShares]);
+
+  // Handle encrypted total shares from useReadContract
+  useEffect(() => {
+    if (encryptedTotalShares) {
+      // Handle different return types from contract call
+      let totalSharesData: string | null = null;
+      
+      if (typeof encryptedTotalShares === 'string') {
+        totalSharesData = encryptedTotalShares;
+      } else if (typeof encryptedTotalShares === 'object' && encryptedTotalShares !== null) {
+        totalSharesData = (encryptedTotalShares as any).data || (encryptedTotalShares as any).result || null;
+      }
+      
+      console.log('🔍 useSharePercentage: encryptedTotalShares received:', totalSharesData);
+      setEncryptedTotalSharesStateState(totalSharesData);
+    } else {
+      setEncryptedTotalSharesStateState(null);
+    }
+  }, [encryptedTotalShares]);
 
   // Fetch encrypted shares from contract
   const fetchEncryptedShares = useCallback(async () => {
@@ -121,36 +187,34 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
 
       if (userSharesResult.data && userSharesResult.data !== '0x') {
         const userSharesData = userSharesResult.data as `0x${string}`;
-        setEncryptedUserShares(userSharesData);
+        // Note: State is now managed by useReadContract hooks above
         
         // Check if user has any shares
         const isAllZeros = userSharesData === '0x0000000000000000000000000000000000000000000000000000000000000000';
         setHasShares(!isAllZeros);
         console.log('🔍 User shares check:', { userSharesData, isAllZeros, hasShares: !isAllZeros });
       } else {
-        setEncryptedUserShares('0x0000000000000000000000000000000000000000000000000000000000000000');
+        // Note: State is now managed by useReadContract hooks above
         setHasShares(false);
       }
 
       if (totalSharesResult.data && totalSharesResult.data !== '0x') {
         const totalSharesData = totalSharesResult.data as `0x${string}`;
-        setEncryptedTotalShares(totalSharesData);
+        // Note: State is now managed by useReadContract hooks above
         console.log('✅ Total shares fetched:', totalSharesData);
       } else {
-        setEncryptedTotalShares('0x0000000000000000000000000000000000000000000000000000000000000000');
+        // Note: State is now managed by useReadContract hooks above
       }
 
     } catch (error) {
       console.error('Failed to fetch share data:', error);
-      setEncryptedUserShares(null);
-      setEncryptedTotalShares(null);
-      setHasShares(false);
+      // Note: State is now managed by useReadContract hooks above
     }
   }, [address, VAULT_ADDRESS]);
 
   // Decrypt and calculate share percentage
   const decryptAndCalculate = useCallback(async () => {
-    if (!isConnected || !address || !encryptedUserShares || !encryptedTotalShares || !masterSignature || !walletClient) {
+    if (!isConnected || !address || !encryptedUserSharesState || !encryptedTotalSharesState || !masterSignature || !walletClient) {
       return;
     }
 
@@ -176,8 +240,8 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
       // Decrypt both user shares and total shares using master signature
       const result = await fheInstance.userDecrypt(
         [
-          { handle: encryptedUserShares, contractAddress: VAULT_ADDRESS },
-          { handle: encryptedTotalShares, contractAddress: VAULT_ADDRESS }
+          { handle: encryptedUserSharesState, contractAddress: VAULT_ADDRESS },
+          { handle: encryptedTotalSharesState, contractAddress: VAULT_ADDRESS }
         ],
         masterSig.privateKey,
         masterSig.publicKey,
@@ -188,8 +252,8 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
         masterSig.durationDays
       );
 
-      const userSharesValue = result[encryptedUserShares];
-      const totalSharesValue = result[encryptedTotalShares];
+      const userSharesValue = encryptedUserSharesState ? (result as any)[encryptedUserSharesState] : undefined;
+      const totalSharesValue = encryptedTotalSharesState ? (result as any)[encryptedTotalSharesState] : undefined;
 
       if (userSharesValue !== undefined && totalSharesValue !== undefined) {
         let userShares: bigint;
@@ -233,15 +297,14 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
     } finally {
       isDecryptingRef.current = false;
     }
-  }, [isConnected, address, encryptedUserShares, encryptedTotalShares, masterSignature, walletClient, getMasterSignature, VAULT_ADDRESS]);
+  }, [isConnected, address, encryptedUserSharesState, encryptedTotalSharesState, masterSignature, walletClient, getMasterSignature, VAULT_ADDRESS]);
 
   // Initialize when component mounts
   useEffect(() => {
     if (isConnected) {
       fetchEncryptedShares();
     } else {
-      setEncryptedUserShares(null);
-      setEncryptedTotalShares(null);
+      // Note: State is now managed by useReadContract hooks above
       setSharePercentage('••••••••');
       setHasShares(false);
     }
@@ -249,17 +312,18 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
 
   // Auto-decrypt when master signature becomes available
   useEffect(() => {
-    if (masterSignature && encryptedUserShares && encryptedTotalShares && hasShares) {
+    if (masterSignature && encryptedUserSharesState && encryptedTotalSharesState && hasShares) {
       decryptAndCalculate();
     } else if (!masterSignature) {
       setSharePercentage('••••••••');
     }
-  }, [masterSignature, encryptedUserShares, encryptedTotalShares, hasShares, decryptAndCalculate]);
+  }, [masterSignature, encryptedUserSharesState, encryptedTotalSharesState, hasShares, decryptAndCalculate]);
 
   // Simple refresh function
   const refreshShares = useCallback(() => {
-    fetchEncryptedShares();
-  }, [fetchEncryptedShares]);
+    refetchUserShares();
+    refetchTotalShares();
+  }, [refetchUserShares, refetchTotalShares]);
 
   return {
     // State
