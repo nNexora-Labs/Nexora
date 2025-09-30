@@ -175,7 +175,7 @@ export default function Dashboard() {
 
   // Refresh all blockchain data
   const refreshAllBalances = useCallback(async () => {
-    console.log('🔄 Refreshing all blockchain data including TVL...');
+    // Refreshing all blockchain data
     try {
       await Promise.all([
         refetchEncryptedShares(),
@@ -183,39 +183,18 @@ export default function Dashboard() {
         refreshShares(),
         fetchTVL() // Add TVL refresh
       ]);
-      console.log('✅ All blockchain data refreshed');
+    // All blockchain data refreshed
     } catch (error) {
       console.error('❌ Error refreshing blockchain data:', error);
     }
   }, [refetchEncryptedShares, refetchCWETHBalance, refreshShares, fetchTVL]);
 
-  // Debug logging
-  console.log('🔍 Dashboard values:', { 
-    cWETHBalance, 
-    suppliedBalance,
-    vaultTVL,
-    sharePercentage,
-    isAllDecrypted,
-    hasSupplied,
-    hasCWETH,
-    hasTVL,
-    hasShares,
-    isAnyDecrypting,
-    masterSignature: masterSignature ? 'present' : 'missing',
-    isCWETHDecrypted,
-    isTVLDecrypted,
-    canDecryptTVL,
-    isDecryptingTVL,
-    isDecryptingSupplied,
-    isDecryptingCWETH,
-    isDecryptingShares,
-    isMasterDecrypting
-  });
+  // Dashboard state loaded
 
   // Auto-refresh all balances when transactions complete
   useEffect(() => {
     if (isSwapSuccess) {
-      console.log('🎉 Swap transaction completed, refreshing all balances...');
+    // Swap transaction completed
       refreshAllBalances();
     }
   }, [isSwapSuccess, refreshAllBalances]);
@@ -223,13 +202,15 @@ export default function Dashboard() {
   // Immediate TVL refresh when swap transaction completes
   useEffect(() => {
     if (isSwapSuccess) {
-      console.log('🎉 Swap completed, immediately refreshing TVL...');
+    // Swap completed, refreshing TVL
       fetchTVL();
     }
   }, [isSwapSuccess, fetchTVL]);
 
   // Contract addresses
   const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
+  
+  // Contract address loaded
 
   // Available tokens for swap
   const availableTokens = [
@@ -323,30 +304,47 @@ export default function Dashboard() {
       if (isReversed) {
         // Reverse swap: cWETH → ETH (unwrap)
         // For unwrap, we need to encrypt the amount and use the new signature
-        if (fhevmInstance && masterSignature) {
-          // Encrypt the amount using FHEVM
-          const encryptedAmount = fhevmInstance.encrypt64(Number(amountInWei));
-          
-          // Create proof for the encrypted amount
-          const inputProof = await fhevmInstance.generateProof(encryptedAmount);
-          
-          // Step 1: Burn cWETH tokens
-          await writeSwapContract({
-            address: CWETH_ADDRESS as `0x${string}`,
-            abi: CWETH_ABI,
-            functionName: 'unwrap',
-            args: [encryptedAmount, inputProof],
-          });
-          
-          // Step 2: Complete unwrap by sending ETH
-          await writeSwapContract({
-            address: CWETH_ADDRESS as `0x${string}`,
-            abi: CWETH_ABI,
-            functionName: 'completeUnwrap',
-            args: [Number(amountInWei)],
-          });
+        if (masterSignature) {
+          try {
+            // Import FHE utilities
+            const { encryptAndRegister } = await import('../utils/fhe');
+            const { getFHEInstance } = await import('../utils/fhe');
+            
+            // Get FHE instance
+            const fheInstance = await getFHEInstance();
+            
+            // Encrypt the amount
+            const encryptedAmount = await encryptAndRegister(
+              CWETH_ADDRESS,
+              address,
+              amountInWei
+            );
+            
+            if (!encryptedAmount) {
+              throw new Error('Failed to encrypt amount for unwrap');
+            }
+            
+            // Step 1: Burn cWETH tokens
+            await writeSwapContract({
+              address: CWETH_ADDRESS as `0x${string}`,
+              abi: CWETH_ABI,
+              functionName: 'unwrap',
+              args: [encryptedAmount.handles[0], encryptedAmount.inputProof],
+            });
+            
+            // Step 2: Complete unwrap by sending ETH
+            await writeSwapContract({
+              address: CWETH_ADDRESS as `0x${string}`,
+              abi: CWETH_ABI,
+              functionName: 'completeUnwrap',
+              args: [amountInWei],
+            });
+          } catch (error) {
+            console.error('Unwrap process failed:', error);
+            throw error;
+          }
         } else {
-          throw new Error('FHEVM instance or master signature not available');
+          throw new Error('Master signature not available');
         }
       } else {
         // Forward swap: ETH → cWETH (wrap)
@@ -454,7 +452,7 @@ export default function Dashboard() {
   return (
     <>
       {/* Notification Banner */}
-      {showNotificationBanner && (
+      {/* {showNotificationBanner && (
         <Box sx={{ 
           background: isDarkMode 
             ? 'linear-gradient(135deg, #2c3e50 0%, #34495e 100%)'
@@ -493,12 +491,12 @@ export default function Dashboard() {
             <Close />
           </IconButton>
         </Box>
-      )}
+      )} */}
 
       <AppBar position="static" sx={{ 
         background: isDarkMode 
           ? 'linear-gradient(135deg, #2c3e50 0%, #34495e 100%)'
-          : 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
+          : 'linear-gradient(135deg, #f5f7fa 0%, #e8ecf0 100%)',
         boxShadow: isDarkMode 
           ? '0 2px 8px rgba(0, 0, 0, 0.1)'
           : '0 2px 8px rgba(0, 0, 0, 0.05)',
@@ -563,7 +561,7 @@ export default function Dashboard() {
               <IconButton
                 onClick={() => setShowMobileMenu(!showMobileMenu)}
                 sx={{
-                  color: isDarkMode ? 'white' : '#000000',
+                  color: isDarkMode ? 'white' : '#2c3e50',
                   p: 0.5,
                   '&:hover': {
                     backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
@@ -610,7 +608,7 @@ export default function Dashboard() {
                   minWidth: '120px',
                   background: isDarkMode 
                     ? 'linear-gradient(135deg, #2c3e50 0%, #34495e 100%)'
-                    : 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
+                    : 'linear-gradient(135deg, #f5f7fa 0%, #e8ecf0 100%)',
                   border: isDarkMode 
                     ? '1px solid rgba(255, 255, 255, 0.1)'
                     : '1px solid rgba(44, 62, 80, 0.1)',
@@ -678,7 +676,7 @@ export default function Dashboard() {
                   fontSize: '0.875rem',
                   minHeight: '48px',
                   '&.Mui-selected': {
-                    color: isDarkMode ? 'white' : '#000000',
+                    color: isDarkMode ? 'white' : '#2c3e50',
                     fontWeight: '600'
                   },
                   '&:hover': {
@@ -716,7 +714,7 @@ export default function Dashboard() {
                     onClick={() => setShowNetworkDropdown(!showNetworkDropdown)}
                     sx={{
                       borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(44, 62, 80, 0.3)',
-                      color: isDarkMode ? 'white' : '#000000',
+                      color: isDarkMode ? 'white' : '#2c3e50',
                       minWidth: { xs: '40px', sm: '120px', md: 'auto' },
                       width: { xs: '40px', sm: '120px', md: 'auto' },height: '30px',
                       px: { xs: 0.5, sm: 1.5 },
@@ -760,7 +758,7 @@ export default function Dashboard() {
                       maxHeight: '150px',
                       background: isDarkMode 
                         ? 'linear-gradient(135deg, #2c3e50 0%, #34495e 100%)'
-                        : 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
+                        : 'linear-gradient(135deg, #f5f7fa 0%, #e8ecf0 100%)',
                       border: isDarkMode 
                         ? '1px solid rgba(255, 255, 255, 0.1)'
                         : '1px solid rgba(44, 62, 80, 0.1)',
@@ -776,11 +774,11 @@ export default function Dashboard() {
                       },
                       '&::-webkit-scrollbar-track': {
                         background: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(44, 62, 80, 0.1)',
-                        borderRadius: '3px',
+                        borderRadius: '4px',
                       },
                       '&::-webkit-scrollbar-thumb': {
                         background: isDarkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(44, 62, 80, 0.3)',
-                        borderRadius: '3px',
+                        borderRadius: '4px',
                       },
                       '&::-webkit-scrollbar-thumb:hover': {
                         background: isDarkMode ? 'rgba(255, 255, 255, 0.5)' : 'rgba(44, 62, 80, 0.5)',
@@ -924,7 +922,7 @@ export default function Dashboard() {
                     background: isDarkMode 
                       ? 'linear-gradient(135deg, #34495e 0%, #2c3e50 100%)'
                       : 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)',
-                    color: isDarkMode ? 'white' : '#000000',
+                    color: isDarkMode ? 'white' : '#2c3e50',
                     fontWeight: '600',
                     px: { xs: 2, sm: 3 },height: '30px',
                     textTransform: 'none',
@@ -1002,7 +1000,7 @@ export default function Dashboard() {
                 size="small"
                 sx={{
                   background: 'linear-gradient(45deg, #2196f3 30%, #21cbf3 90%)',
-                  color: isDarkMode ? 'white' : '#000000',
+                  color: isDarkMode ? 'white' : '#2c3e50',
                         fontWeight: '600',
                   px: { xs: 2, sm: 3 },
                   py: { xs: 0.5, sm: 1 },
@@ -1056,13 +1054,13 @@ export default function Dashboard() {
               mb: { xs: 2, sm: 3 }, 
               background: isDarkMode 
                 ? 'linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%)'
-                : 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 50%, #ffffff 100%)',
-              color: isDarkMode ? 'white' : '#000000',
+                : 'linear-gradient(135deg, #f5f7fa 0%, #e8ecf0 50%, #f5f7fa 100%)',
+              color: isDarkMode ? 'white' : '#2c3e50',
               borderRadius: '4px',
               overflow: 'hidden',
               border: isDarkMode 
-                ? '1px solid rgba(255, 255, 255, 0.1)'
-                : '1px solid rgba(44, 62, 80, 0.1)',
+                ? '2px solid rgba(255, 255, 255, 0.3)'
+                : '2px solid rgba(44, 62, 80, 0.4)',
               boxShadow: isDarkMode 
                 ? '0 4px 20px rgba(0, 0, 0, 0.3)'
                 : '0 4px 20px rgba(0, 0, 0, 0.1)'
@@ -1087,7 +1085,7 @@ export default function Dashboard() {
                         opacity: isDarkMode ? 0.8 : 0.7, 
                         mb: 1,
                         fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                        color: isDarkMode ? 'white' : '#000000',
+                        color: isDarkMode ? 'white' : '#2c3e50',
                         fontWeight: isDarkMode ? '500' : '300'
                       }}>
                         Wallet Balance
@@ -1107,7 +1105,7 @@ export default function Dashboard() {
                         opacity: isDarkMode ? 0.8 : 0.7, 
                         mb: 1,
                         fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                        color: isDarkMode ? 'white' : '#000000',
+                        color: isDarkMode ? 'white' : '#2c3e50',
                         fontWeight: isDarkMode ? '500' : '300'
                       }}>
                         cWETH Balance
@@ -1127,7 +1125,7 @@ export default function Dashboard() {
                         opacity: isDarkMode ? 0.8 : 0.7, 
                         mb: 1,
                         fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                        color: isDarkMode ? 'white' : '#000000',
+                        color: isDarkMode ? 'white' : '#2c3e50',
                         fontWeight: isDarkMode ? '500' : '300'
                       }}>
                         Your Share
@@ -1147,7 +1145,7 @@ export default function Dashboard() {
                         opacity: isDarkMode ? 0.8 : 0.7, 
                         mb: 1,
                         fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                        color: isDarkMode ? 'white' : '#000000',
+                        color: isDarkMode ? 'white' : '#2c3e50',
                         fontWeight: isDarkMode ? '500' : '300'
                       }}>
                         Supplied Balance
@@ -1155,7 +1153,7 @@ export default function Dashboard() {
                       <Typography variant="h5" sx={{ 
                         fontWeight: isDarkMode ? '600' : '400',
                         fontSize: { xs: '0.9rem', sm: '1.25rem' },
-                        color: isDarkMode ? 'white' : '#000000',
+                        color: isDarkMode ? 'white' : '#2c3e50',
                         fontFamily: 'sans-serif'
                       }}>
                         {suppliedBalance}
@@ -1168,7 +1166,7 @@ export default function Dashboard() {
                         opacity: isDarkMode ? 0.8 : 0.7, 
                         mb: 1,
                         fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                        color: isDarkMode ? 'white' : '#000000',
+                        color: isDarkMode ? 'white' : '#2c3e50',
                         fontWeight: isDarkMode ? '500' : '300'
                       }}>
                         Protocol TVL
@@ -1177,7 +1175,7 @@ export default function Dashboard() {
                         <Typography variant="h5" sx={{ 
                           fontWeight: isDarkMode ? '600' : '400',
                           fontSize: { xs: '0.9rem', sm: '1.25rem' },
-                          color: isDarkMode ? 'white' : '#000000',
+                          color: isDarkMode ? 'white' : '#2c3e50',
                           fontFamily: 'sans-serif'
                         }}>
                           {vaultTVL}
@@ -1219,8 +1217,8 @@ export default function Dashboard() {
               mb: 3, 
               background: isDarkMode 
                 ? 'linear-gradient(135deg, #34495e 0%, #2c3e50 100%)'
-                : 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
-              color: isDarkMode ? 'white' : '#000000',
+                : 'linear-gradient(135deg, #f5f7fa 0%, #e8ecf0 100%)',
+              color: isDarkMode ? 'white' : '#2c3e50',
               borderRadius: '4px',
               border: isDarkMode 
                 ? '1px solid rgba(255, 255, 255, 0.1)'
@@ -1272,8 +1270,8 @@ export default function Dashboard() {
               boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
               background: isDarkMode 
                 ? 'linear-gradient(135deg, #2c3e50 0%, #34495e 100%)'
-                : 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
-              color: isDarkMode ? 'white' : '#000000',
+                : 'linear-gradient(135deg, #f5f7fa 0%, #e8ecf0 100%)',
+              color: isDarkMode ? 'white' : '#2c3e50',
               border: isDarkMode 
                 ? '1px solid rgba(255, 255, 255, 0.1)'
                 : '1px solid rgba(44, 62, 80, 0.1)'
@@ -1341,7 +1339,7 @@ export default function Dashboard() {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       p: 2,
-                      borderRadius: '8px',
+                      borderRadius: '4px',
                       background: isDarkMode 
                         ? 'rgba(255, 255, 255, 0.08)'
                         : 'rgba(44, 62, 80, 0.08)',
@@ -1388,7 +1386,7 @@ export default function Dashboard() {
                     alignItems: { xs: 'stretch', sm: 'center' },
                     justifyContent: 'space-between',
                     p: 2,
-                    borderRadius: '8px',
+                    borderRadius: '4px',
                     background: isDarkMode 
                       ? 'rgba(255, 255, 255, 0.05)'
                       : 'rgba(44, 62, 80, 0.05)',
@@ -1465,7 +1463,7 @@ export default function Dashboard() {
                             fontWeight: '600',
                             px: 2,
                             py: 0.5,
-                            borderRadius: '6px',
+                            borderRadius: '4px',
                             textTransform: 'none',
                             fontSize: '0.8rem',
                             width: '100%',
@@ -1488,7 +1486,7 @@ export default function Dashboard() {
                     alignItems: { xs: 'stretch', sm: 'center' },
                     justifyContent: 'space-between',
                     p: 2,
-                    borderRadius: '8px',
+                    borderRadius: '4px',
                     background: isDarkMode 
                       ? 'rgba(255, 255, 255, 0.05)'
                       : 'rgba(44, 62, 80, 0.05)',
@@ -1559,7 +1557,7 @@ export default function Dashboard() {
                             color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(44, 62, 80, 0.8)',
                             px: 2,
                             py: 0.5,
-                            borderRadius: '6px',
+                            borderRadius: '4px',
                             textTransform: 'none',
                             fontSize: '0.8rem',
                             width: '100%'
@@ -1578,7 +1576,7 @@ export default function Dashboard() {
                     alignItems: { xs: 'stretch', sm: 'center' },
                     justifyContent: 'space-between',
                     p: 2,
-                    borderRadius: '8px',
+                    borderRadius: '4px',
                     background: isDarkMode 
                       ? 'rgba(255, 255, 255, 0.05)'
                       : 'rgba(44, 62, 80, 0.05)',
@@ -1649,7 +1647,7 @@ export default function Dashboard() {
                             color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(44, 62, 80, 0.8)',
                             px: 2,
                             py: 0.5,
-                            borderRadius: '6px',
+                            borderRadius: '4px',
                             textTransform: 'none',
                             fontSize: '0.8rem',
                             width: '100%'
@@ -1668,7 +1666,7 @@ export default function Dashboard() {
                     alignItems: { xs: 'stretch', sm: 'center' },
                     justifyContent: 'space-between',
                     p: 2,
-                    borderRadius: '8px',
+                    borderRadius: '4px',
                     background: isDarkMode 
                       ? 'rgba(255, 255, 255, 0.05)'
                       : 'rgba(44, 62, 80, 0.05)',
@@ -1739,7 +1737,7 @@ export default function Dashboard() {
                             color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(44, 62, 80, 0.8)',
                             px: 2,
                             py: 0.5,
-                            borderRadius: '6px',
+                            borderRadius: '4px',
                             textTransform: 'none',
                             fontSize: '0.8rem',
                             width: '100%'
@@ -1758,7 +1756,7 @@ export default function Dashboard() {
                     alignItems: { xs: 'stretch', sm: 'center' },
                     justifyContent: 'space-between',
                     p: 2,
-                    borderRadius: '8px',
+                    borderRadius: '4px',
                     background: isDarkMode 
                       ? 'rgba(255, 255, 255, 0.05)'
                       : 'rgba(44, 62, 80, 0.05)',
@@ -1829,7 +1827,7 @@ export default function Dashboard() {
                             color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(44, 62, 80, 0.8)',
                             px: 2,
                             py: 0.5,
-                            borderRadius: '6px',
+                            borderRadius: '4px',
                             textTransform: 'none',
                             fontSize: '0.8rem',
                             width: '100%'
@@ -1848,7 +1846,7 @@ export default function Dashboard() {
                     alignItems: { xs: 'stretch', sm: 'center' },
                     justifyContent: 'space-between',
                     p: 2,
-                    borderRadius: '8px',
+                    borderRadius: '4px',
                     background: isDarkMode 
                       ? 'rgba(255, 255, 255, 0.05)'
                       : 'rgba(44, 62, 80, 0.05)',
@@ -1919,7 +1917,7 @@ export default function Dashboard() {
                             color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(44, 62, 80, 0.8)',
                             px: 2,
                             py: 0.5,
-                            borderRadius: '6px',
+                            borderRadius: '4px',
                             textTransform: 'none',
                             fontSize: '0.8rem',
                             width: '100%'
@@ -1956,8 +1954,8 @@ export default function Dashboard() {
               mb: 3, 
               background: isDarkMode 
                 ? 'linear-gradient(135deg, #34495e 0%, #2c3e50 100%)'
-                : 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
-              color: isDarkMode ? 'white' : '#000000',
+                : 'linear-gradient(135deg, #f5f7fa 0%, #e8ecf0 100%)',
+              color: isDarkMode ? 'white' : '#2c3e50',
               borderRadius: '4px',
               border: isDarkMode 
                 ? '1px solid rgba(255, 255, 255, 0.1)'
@@ -2009,8 +2007,8 @@ export default function Dashboard() {
               boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
               background: isDarkMode 
                 ? 'linear-gradient(135deg, #2c3e50 0%, #34495e 100%)'
-                : 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
-              color: isDarkMode ? 'white' : '#000000',
+                : 'linear-gradient(135deg, #f5f7fa 0%, #e8ecf0 100%)',
+              color: isDarkMode ? 'white' : '#2c3e50',
               border: isDarkMode 
                 ? '1px solid rgba(255, 255, 255, 0.1)'
                 : '1px solid rgba(44, 62, 80, 0.1)'
@@ -2126,7 +2124,7 @@ export default function Dashboard() {
                     alignItems: { xs: 'stretch', sm: 'center' },
                     justifyContent: 'space-between',
                     p: 2,
-                    borderRadius: '8px',
+                    borderRadius: '4px',
                     background: isDarkMode 
                       ? 'rgba(255, 255, 255, 0.05)'
                       : 'rgba(44, 62, 80, 0.05)',
@@ -2197,7 +2195,7 @@ export default function Dashboard() {
                             color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(44, 62, 80, 0.8)',
                             px: 2,
                             py: 0.5,
-                            borderRadius: '6px',
+                            borderRadius: '4px',
                             textTransform: 'none',
                             fontSize: '0.8rem',
                             width: '100%'
@@ -2216,7 +2214,7 @@ export default function Dashboard() {
                     alignItems: { xs: 'stretch', sm: 'center' },
                     justifyContent: 'space-between',
                     p: 2,
-                    borderRadius: '8px',
+                    borderRadius: '4px',
                     background: isDarkMode 
                       ? 'rgba(255, 255, 255, 0.05)'
                       : 'rgba(44, 62, 80, 0.05)',
@@ -2287,7 +2285,7 @@ export default function Dashboard() {
                             color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(44, 62, 80, 0.8)',
                             px: 2,
                             py: 0.5,
-                            borderRadius: '6px',
+                            borderRadius: '4px',
                             textTransform: 'none',
                             fontSize: '0.8rem',
                             width: '100%'
@@ -2306,7 +2304,7 @@ export default function Dashboard() {
                     alignItems: { xs: 'stretch', sm: 'center' },
                     justifyContent: 'space-between',
                     p: 2,
-                    borderRadius: '8px',
+                    borderRadius: '4px',
                     background: isDarkMode 
                       ? 'rgba(255, 255, 255, 0.05)'
                       : 'rgba(44, 62, 80, 0.05)',
@@ -2377,7 +2375,7 @@ export default function Dashboard() {
                             color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(44, 62, 80, 0.8)',
                             px: 2,
                             py: 0.5,
-                            borderRadius: '6px',
+                            borderRadius: '4px',
                             textTransform: 'none',
                             fontSize: '0.8rem',
                             width: '100%'
@@ -2396,7 +2394,7 @@ export default function Dashboard() {
                     alignItems: { xs: 'stretch', sm: 'center' },
                     justifyContent: 'space-between',
                     p: 2,
-                    borderRadius: '8px',
+                    borderRadius: '4px',
                     background: isDarkMode 
                       ? 'rgba(255, 255, 255, 0.05)'
                       : 'rgba(44, 62, 80, 0.05)',
@@ -2467,7 +2465,7 @@ export default function Dashboard() {
                             color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(44, 62, 80, 0.8)',
                             px: 2,
                             py: 0.5,
-                            borderRadius: '6px',
+                            borderRadius: '4px',
                             textTransform: 'none',
                             fontSize: '0.8rem',
                             width: '100%'
@@ -2486,7 +2484,7 @@ export default function Dashboard() {
                     alignItems: { xs: 'stretch', sm: 'center' },
                     justifyContent: 'space-between',
                     p: 2,
-                    borderRadius: '8px',
+                    borderRadius: '4px',
                     background: isDarkMode 
                       ? 'rgba(255, 255, 255, 0.05)'
                       : 'rgba(44, 62, 80, 0.05)',
@@ -2557,7 +2555,7 @@ export default function Dashboard() {
                             color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(44, 62, 80, 0.8)',
                             px: 2,
                             py: 0.5,
-                            borderRadius: '6px',
+                            borderRadius: '4px',
                             textTransform: 'none',
                             fontSize: '0.8rem',
                             width: '100%'
@@ -2576,7 +2574,7 @@ export default function Dashboard() {
                     alignItems: { xs: 'stretch', sm: 'center' },
                     justifyContent: 'space-between',
                     p: 2,
-                    borderRadius: '8px',
+                    borderRadius: '4px',
                     background: isDarkMode 
                       ? 'rgba(255, 255, 255, 0.05)'
                       : 'rgba(44, 62, 80, 0.05)',
@@ -2647,7 +2645,7 @@ export default function Dashboard() {
                             color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(44, 62, 80, 0.8)',
                             px: 2,
                             py: 0.5,
-                            borderRadius: '6px',
+                            borderRadius: '4px',
                             textTransform: 'none',
                             fontSize: '0.8rem',
                             width: '100%'
@@ -2671,7 +2669,7 @@ export default function Dashboard() {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       p: 2,
-                      borderRadius: '8px',
+                      borderRadius: '4px',
                       background: isDarkMode 
                         ? 'rgba(255, 255, 255, 0.08)'
                         : 'rgba(44, 62, 80, 0.08)',
@@ -2761,8 +2759,8 @@ export default function Dashboard() {
               mb: 3, 
               background: isDarkMode 
                 ? 'linear-gradient(135deg, #34495e 0%, #2c3e50 100%)'
-                : 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
-              color: isDarkMode ? 'white' : '#000000',
+                : 'linear-gradient(135deg, #f5f7fa 0%, #e8ecf0 100%)',
+              color: isDarkMode ? 'white' : '#2c3e50',
               borderRadius: '4px',
               border: isDarkMode 
                 ? '1px solid rgba(255, 255, 255, 0.1)'
@@ -2772,17 +2770,6 @@ export default function Dashboard() {
                 : '0 4px 20px rgba(0, 0, 0, 0.1)'
             }}>
               <CardContent sx={{ p: 4 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <Box>
-                    <Typography variant="h4" sx={{ fontWeight: '600', mb: 1, fontFamily: 'sans-serif' }}>
-                      Portfolio Overview
-                    </Typography>
-                    <Typography variant="body1" sx={{ opacity: 0.9 }}>
-                      View your decrypted balances, performance metrics, and transaction history
-                    </Typography>
-                  </Box>
-                </Box>
-                
                 {/* Portfolio Sub-tabs */}
                 <Box sx={{ mb: 3 }}>
                   <Box sx={{ 
@@ -2847,15 +2834,19 @@ export default function Dashboard() {
                             ? 'rgba(255, 255, 255, 0.05)'
                             : 'rgba(44, 62, 80, 0.05)',
                           border: isDarkMode 
-                            ? '1px solid rgba(255, 255, 255, 0.1)'
-                            : '1px solid rgba(44, 62, 80, 0.1)'
+                            ? '2px solid rgba(255, 255, 255, 0.3)'
+                            : '2px solid rgba(44, 62, 80, 0.4)',
+                          borderRadius: '4px',
+                          boxShadow: isDarkMode 
+                            ? '0 4px 12px rgba(0, 0, 0, 0.3)'
+                            : '0 4px 12px rgba(44, 62, 80, 0.15)'
                         }}>
                           <CardContent sx={{ textAlign: 'center', p: 3 }}>
                             <Typography variant="body2" sx={{ 
                               opacity: isDarkMode ? 0.8 : 0.7, 
                               mb: 1,
                               fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                              color: isDarkMode ? 'white' : '#000000',
+                              color: isDarkMode ? 'white' : '#2c3e50',
                               fontWeight: isDarkMode ? '500' : '300'
                             }}>
                               Total Portfolio Value
@@ -2863,7 +2854,7 @@ export default function Dashboard() {
                             <Typography variant="h5" sx={{ 
                               fontWeight: isDarkMode ? '600' : '400',
                               fontSize: { xs: '0.9rem', sm: '1.25rem' },
-                              color: isDarkMode ? 'white' : '#000000',
+                              color: isDarkMode ? 'white' : '#2c3e50',
                               fontFamily: 'sans-serif'
                             }}>
                               {suppliedBalance}
@@ -2877,15 +2868,19 @@ export default function Dashboard() {
                             ? 'rgba(255, 255, 255, 0.05)'
                             : 'rgba(44, 62, 80, 0.05)',
                           border: isDarkMode 
-                            ? '1px solid rgba(255, 255, 255, 0.1)'
-                            : '1px solid rgba(44, 62, 80, 0.1)'
+                            ? '2px solid rgba(255, 255, 255, 0.3)'
+                            : '2px solid rgba(44, 62, 80, 0.4)',
+                          borderRadius: '4px',
+                          boxShadow: isDarkMode 
+                            ? '0 4px 12px rgba(0, 0, 0, 0.3)'
+                            : '0 4px 12px rgba(44, 62, 80, 0.15)'
                         }}>
                           <CardContent sx={{ textAlign: 'center', p: 3 }}>
                             <Typography variant="body2" sx={{ 
                               opacity: isDarkMode ? 0.8 : 0.7, 
                               mb: 1,
                               fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                              color: isDarkMode ? 'white' : '#000000',
+                              color: isDarkMode ? 'white' : '#2c3e50',
                               fontWeight: isDarkMode ? '500' : '300'
                             }}>
                               Supplied Assets
@@ -2893,7 +2888,7 @@ export default function Dashboard() {
                             <Typography variant="h5" sx={{ 
                               fontWeight: isDarkMode ? '600' : '400',
                               fontSize: { xs: '0.9rem', sm: '1.25rem' },
-                              color: isDarkMode ? 'white' : '#000000',
+                              color: isDarkMode ? 'white' : '#2c3e50',
                               fontFamily: 'sans-serif'
                             }}>
                               {suppliedBalance}
@@ -2907,15 +2902,19 @@ export default function Dashboard() {
                             ? 'rgba(255, 255, 255, 0.05)'
                             : 'rgba(44, 62, 80, 0.05)',
                           border: isDarkMode 
-                            ? '1px solid rgba(255, 255, 255, 0.1)'
-                            : '1px solid rgba(44, 62, 80, 0.1)'
+                            ? '2px solid rgba(255, 255, 255, 0.3)'
+                            : '2px solid rgba(44, 62, 80, 0.4)',
+                          borderRadius: '4px',
+                          boxShadow: isDarkMode 
+                            ? '0 4px 12px rgba(0, 0, 0, 0.3)'
+                            : '0 4px 12px rgba(44, 62, 80, 0.15)'
                         }}>
                           <CardContent sx={{ textAlign: 'center', p: 3 }}>
                             <Typography variant="body2" sx={{ 
                               opacity: isDarkMode ? 0.8 : 0.7, 
                               mb: 1,
                               fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                              color: isDarkMode ? 'white' : '#000000',
+                              color: isDarkMode ? 'white' : '#2c3e50',
                               fontWeight: isDarkMode ? '500' : '300'
                             }}>
                               Borrowed Assets
@@ -2923,7 +2922,7 @@ export default function Dashboard() {
                             <Typography variant="h5" sx={{ 
                               fontWeight: isDarkMode ? '600' : '400',
                               fontSize: { xs: '0.9rem', sm: '1.25rem' },
-                              color: isDarkMode ? 'white' : '#000000',
+                              color: isDarkMode ? 'white' : '#2c3e50',
                               fontFamily: 'sans-serif'
                             }}>
                               0.0000 ETH
@@ -2937,15 +2936,19 @@ export default function Dashboard() {
                             ? 'rgba(255, 255, 255, 0.05)'
                             : 'rgba(44, 62, 80, 0.05)',
                           border: isDarkMode 
-                            ? '1px solid rgba(255, 255, 255, 0.1)'
-                            : '1px solid rgba(44, 62, 80, 0.1)'
+                            ? '2px solid rgba(255, 255, 255, 0.3)'
+                            : '2px solid rgba(44, 62, 80, 0.4)',
+                          borderRadius: '4px',
+                          boxShadow: isDarkMode 
+                            ? '0 4px 12px rgba(0, 0, 0, 0.3)'
+                            : '0 4px 12px rgba(44, 62, 80, 0.15)'
                         }}>
                           <CardContent sx={{ textAlign: 'center', p: 3 }}>
                             <Typography variant="body2" sx={{ 
                               opacity: isDarkMode ? 0.8 : 0.7, 
                               mb: 1,
                               fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                              color: isDarkMode ? 'white' : '#000000',
+                              color: isDarkMode ? 'white' : '#2c3e50',
                               fontWeight: isDarkMode ? '500' : '300'
                             }}>
                               Net Worth
@@ -2953,7 +2956,7 @@ export default function Dashboard() {
                             <Typography variant="h5" sx={{ 
                               fontWeight: isDarkMode ? '600' : '400',
                               fontSize: { xs: '0.9rem', sm: '1.25rem' },
-                              color: isDarkMode ? 'white' : '#000000',
+                              color: isDarkMode ? 'white' : '#2c3e50',
                               fontFamily: 'sans-serif'
                             }}>
                               {suppliedBalance}
@@ -2970,14 +2973,18 @@ export default function Dashboard() {
                         ? 'rgba(255, 255, 255, 0.05)'
                         : 'rgba(44, 62, 80, 0.05)',
                       border: isDarkMode 
-                        ? '1px solid rgba(255, 255, 255, 0.1)'
-                        : '1px solid rgba(44, 62, 80, 0.1)'
+                        ? '2px solid rgba(255, 255, 255, 0.3)'
+                        : '2px solid rgba(44, 62, 80, 0.4)',
+                      borderRadius: '4px',
+                      boxShadow: isDarkMode 
+                        ? '0 4px 12px rgba(0, 0, 0, 0.3)'
+                        : '0 4px 12px rgba(44, 62, 80, 0.15)'
                     }}>
                       <CardContent sx={{ p: 3 }}>
                         <Typography variant="h6" sx={{ 
                           fontWeight: isDarkMode ? '600' : '400',
                           fontSize: { xs: '0.9rem', sm: '1.25rem' },
-                          color: isDarkMode ? 'white' : '#000000',
+                          color: isDarkMode ? 'white' : '#2c3e50',
                           mb: 3, 
                           fontFamily: 'sans-serif'
                         }}>
@@ -2992,17 +2999,20 @@ export default function Dashboard() {
                             alignItems: 'center',
                             justifyContent: 'space-between',
                             p: 2,
-                            borderRadius: '8px',
+                            borderRadius: '4px',
                             background: isDarkMode 
-                              ? 'rgba(255, 255, 255, 0.05)'
-                              : 'rgba(44, 62, 80, 0.05)',
+                              ? 'rgba(255, 255, 255, 0.08)'
+                              : 'rgba(44, 62, 80, 0.08)',
                             border: isDarkMode 
-                              ? '1px solid rgba(255, 255, 255, 0.1)'
-                              : '1px solid rgba(44, 62, 80, 0.1)'
+                              ? '2px solid rgba(255, 255, 255, 0.2)'
+                              : '2px solid rgba(44, 62, 80, 0.3)',
+                            boxShadow: isDarkMode 
+                              ? '0 2px 8px rgba(0, 0, 0, 0.2)'
+                              : '0 2px 8px rgba(44, 62, 80, 0.1)'
                           }}>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                               <img 
-                                src="/assets/icons/ethereum-svgrepo-com.svg" 
+                                src="/assets/icons/cweth.svg" 
                                 alt="cWETH"
                                 style={{ width: '32px', height: '32px' }}
                               />
@@ -3010,7 +3020,7 @@ export default function Dashboard() {
                                 <Typography variant="h6" sx={{ 
                                   fontWeight: isDarkMode ? '600' : '400',
                                   fontSize: { xs: '0.9rem', sm: '1.25rem' },
-                                  color: isDarkMode ? 'white' : '#000000',
+                                  color: isDarkMode ? 'white' : '#2c3e50',
                                   fontFamily: 'sans-serif'
                                 }}>
                                   cWETH
@@ -3018,10 +3028,10 @@ export default function Dashboard() {
                                 <Typography variant="body2" sx={{ 
                                   opacity: isDarkMode ? 0.8 : 0.7,
                                   fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                                  color: isDarkMode ? 'white' : '#000000',
+                                  color: isDarkMode ? 'white' : '#2c3e50',
                                   fontWeight: isDarkMode ? '500' : '300'
                                 }}>
-                                  Wrapped Ethereum
+                                  Confidential Wrapped Ethereum
                                 </Typography>
                               </Box>
                             </Box>
@@ -3029,7 +3039,7 @@ export default function Dashboard() {
                               <Typography variant="h6" sx={{ 
                                 fontWeight: isDarkMode ? '600' : '400',
                                 fontSize: { xs: '0.9rem', sm: '1.25rem' },
-                                color: isDarkMode ? 'white' : '#000000',
+                                color: isDarkMode ? 'white' : '#2c3e50',
                                 fontFamily: 'sans-serif'
                               }}>
                                 {suppliedBalance}
@@ -3037,10 +3047,320 @@ export default function Dashboard() {
                               <Typography variant="body2" sx={{ 
                                 opacity: isDarkMode ? 0.8 : 0.7,
                                 fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                                color: isDarkMode ? 'white' : '#000000',
+                                color: isDarkMode ? 'white' : '#2c3e50',
                                 fontWeight: isDarkMode ? '500' : '300'
                               }}>
                                 100% of portfolio
+                              </Typography>
+                            </Box>
+                          </Box>
+
+                          {/* cUSDT Asset */}
+                          <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            p: 2,
+                            borderRadius: '4px',
+                            background: isDarkMode 
+                              ? 'rgba(255, 255, 255, 0.08)'
+                              : 'rgba(44, 62, 80, 0.08)',
+                            border: isDarkMode 
+                              ? '2px solid rgba(255, 255, 255, 0.2)'
+                              : '2px solid rgba(44, 62, 80, 0.3)',
+                            boxShadow: isDarkMode 
+                              ? '0 2px 8px rgba(0, 0, 0, 0.2)'
+                              : '0 2px 8px rgba(44, 62, 80, 0.1)'
+                          }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <img 
+                                src="/assets/icons/usdt-svgrepo-com.svg" 
+                                alt="cUSDT"
+                                style={{ width: '32px', height: '32px' }}
+                              />
+                              <Box>
+                                <Typography variant="h6" sx={{ 
+                                  fontWeight: isDarkMode ? '600' : '400',
+                                  fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                                  color: isDarkMode ? 'white' : '#2c3e50',
+                                  fontFamily: 'sans-serif'
+                                }}>
+                                  cUSDT
+                                </Typography>
+                                <Typography variant="body2" sx={{ 
+                                  opacity: isDarkMode ? 0.8 : 0.7,
+                                  fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                                  color: isDarkMode ? 'white' : '#2c3e50',
+                                  fontWeight: isDarkMode ? '500' : '300'
+                                }}>
+                                  Confidential Tether
+                                </Typography>
+                              </Box>
+                            </Box>
+                            <Box sx={{ textAlign: 'right' }}>
+                              <Typography variant="h6" sx={{ 
+                                fontWeight: isDarkMode ? '600' : '400',
+                                fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                                color: isDarkMode ? 'white' : '#2c3e50',
+                                fontFamily: 'sans-serif'
+                              }}>
+                                ••••••••
+                              </Typography>
+                              <Typography variant="body2" sx={{ 
+                                opacity: isDarkMode ? 0.8 : 0.7,
+                                fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                                color: isDarkMode ? 'white' : '#2c3e50',
+                                fontWeight: isDarkMode ? '500' : '300'
+                              }}>
+                                Confidential
+                              </Typography>
+                            </Box>
+                          </Box>
+
+                          {/* cUSDC Asset */}
+                          <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            p: 2,
+                            borderRadius: '4px',
+                            background: isDarkMode 
+                              ? 'rgba(255, 255, 255, 0.08)'
+                              : 'rgba(44, 62, 80, 0.08)',
+                            border: isDarkMode 
+                              ? '2px solid rgba(255, 255, 255, 0.2)'
+                              : '2px solid rgba(44, 62, 80, 0.3)',
+                            boxShadow: isDarkMode 
+                              ? '0 2px 8px rgba(0, 0, 0, 0.2)'
+                              : '0 2px 8px rgba(44, 62, 80, 0.1)'
+                          }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <img 
+                                src="/assets/icons/usdc-svgrepo-com.svg" 
+                                alt="cUSDC"
+                                style={{ width: '32px', height: '32px' }}
+                              />
+                              <Box>
+                                <Typography variant="h6" sx={{ 
+                                  fontWeight: isDarkMode ? '600' : '400',
+                                  fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                                  color: isDarkMode ? 'white' : '#2c3e50',
+                                  fontFamily: 'sans-serif'
+                                }}>
+                                  cUSDC
+                                </Typography>
+                                <Typography variant="body2" sx={{ 
+                                  opacity: isDarkMode ? 0.8 : 0.7,
+                                  fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                                  color: isDarkMode ? 'white' : '#2c3e50',
+                                  fontWeight: isDarkMode ? '500' : '300'
+                                }}>
+                                  Confidential USD Coin
+                                </Typography>
+                              </Box>
+                            </Box>
+                            <Box sx={{ textAlign: 'right' }}>
+                              <Typography variant="h6" sx={{ 
+                                fontWeight: isDarkMode ? '600' : '400',
+                                fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                                color: isDarkMode ? 'white' : '#2c3e50',
+                                fontFamily: 'sans-serif'
+                              }}>
+                                ••••••••
+                              </Typography>
+                              <Typography variant="body2" sx={{ 
+                                opacity: isDarkMode ? 0.8 : 0.7,
+                                fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                                color: isDarkMode ? 'white' : '#2c3e50',
+                                fontWeight: isDarkMode ? '500' : '300'
+                              }}>
+                                Confidential
+                              </Typography>
+                            </Box>
+                          </Box>
+
+                          {/* cDAI Asset */}
+                          <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            p: 2,
+                            borderRadius: '4px',
+                            background: isDarkMode 
+                              ? 'rgba(255, 255, 255, 0.08)'
+                              : 'rgba(44, 62, 80, 0.08)',
+                            border: isDarkMode 
+                              ? '2px solid rgba(255, 255, 255, 0.2)'
+                              : '2px solid rgba(44, 62, 80, 0.3)',
+                            boxShadow: isDarkMode 
+                              ? '0 2px 8px rgba(0, 0, 0, 0.2)'
+                              : '0 2px 8px rgba(44, 62, 80, 0.1)'
+                          }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <img 
+                                src="/assets/icons/multi-collateral-dai-dai-logo.svg" 
+                                alt="cDAI"
+                                style={{ width: '32px', height: '32px' }}
+                              />
+                              <Box>
+                                <Typography variant="h6" sx={{ 
+                                  fontWeight: isDarkMode ? '600' : '400',
+                                  fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                                  color: isDarkMode ? 'white' : '#2c3e50',
+                                  fontFamily: 'sans-serif'
+                                }}>
+                                  cDAI
+                                </Typography>
+                                <Typography variant="body2" sx={{ 
+                                  opacity: isDarkMode ? 0.8 : 0.7,
+                                  fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                                  color: isDarkMode ? 'white' : '#2c3e50',
+                                  fontWeight: isDarkMode ? '500' : '300'
+                                }}>
+                                  Confidential Dai
+                                </Typography>
+                              </Box>
+                            </Box>
+                            <Box sx={{ textAlign: 'right' }}>
+                              <Typography variant="h6" sx={{ 
+                                fontWeight: isDarkMode ? '600' : '400',
+                                fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                                color: isDarkMode ? 'white' : '#2c3e50',
+                                fontFamily: 'sans-serif'
+                              }}>
+                                ••••••••
+                              </Typography>
+                              <Typography variant="body2" sx={{ 
+                                opacity: isDarkMode ? 0.8 : 0.7,
+                                fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                                color: isDarkMode ? 'white' : '#2c3e50',
+                                fontWeight: isDarkMode ? '500' : '300'
+                              }}>
+                                Confidential
+                              </Typography>
+                            </Box>
+                          </Box>
+
+                          {/* cUNI Asset */}
+                          <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            p: 2,
+                            borderRadius: '4px',
+                            background: isDarkMode 
+                              ? 'rgba(255, 255, 255, 0.08)'
+                              : 'rgba(44, 62, 80, 0.08)',
+                            border: isDarkMode 
+                              ? '2px solid rgba(255, 255, 255, 0.2)'
+                              : '2px solid rgba(44, 62, 80, 0.3)',
+                            boxShadow: isDarkMode 
+                              ? '0 2px 8px rgba(0, 0, 0, 0.2)'
+                              : '0 2px 8px rgba(44, 62, 80, 0.1)'
+                          }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <img 
+                                src="/assets/icons/uniswap-uni-logo.svg" 
+                                alt="cUNI"
+                                style={{ width: '32px', height: '32px' }}
+                              />
+                              <Box>
+                                <Typography variant="h6" sx={{ 
+                                  fontWeight: isDarkMode ? '600' : '400',
+                                  fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                                  color: isDarkMode ? 'white' : '#2c3e50',
+                                  fontFamily: 'sans-serif'
+                                }}>
+                                  cUNI
+                                </Typography>
+                                <Typography variant="body2" sx={{ 
+                                  opacity: isDarkMode ? 0.8 : 0.7,
+                                  fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                                  color: isDarkMode ? 'white' : '#2c3e50',
+                                  fontWeight: isDarkMode ? '500' : '300'
+                                }}>
+                                  Confidential Uniswap
+                                </Typography>
+                              </Box>
+                            </Box>
+                            <Box sx={{ textAlign: 'right' }}>
+                              <Typography variant="h6" sx={{ 
+                                fontWeight: isDarkMode ? '600' : '400',
+                                fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                                color: isDarkMode ? 'white' : '#2c3e50',
+                                fontFamily: 'sans-serif'
+                              }}>
+                                ••••••••
+                              </Typography>
+                              <Typography variant="body2" sx={{ 
+                                opacity: isDarkMode ? 0.8 : 0.7,
+                                fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                                color: isDarkMode ? 'white' : '#2c3e50',
+                                fontWeight: isDarkMode ? '500' : '300'
+                              }}>
+                                Confidential
+                              </Typography>
+                            </Box>
+                          </Box>
+
+                          {/* cWBTC Asset */}
+                          <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            p: 2,
+                            borderRadius: '4px',
+                            background: isDarkMode 
+                              ? 'rgba(255, 255, 255, 0.08)'
+                              : 'rgba(44, 62, 80, 0.08)',
+                            border: isDarkMode 
+                              ? '2px solid rgba(255, 255, 255, 0.2)'
+                              : '2px solid rgba(44, 62, 80, 0.3)',
+                            boxShadow: isDarkMode 
+                              ? '0 2px 8px rgba(0, 0, 0, 0.2)'
+                              : '0 2px 8px rgba(44, 62, 80, 0.1)'
+                          }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <img 
+                                src="/assets/icons/bitcoin-svgrepo-com.svg" 
+                                alt="cWBTC"
+                                style={{ width: '32px', height: '32px' }}
+                              />
+                              <Box>
+                                <Typography variant="h6" sx={{ 
+                                  fontWeight: isDarkMode ? '600' : '400',
+                                  fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                                  color: isDarkMode ? 'white' : '#2c3e50',
+                                  fontFamily: 'sans-serif'
+                                }}>
+                                  cWBTC
+                                </Typography>
+                                <Typography variant="body2" sx={{ 
+                                  opacity: isDarkMode ? 0.8 : 0.7,
+                                  fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                                  color: isDarkMode ? 'white' : '#2c3e50',
+                                  fontWeight: isDarkMode ? '500' : '300'
+                                }}>
+                                  Confidential Wrapped Bitcoin
+                                </Typography>
+                              </Box>
+                            </Box>
+                            <Box sx={{ textAlign: 'right' }}>
+                              <Typography variant="h6" sx={{ 
+                                fontWeight: isDarkMode ? '600' : '400',
+                                fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                                color: isDarkMode ? 'white' : '#2c3e50',
+                                fontFamily: 'sans-serif'
+                              }}>
+                                ••••••••
+                              </Typography>
+                              <Typography variant="body2" sx={{ 
+                                opacity: isDarkMode ? 0.8 : 0.7,
+                                fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                                color: isDarkMode ? 'white' : '#2c3e50',
+                                fontWeight: isDarkMode ? '500' : '300'
+                              }}>
+                                Confidential
                               </Typography>
                             </Box>
                           </Box>
@@ -3054,14 +3374,18 @@ export default function Dashboard() {
                         ? 'rgba(255, 255, 255, 0.05)'
                         : 'rgba(44, 62, 80, 0.05)',
                       border: isDarkMode 
-                        ? '1px solid rgba(255, 255, 255, 0.1)'
-                        : '1px solid rgba(44, 62, 80, 0.1)'
+                        ? '2px solid rgba(255, 255, 255, 0.3)'
+                        : '2px solid rgba(44, 62, 80, 0.4)',
+                      borderRadius: '4px',
+                      boxShadow: isDarkMode 
+                        ? '0 4px 12px rgba(0, 0, 0, 0.3)'
+                        : '0 4px 12px rgba(44, 62, 80, 0.15)'
                     }}>
                       <CardContent sx={{ p: 3 }}>
                         <Typography variant="h6" sx={{ 
                           fontWeight: isDarkMode ? '600' : '400',
                           fontSize: { xs: '0.9rem', sm: '1.25rem' },
-                          color: isDarkMode ? 'white' : '#000000',
+                          color: isDarkMode ? 'white' : '#2c3e50',
                           mb: 3, 
                           fontFamily: 'sans-serif'
                         }}>
@@ -3075,7 +3399,7 @@ export default function Dashboard() {
                                 opacity: isDarkMode ? 0.8 : 0.7, 
                                 mb: 1,
                                 fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                                color: isDarkMode ? 'white' : '#000000',
+                                color: isDarkMode ? 'white' : '#2c3e50',
                                 fontWeight: isDarkMode ? '500' : '300'
                               }}>
                                 Total Yield Earned
@@ -3083,7 +3407,7 @@ export default function Dashboard() {
                               <Typography variant="h5" sx={{ 
                                 fontWeight: isDarkMode ? '600' : '400',
                                 fontSize: { xs: '0.9rem', sm: '1.25rem' },
-                                color: isDarkMode ? 'white' : '#000000',
+                                color: isDarkMode ? 'white' : '#2c3e50',
                                 fontFamily: 'sans-serif'
                               }}>
                                 0.0000 ETH
@@ -3096,7 +3420,7 @@ export default function Dashboard() {
                                 opacity: isDarkMode ? 0.8 : 0.7, 
                                 mb: 1,
                                 fontSize: { xs: '0.7rem', sm: '0.875rem' },
-                                color: isDarkMode ? 'white' : '#000000',
+                                color: isDarkMode ? 'white' : '#2c3e50',
                                 fontWeight: isDarkMode ? '500' : '300'
                               }}>
                                 Current APY
@@ -3104,7 +3428,7 @@ export default function Dashboard() {
                               <Typography variant="h5" sx={{ 
                                 fontWeight: isDarkMode ? '600' : '400',
                                 fontSize: { xs: '0.9rem', sm: '1.25rem' },
-                                color: isDarkMode ? 'white' : '#000000',
+                                color: isDarkMode ? 'white' : '#2c3e50',
                                 fontFamily: 'sans-serif'
                               }}>
                                 5.25%
@@ -3320,8 +3644,8 @@ export default function Dashboard() {
           <Box
             onClick={(e) => e.stopPropagation()}
             sx={{
-              backgroundColor: isDarkMode ? '#1a1a2e' : '#ffffff',
-              borderRadius: '20px',
+              backgroundColor: isDarkMode ? '#1a1a2e' : '#f5f7fa',
+              borderRadius: '4px',
               padding: '32px',
               maxWidth: '400px',
               width: '90%',
@@ -3338,7 +3662,7 @@ export default function Dashboard() {
             {/* Header */}
             <Box sx={{ textAlign: 'center', mb: 4 }}>
               <Typography variant="h4" sx={{ 
-                color: isDarkMode ? 'white' : '#000000', 
+                color: isDarkMode ? 'white' : '#2c3e50', 
                         fontWeight: '600',
                 mb: 1,
                 background: 'linear-gradient(45deg, #667eea, #764ba2)',
@@ -3391,7 +3715,7 @@ export default function Dashboard() {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: isDarkMode ? 'white' : '#000000',
+                    color: isDarkMode ? 'white' : '#2c3e50',
                     fontSize: '24px'
                   }}>
                     {connector.name === 'MetaMask' ? '🦊' : 
@@ -3402,7 +3726,7 @@ export default function Dashboard() {
                   {/* Wallet Info */}
                   <Box sx={{ flex: 1 }}>
                     <Typography variant="h6" sx={{ 
-                      color: isDarkMode ? 'white' : '#000000', 
+                      color: isDarkMode ? 'white' : '#2c3e50', 
                       fontWeight: '600',
                       mb: 0.5
                     }}>
@@ -3453,7 +3777,7 @@ export default function Dashboard() {
             '--swap-backdrop-bg': isDarkMode ? 'rgba(0, 0, 0, 0.25)' : 'rgba(0, 0, 0, 0.15)',
             '--swap-panel-bg': isDarkMode 
               ? 'linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%)'
-              : 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 50%, #ffffff 100%)',
+              : 'linear-gradient(135deg, #f5f7fa 0%, #e8ecf0 50%, #f5f7fa 100%)',
             '--swap-panel-border': isDarkMode 
               ? '1px solid rgba(255, 255, 255, 0.1)'
               : '1px solid rgba(44, 62, 80, 0.1)',
@@ -3702,7 +4026,7 @@ export default function Dashboard() {
                       p: 1.5,
                       background: 'rgba(231, 76, 60, 0.1)',
                       border: '1px solid rgba(231, 76, 60, 0.3)',
-                      borderRadius: '8px',
+                      borderRadius: '4px',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 1
@@ -3777,7 +4101,7 @@ export default function Dashboard() {
                         fontWeight: '700',
                         fontSize: '13px',
                         textTransform: 'none',
-                        borderRadius: '8px',
+                        borderRadius: '4px',
                         py: 1,
                         boxShadow: swapAmount && parseFloat(swapAmount) > 0 && availableTokens.find(t => t.symbol === selectedToken)?.functional && !showBalanceError
                           ? '0 4px 12px rgba(52, 152, 219, 0.3)'
@@ -3875,7 +4199,7 @@ export default function Dashboard() {
               : '1px solid rgba(44, 62, 80, 0.1)',
             background: isDarkMode 
               ? 'linear-gradient(135deg, #2c3e50 0%, #34495e 100%)'
-              : 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
+              : 'linear-gradient(135deg, #f5f7fa 0%, #e8ecf0 100%)',
             backdropFilter: 'blur(10px)',
             color: isDarkMode ? 'white' : '#000000'
           }
@@ -3981,7 +4305,7 @@ export default function Dashboard() {
                 height: 22,
                 borderRadius: '50%',
                 background: isDarkMode 
-                  ? 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)'
+                  ? 'linear-gradient(135deg, #f5f7fa 0%, #e8ecf0 100%)'
                   : 'linear-gradient(135deg, #ffd700 0%, #ffed4e 100%)',
                 position: 'absolute',
                 top: '3px',
@@ -4038,7 +4362,7 @@ export default function Dashboard() {
                 sx={{ 
                   fontFamily: 'monospace', 
                   flex: 1,
-                  color: isDarkMode ? 'white' : '#000000',
+                  color: isDarkMode ? 'white' : '#2c3e50',
                   fontSize: '0.8rem'
                 }}
               >
@@ -4088,7 +4412,7 @@ export default function Dashboard() {
               </Typography>
             </Box>
             <Typography variant="body2" sx={{ 
-              color: isDarkMode ? 'white' : '#000000', 
+              color: isDarkMode ? 'white' : '#2c3e50', 
               fontWeight: isDarkMode ? '500' : '400', 
               fontSize: '0.8rem' 
             }}>

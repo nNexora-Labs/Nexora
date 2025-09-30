@@ -507,7 +507,7 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
       position: 'relative',
       border: '1px solid',
       borderColor: 'divider',
-      borderRadius: 2,
+      borderRadius: '4px',
       backgroundColor: 'background.paper',
       boxShadow: 2
     }}>
@@ -546,7 +546,7 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
           severity="success" 
           sx={{ 
             mb: 1.5, 
-            borderRadius: 2,
+            borderRadius: '4px',
             transition: 'all 0.3s ease-in-out',
             opacity: 0,
             animation: 'slideInDown 0.4s ease-in-out forwards',
@@ -567,7 +567,7 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
           severity="error" 
           sx={{ 
             mb: 1.5, 
-            borderRadius: 2,
+            borderRadius: '4px',
             transition: 'all 0.3s ease-in-out',
             opacity: 0,
             animation: 'slideInDown 0.4s ease-in-out forwards',
@@ -588,7 +588,7 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
           severity="warning" 
           sx={{ 
             mb: 1.5, 
-            borderRadius: 2,
+            borderRadius: '4px',
             transition: 'all 0.3s ease-in-out',
             opacity: 0,
             animation: 'slideInDown 0.4s ease-in-out forwards',
@@ -648,7 +648,7 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
           }
           sx={{
             '& .MuiOutlinedInput-root': {
-              borderRadius: 2,
+              borderRadius: '4px',
               fontSize: '1rem'
             },
             // Hide the number input spinners
@@ -673,7 +673,7 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
         p: 1, 
         border: '1px solid',
         borderColor: 'divider',
-        borderRadius: 2,
+        borderRadius: '4px',
         backgroundColor: 'background.paper',
         transition: 'all 0.2s ease-in-out',
         '&:hover': {
@@ -746,7 +746,7 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
         }
         sx={{ 
           py: 1.2,
-          borderRadius: 2,
+          borderRadius: '4px',
           fontSize: '0.95rem',
           fontWeight: 600,
           textTransform: 'none',

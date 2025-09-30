@@ -12,7 +12,7 @@ const CONTRACT_ADDRESSES = [
   process.env.NEXT_PUBLIC_VAULT_ADDRESS,
 ].filter(Boolean) as string[];
 
-console.log('🔍 Master decryption contract addresses:', CONTRACT_ADDRESSES);
+  // Master decryption contract addresses
 
 export const useMasterDecryption = () => {
   const { address, isConnected } = useAccount();

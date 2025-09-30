@@ -5,22 +5,25 @@ import {ConfidentialFungibleToken} from "@openzeppelin/confidential-contracts/to
 import {SepoliaConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
 import "@fhevm/solidity/lib/FHE.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {externalEuint64} from "@fhevm/solidity/lib/FHE.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-/// @title Confidential WETH (cWETH) - OpenZeppelin Pattern
-/// @notice ERC7984 implementation for confidential WETH following OpenZeppelin patterns
-/// @dev Uses ETH -> WETH -> cWETH and cWETH -> WETH -> ETH flow
-contract ConfidentialWETH is ConfidentialFungibleToken, Ownable, SepoliaConfig {
-    using SafeERC20 for IERC20;
+interface IWETH {
+    function deposit() external payable;
+    function withdraw(uint256 amount) external;
+    function balanceOf(address account) external view returns (uint256);
+}
 
-    // Events - CONFIDENTIAL: No plaintext amounts exposed
+/// @title Confidential WETH (cWETH)
+/// @notice ETH <-> WETH <-> cWETH bridge using OZ ConfidentialFungibleToken
+/// @dev Wrap: ETH -> WETH -> mint cWETH. Unwrap: burn cWETH, then WETH.withdraw -> send ETH.
+contract ConfidentialWETH is ConfidentialFungibleToken, Ownable, SepoliaConfig, ReentrancyGuard {
+    // Events (no plaintext amounts)
     event ConfidentialWrap(address indexed user);
     event ConfidentialUnwrap(address indexed user);
 
     // WETH contract address on Sepolia
-    IERC20 public constant WETH = IERC20(0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9);
+    IWETH public constant WETH = IWETH(0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9);
 
     constructor(
         address owner,
@@ -30,85 +33,63 @@ contract ConfidentialWETH is ConfidentialFungibleToken, Ownable, SepoliaConfig {
     ) ConfidentialFungibleToken(name, symbol, uri) Ownable(owner) {}
 
     /// @notice Wrap ETH to cWETH (ETH -> WETH -> cWETH)
-    /// @dev User sends ETH, contract wraps to WETH, then mints cWETH
-    function wrap() external payable {
+    function wrap() external payable nonReentrant {
         require(msg.value > 0, "ConfidentialWETH: Cannot wrap 0 ETH");
 
-        // Step 1: ETH -> WETH (using WETH's deposit function)
-        // Call WETH.deposit() to convert ETH to WETH
-        (bool success, ) = address(WETH).call{value: msg.value}(
-            abi.encodeWithSignature("deposit()")
-        );
-        require(success, "ConfidentialWETH: WETH deposit failed");
+        // ETH -> WETH (to this contract)
+        WETH.deposit{value: msg.value}();
 
-        // Step 2: Transfer WETH from WETH contract to this contract
-        // The WETH contract now holds the WETH, we need to transfer it here
-        // Note: WETH.deposit() creates WETH tokens for the caller (this contract)
-        // So we already have the WETH tokens in this contract
-
-        // Step 3: WETH -> cWETH (using OpenZeppelin pattern)
-        uint256 wethAmount = msg.value; // 1:1 rate for ETH:WETH
-        uint256 cWETHAmount = wethAmount; // 1:1 rate for WETH:cWETH
-
-        // Mint cWETH tokens to user
-        _mint(msg.sender, FHE.asEuint64(uint64(cWETHAmount)));
+        // WETH -> cWETH (1:1)
+        _mint(msg.sender, FHE.asEuint64(uint64(msg.value)));
 
         emit ConfidentialWrap(msg.sender);
     }
 
-    /// @notice Unwrap cWETH to ETH (cWETH -> WETH -> ETH)
-    /// @dev Burns cWETH, unwraps WETH to ETH, sends ETH to user
-    /// @param amountInput The encrypted amount to unwrap
-    /// @param inputProof The proof for the encrypted amount
-    function unwrap(externalEuint64 amountInput, bytes calldata inputProof) external {
-        // Step 1: cWETH -> WETH (using OpenZeppelin pattern)
-        euint64 amount = FHE.fromExternal(amountInput, inputProof);
-        
-        // Burn the cWETH tokens
+    /// @notice Burn cWETH amount (encrypted) in preparation for payout
+    /// @param encryptedAmount Encrypted amount to burn
+    /// @param inputProof Proof for encrypted amount
+    function unwrap(externalEuint64 encryptedAmount, bytes calldata inputProof) external nonReentrant {
+        // Decrypt into FHE context (still confidential on-chain)
+        euint64 amount = FHE.fromExternal(encryptedAmount, inputProof);
+
+        // Burn cWETH from caller
         _burn(msg.sender, amount);
 
-        // Emit event - the actual ETH transfer will be handled by completeUnwrap
         emit ConfidentialUnwrap(msg.sender);
     }
 
-    /// @notice Complete the unwrap process by sending ETH
-    /// @dev This function should be called after unwrap to actually send ETH
-    /// @param amount The amount of ETH to send (must match the burned cWETH amount)
-    function completeUnwrap(uint256 amount) external {
+    /// @notice Complete the unwrap by withdrawing WETH and sending ETH
+    /// @dev Must be called after a prior unwrap that burned user's cWETH
+    /// @param amount Plaintext amount to withdraw and send (must match prior burn)
+    function completeUnwrap(uint256 amount) external nonReentrant {
         require(amount > 0, "ConfidentialWETH: Cannot unwrap 0 ETH");
 
-        // Step 2: WETH -> ETH
-        // Transfer WETH from this contract to WETH contract for withdrawal
-        WETH.safeTransfer(address(WETH), amount);
+        // Ensure we have enough WETH; withdraw directly from this contract
+        require(WETH.balanceOf(address(this)) >= amount, "ConfidentialWETH: Insufficient WETH balance");
 
-        // Call WETH.withdraw() to convert WETH to ETH
-        (bool success, ) = address(WETH).call(
-            abi.encodeWithSignature("withdraw(uint256)", amount)
-        );
-        require(success, "ConfidentialWETH: WETH withdraw failed");
+        // WETH -> ETH (ETH sent to this contract)
+        WETH.withdraw(amount);
 
-        // Send ETH to user
-        (bool ethSuccess, ) = msg.sender.call{value: amount}("");
+        // Send ETH to the caller
+        (bool ethSuccess, ) = payable(msg.sender).call{value: amount}("");
         require(ethSuccess, "ConfidentialWETH: ETH transfer failed");
     }
 
+    /// @notice Accept ETH from WETH.withdraw
+    receive() external payable {}
+
     /// @notice Get the underlying WETH token
-    /// @return The WETH token address
     function underlying() public pure returns (address) {
         return address(WETH);
     }
 
-    /// @notice Get the conversion rate (1:1 for ETH:WETH:cWETH)
-    /// @return The conversion rate
-    function rate() public pure returns (uint256) {
-        return 1;
-    }
-
-    /// @notice Get encrypted balance for a user
-    /// @dev Required by the dashboard to display encrypted balances
-    /// @param user The user address to get balance for
-    /// @return The encrypted balance as euint64
+    /// @notice Get encrypted balance for a user (for UI)
     function getEncryptedBalance(address user) external view returns (euint64) {
         return confidentialBalanceOf(user);
+    }
+
+    /// @notice 1:1 conversion rate
+    function rate() public pure returns (uint256) {
+        return 1;
     }
 }

@@ -29,7 +29,7 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
   
   const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x0000000000000000000000000000000000000000';
 
-  console.log('🔍 useVaultTVL initialized with VAULT_ADDRESS:', VAULT_ADDRESS);
+  // TVL hook initialized
 
   // Core state
   const [encryptedTVL, setEncryptedTVL] = useState<string | null>(null);
@@ -64,7 +64,7 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
       
       for (const rpcUrl of rpcUrls) {
         try {
-          console.log(`🔄 Fetching vault TVL from: ${rpcUrl}`);
+    // Fetching TVL data
           publicClient = createPublicClient({
             chain: sepolia,
             transport: http(rpcUrl),
@@ -72,7 +72,7 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
           
           // Test the connection
           await publicClient.getBlockNumber();
-          console.log(`✅ Connected to ${rpcUrl}`);
+    // Connected to RPC
           
           // Encode function call for getEncryptedTotalAssets
           const data = encodeFunctionData({
@@ -89,7 +89,7 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
           
           if (result.data && result.data !== '0x') {
             const tvlData = result.data as `0x${string}`;
-            console.log('✅ TVL fetched:', tvlData);
+    // TVL data fetched
             setEncryptedTVL(tvlData);
             break; // Success, exit the loop
           } else {
@@ -123,12 +123,12 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
     // Initial fetch
     fetchEncryptedTVL();
     
-    // Set up polling - more frequent when transactions are pending
-    const pollInterval = isTransactionPending ? 500 : 2000; // 500ms when pending, 2s normally
-    console.log(`🔄 Setting up TVL polling with ${pollInterval}ms interval (transaction pending: ${isTransactionPending})`);
+    // Set up polling - reduced frequency to avoid rate limiting
+    const pollInterval = isTransactionPending ? 2000 : 10000; // 2s when pending, 10s normally
+    // Set up polling
     
     const interval = setInterval(() => {
-      console.log('🔄 Polling TVL data...');
+    // Polling TVL data
       fetchEncryptedTVL();
     }, pollInterval);
     
@@ -137,22 +137,16 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
 
   // Decrypt TVL using master signature
   const decryptTVL = useCallback(async () => {
-    console.log('🔍 decryptTVL called with:', {
-      isConnected,
-      address,
-      encryptedTVL: encryptedTVL ? 'present' : 'missing',
-      walletClient: walletClient ? 'present' : 'missing',
-      masterSignature: masterSignature ? 'present' : 'missing'
-    });
+    // TVL decryption called
     
     if (!isConnected || !address || !encryptedTVL || !walletClient || !masterSignature) {
-      console.log('❌ decryptTVL: Missing requirements, returning early');
+    // Missing requirements
       return;
     }
 
     // Prevent multiple simultaneous decryption attempts
     if (isDecryptingRef.current) {
-      console.log('🔒 TVL decryption already in progress, skipping...');
+    // Decryption already in progress
       return;
     }
 
@@ -160,7 +154,7 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
     setIsDecrypting(true);
     
     try {
-      console.log('🔄 Starting vaultTVL decryption...');
+      // Starting TVL decryption
       setDecryptionError(null);
       
       // Get the master signature object
@@ -169,16 +163,7 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
         throw new Error('Master signature not available');
       }
 
-      console.log('🔍 Master signature details:', {
-        userAddress: masterSig.userAddress,
-        contractAddresses: masterSig.contractAddresses,
-        vaultAddress: VAULT_ADDRESS,
-        isValid: masterSig.isValid(),
-        signature: masterSig.signature.substring(0, 10) + '...'
-      });
-      console.log('🔍 Full contract addresses in master sig:', masterSig.contractAddresses);
-      console.log('🔍 TVL contract address:', VAULT_ADDRESS);
-      console.log('🔍 Encrypted TVL handle:', encryptedTVL);
+    // Master signature details
 
       // Verify that the VAULT_ADDRESS is included in the master signature's contract addresses
       if (!masterSig.contractAddresses.includes(VAULT_ADDRESS as `0x${string}`)) {
@@ -202,11 +187,7 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
           masterSig.durationDays
         );
       } catch (userDecryptError) {
-        console.log('❌ User decrypt failed for TVL, trying alternative approach:', userDecryptError);
-        
-        // TVL might be encrypted with a different approach
-        // Let's try using the CWETH contract address instead of vault address
-        console.log('🔍 Trying TVL decryption with CWETH contract address...');
+    // User decrypt failed, trying alternative
         
         const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
         
@@ -221,14 +202,9 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
             masterSig.startTimestamp,
             masterSig.durationDays
           );
-          console.log('✅ TVL decrypted successfully with CWETH contract address');
+    // TVL decrypted successfully
         } catch (cwethDecryptError) {
-          console.log('❌ CWETH contract address also failed:', cwethDecryptError);
-          
-          // TVL is a global contract value that requires special permissions
-          // This is expected behavior - TVL is not user-specific
-          console.log('🔍 TVL is a global contract value - showing encrypted state');
-          console.log('ℹ️ This is expected behavior for contract-level values');
+    // CWETH contract address also failed
           
           // Don't throw an error, just keep it encrypted
           // The UI will show "••••••••" which is appropriate for global values
@@ -304,20 +280,14 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
 
   // Auto-decrypt when master signature becomes available
   useEffect(() => {
-    console.log('🔍 VaultTVL auto-decrypt check:', {
-      masterSignature: masterSignature ? 'present' : 'missing',
-      encryptedTVL: encryptedTVL ? 'present' : 'missing',
-      isLoadingTVL,
-      hasTVL,
-      isDecrypted
-    });
+    // Auto-decrypt check
     
     // Auto-decrypt if we have master signature and encrypted TVL data
     if (masterSignature && encryptedTVL && !isLoadingTVL && !isDecrypted) {
-      console.log('🔄 Auto-triggering TVL decryption...');
+    // Auto-triggering TVL decryption
       decryptTVL();
     } else if (!masterSignature) {
-      console.log('🔒 Locking vaultTVL (no master signature)');
+    // Locking TVL (no master signature)
       lockTVL();
     }
   }, [masterSignature, encryptedTVL, isLoadingTVL, isDecrypted, decryptTVL, lockTVL]);

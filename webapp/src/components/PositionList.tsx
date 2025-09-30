@@ -224,7 +224,7 @@ export default function PositionList({ suppliedBalance: propSuppliedBalance, has
           sx: {
             maxWidth: '380px',
             width: 'auto',
-            borderRadius: '16px'
+            borderRadius: '4px'
           }
         }}
       >

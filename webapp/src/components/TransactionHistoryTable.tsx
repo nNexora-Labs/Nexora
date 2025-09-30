@@ -124,7 +124,16 @@ export default function TransactionHistoryTable({ isDarkMode = false }: Transact
       </Box>
 
       {/* Search and Filter Bar */}
-      <Card sx={{ mb: 3, borderRadius: '8px' }}>
+      <Card sx={{ 
+        mb: 3, 
+        borderRadius: '4px',
+        background: isDarkMode 
+          ? 'rgba(255, 255, 255, 0.05)'
+          : 'rgba(44, 62, 80, 0.05)',
+        border: isDarkMode 
+          ? '1px solid rgba(255, 255, 255, 0.1)'
+          : '1px solid rgba(44, 62, 80, 0.1)'
+      }}>
         <CardContent sx={{ p: 2 }}>
           <Grid container spacing={2} alignItems="center">
             <Grid item xs={12} sm={6} md={4}>
@@ -237,7 +246,15 @@ export default function TransactionHistoryTable({ isDarkMode = false }: Transact
       </Card>
 
       {/* Transaction Table */}
-      <Card sx={{ borderRadius: '8px' }}>
+      <Card sx={{ 
+        borderRadius: '4px',
+        background: isDarkMode 
+          ? 'rgba(255, 255, 255, 0.05)'
+          : 'rgba(44, 62, 80, 0.05)',
+        border: isDarkMode 
+          ? '1px solid rgba(255, 255, 255, 0.1)'
+          : '1px solid rgba(44, 62, 80, 0.1)'
+      }}>
         <TableContainer>
           <Table>
             <TableHead>

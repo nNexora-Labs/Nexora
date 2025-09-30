@@ -98,7 +98,7 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
         userSharesData = (encryptedUserShares as any).data || (encryptedUserShares as any).result || null;
       }
       
-      console.log('🔍 useSharePercentage: encryptedUserShares received:', userSharesData);
+    // Encrypted shares received
       setEncryptedUserSharesStateState(userSharesData);
     } else {
       setEncryptedUserSharesStateState(null);
@@ -117,7 +117,7 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
         totalSharesData = (encryptedTotalShares as any).data || (encryptedTotalShares as any).result || null;
       }
       
-      console.log('🔍 useSharePercentage: encryptedTotalShares received:', totalSharesData);
+    // Encrypted total shares received
       setEncryptedTotalSharesStateState(totalSharesData);
     } else {
       setEncryptedTotalSharesStateState(null);
@@ -144,7 +144,7 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
       
       for (const rpcUrl of rpcUrls) {
         try {
-          console.log(`🔄 Fetching share data from: ${rpcUrl}`);
+    // Fetching share data
           publicClient = createPublicClient({
             chain: sepolia,
             transport: http(rpcUrl),
@@ -152,7 +152,7 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
           
           // Test the connection
           await publicClient.getBlockNumber();
-          console.log(`✅ Connected to ${rpcUrl}`);
+    // Connected to RPC
           break;
         } catch (error) {
           console.log(`❌ Failed to connect to ${rpcUrl}:`, (error as Error).message);
@@ -192,7 +192,7 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
         // Check if user has any shares
         const isAllZeros = userSharesData === '0x0000000000000000000000000000000000000000000000000000000000000000';
         setHasShares(!isAllZeros);
-        console.log('🔍 User shares check:', { userSharesData, isAllZeros, hasShares: !isAllZeros });
+    // User shares check
       } else {
         // Note: State is now managed by useReadContract hooks above
         setHasShares(false);
@@ -201,7 +201,7 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
       if (totalSharesResult.data && totalSharesResult.data !== '0x') {
         const totalSharesData = totalSharesResult.data as `0x${string}`;
         // Note: State is now managed by useReadContract hooks above
-        console.log('✅ Total shares fetched:', totalSharesData);
+    // Total shares fetched
       } else {
         // Note: State is now managed by useReadContract hooks above
       }
@@ -288,7 +288,7 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
         setHasShares(userShares > 0);
         setIsDecrypting(false);
         
-        console.log('✅ Share percentage calculated:', { userShares, totalShares, percentage });
+    // Share percentage calculated successfully
       }
     } catch (error) {
       console.error('Share percentage calculation failed:', error);

@@ -194,7 +194,7 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
         setCWETHBalance(`${ethValue.toFixed(8)} cWETH`);
         setHasCWETH(ethValue > 0);
         setIsDecrypted(true);
-        console.log('✅ cWETH balance decrypted:', ethValue);
+    // Balance decrypted successfully
       }
     } catch (error) {
       console.error('cWETH decryption failed:', error);
@@ -232,13 +232,13 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
       
       if (!hasEncryptedBalance) {
         setCWETHBalance('••••••••');
-        console.log('🔍 useCWETHBalance: No balance found, balanceData:', balanceData);
+    // No balance found
       } else {
         setCWETHBalance('••••••••');
-        console.log('🔍 useCWETHBalance: Balance found, balanceData:', balanceData);
+    // Balance found
       }
     } else {
-      console.log('🔍 useCWETHBalance: No encryptedBalance data');
+    // No encrypted balance data
       setHasCWETH(false);
       setEncryptedBalanceState(null);
       setCWETHBalance('••••••••');
@@ -249,7 +249,7 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
   useEffect(() => {
     if (address && isConnected) {
       // No need to manually fetch - useReadContract handles it
-      console.log('🔍 useCWETHBalance: Address connected, useReadContract will handle fetching');
+    // Address connected, useReadContract will handle fetching
     } else {
       setEncryptedBalanceState(null);
       setCWETHBalance('••••••••');
@@ -280,16 +280,7 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
 
   const canDecrypt = !!encryptedBalance && encryptedBalance !== '0x0000000000000000000000000000000000000000000000000000000000000000' && !!masterSignature;
   
-  // Debug logging
-  console.log('🔍 useCWETHBalance return values:', {
-    formattedBalance: cWETHBalance,
-    hasCWETH,
-    canDecrypt,
-    isDecrypted,
-    encryptedBalance,
-    isDecrypting,
-    isLoadingBalance
-  });
+  // Balance hook ready
 
   return {
     formattedBalance: cWETHBalance,

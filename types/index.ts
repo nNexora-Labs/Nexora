@@ -44,5 +44,9 @@ export type { ReentrancyGuard } from "./@openzeppelin/contracts/utils/Reentrancy
 export { ReentrancyGuard__factory } from "./factories/@openzeppelin/contracts/utils/ReentrancyGuard__factory";
 export type { ConfidentialLendingVault } from "./contracts/ConfidentialLendingVault";
 export { ConfidentialLendingVault__factory } from "./factories/contracts/ConfidentialLendingVault__factory";
-export type { ConfidentialWETH } from "./contracts/ConfidentialWETH";
-export { ConfidentialWETH__factory } from "./factories/contracts/ConfidentialWETH__factory";
+export type { ConfidentialWETH } from "./contracts/ConfidentialWETH.sol/ConfidentialWETH";
+export { ConfidentialWETH__factory } from "./factories/contracts/ConfidentialWETH.sol/ConfidentialWETH__factory";
+export type { IWETH } from "./contracts/ConfidentialWETH.sol/IWETH";
+export { IWETH__factory } from "./factories/contracts/ConfidentialWETH.sol/IWETH__factory";
+export type { SimpleConfidentialWETH } from "./contracts/SimpleConfidentialWETH.sol/SimpleConfidentialWETH";
+export { SimpleConfidentialWETH__factory } from "./factories/contracts/SimpleConfidentialWETH.sol/SimpleConfidentialWETH__factory";

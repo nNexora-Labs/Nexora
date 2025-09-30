@@ -65,7 +65,7 @@ export const useSuppliedBalance = (masterSignature: string | null, getMasterSign
       
       for (const rpcUrl of rpcUrls) {
         try {
-          console.log(`🔄 Fetching encrypted shares from: ${rpcUrl}`);
+    // Fetching encrypted shares
           publicClient = createPublicClient({
             chain: sepolia,
             transport: http(rpcUrl),
@@ -73,7 +73,7 @@ export const useSuppliedBalance = (masterSignature: string | null, getMasterSign
           
           // Test the connection
           await publicClient.getBlockNumber();
-          console.log(`✅ Connected to ${rpcUrl}`);
+    // Connected to RPC
           
           // Encode function call for getEncryptedShares
           const data = encodeFunctionData({
@@ -90,8 +90,7 @@ export const useSuppliedBalance = (masterSignature: string | null, getMasterSign
           
           if (result.data && result.data !== '0x') {
             const sharesData = result.data as `0x${string}`;
-            console.log('✅ Encrypted shares fetched:', sharesData);
-            console.log('🔍 Encrypted shares length:', sharesData.length);
+    // Encrypted shares fetched
             setEncryptedShares(sharesData);
             break; // Success, exit the loop
           } else {
@@ -142,13 +141,13 @@ export const useSuppliedBalance = (masterSignature: string | null, getMasterSign
       
       if (!hasEncryptedShares) {
         setSuppliedBalance('••••••••');
-        console.log('🔍 useSuppliedBalance: No shares found, encryptedShares:', encryptedShares);
+        // No shares found
       } else {
         setSuppliedBalance('••••••••');
-        console.log('🔍 useSuppliedBalance: Shares found, encryptedShares:', encryptedShares);
+    // Shares data processed
       }
     } else {
-      console.log('🔍 useSuppliedBalance: No encryptedShares data');
+    // No shares data
     }
   }, [encryptedShares]);
 
@@ -217,7 +216,7 @@ export const useSuppliedBalance = (masterSignature: string | null, getMasterSign
         setHasSupplied(ethValue > 0);
         setIsDecrypting(false);
         
-        console.log('✅ Supplied balance decrypted:', ethValue);
+    // Supplied balance decrypted successfully
       } else {
         throw new Error('No decrypted value returned');
       }
