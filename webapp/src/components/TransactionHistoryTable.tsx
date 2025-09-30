@@ -115,10 +115,10 @@ export default function TransactionHistoryTable({ isDarkMode = false }: Transact
     <Box>
       {/* Header */}
       <Box sx={{ mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
+        <Typography variant="h6" gutterBottom sx={{ fontFamily: 'sans-serif' }}>
           Transaction History
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'sans-serif' }}>
           {filteredCount} of {totalTransactions} transactions
         </Typography>
       </Box>
@@ -131,30 +131,74 @@ export default function TransactionHistoryTable({ isDarkMode = false }: Transact
           ? 'rgba(255, 255, 255, 0.05)'
           : 'rgba(44, 62, 80, 0.05)',
         border: isDarkMode 
-          ? '1px solid rgba(255, 255, 255, 0.1)'
-          : '1px solid rgba(44, 62, 80, 0.1)'
+          ? '2px solid rgba(255, 255, 255, 0.3)'
+          : '2px solid rgba(44, 62, 80, 0.4)',
+        boxShadow: isDarkMode 
+          ? '0 4px 12px rgba(0, 0, 0, 0.3)'
+          : '0 4px 12px rgba(44, 62, 80, 0.15)'
       }}>
         <CardContent sx={{ p: 2 }}>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} sm={6} md={4}>
+            <Grid item xs={12} sm={4} md={3}>
               <TextField
                 fullWidth
                 size="small"
                 placeholder="Search transactions..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    background: isDarkMode 
+                      ? 'rgba(255, 255, 255, 0.08)'
+                      : 'rgba(44, 62, 80, 0.08)',
+                    color: isDarkMode ? 'white' : '#2c3e50',
+                    '& fieldset': {
+                      borderColor: isDarkMode 
+                        ? 'rgba(255, 255, 255, 0.2)'
+                        : 'rgba(44, 62, 80, 0.3)'
+                    },
+                    '&:hover fieldset': {
+                      borderColor: isDarkMode 
+                        ? 'rgba(255, 255, 255, 0.3)'
+                        : 'rgba(44, 62, 80, 0.5)'
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: isDarkMode 
+                        ? 'rgba(255, 255, 255, 0.5)'
+                        : 'rgba(44, 62, 80, 0.7)'
+                    }
+                  },
+                  '& .MuiInputBase-input::placeholder': {
+                    color: isDarkMode ? 'rgba(255, 255, 255, 0.6)' : 'rgba(44, 62, 80, 0.6)',
+                    opacity: 1
+                  }
+                }}
                 InputProps={{
-                  startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />
+                  startAdornment: <Search sx={{ mr: 1, color: isDarkMode ? 'rgba(255, 255, 255, 0.6)' : 'rgba(44, 62, 80, 0.6)' }} />
                 }}
               />
             </Grid>
-            <Grid item xs={12} sm={6} md={8}>
+            <Grid item xs={12} sm={8} md={9}>
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <Button
                   size="small"
                   variant="outlined"
                   startIcon={<FilterList />}
                   onClick={() => setShowFilters(!showFilters)}
+                  sx={{
+                    color: isDarkMode ? 'white' : '#2c3e50',
+                    borderColor: isDarkMode 
+                      ? 'rgba(255, 255, 255, 0.3)'
+                      : 'rgba(44, 62, 80, 0.4)',
+                    '&:hover': {
+                      borderColor: isDarkMode 
+                        ? 'rgba(255, 255, 255, 0.5)'
+                        : 'rgba(44, 62, 80, 0.6)',
+                      backgroundColor: isDarkMode 
+                        ? 'rgba(255, 255, 255, 0.05)'
+                        : 'rgba(44, 62, 80, 0.05)'
+                    }
+                  }}
                 >
                   Filters
                 </Button>
@@ -163,6 +207,20 @@ export default function TransactionHistoryTable({ isDarkMode = false }: Transact
                   variant="outlined"
                   startIcon={<GetApp />}
                   onClick={() => setShowExportDialog(true)}
+                  sx={{
+                    color: isDarkMode ? 'white' : '#2c3e50',
+                    borderColor: isDarkMode 
+                      ? 'rgba(255, 255, 255, 0.3)'
+                      : 'rgba(44, 62, 80, 0.4)',
+                    '&:hover': {
+                      borderColor: isDarkMode 
+                        ? 'rgba(255, 255, 255, 0.5)'
+                        : 'rgba(44, 62, 80, 0.6)',
+                      backgroundColor: isDarkMode 
+                        ? 'rgba(255, 255, 255, 0.05)'
+                        : 'rgba(44, 62, 80, 0.05)'
+                    }
+                  }}
                 >
                   Export
                 </Button>
@@ -172,6 +230,26 @@ export default function TransactionHistoryTable({ isDarkMode = false }: Transact
                   startIcon={<Refresh />}
                   onClick={loadTransactions}
                   disabled={isLoading}
+                  sx={{
+                    color: isDarkMode ? 'white' : '#2c3e50',
+                    borderColor: isDarkMode 
+                      ? 'rgba(255, 255, 255, 0.3)'
+                      : 'rgba(44, 62, 80, 0.4)',
+                    '&:hover': {
+                      borderColor: isDarkMode 
+                        ? 'rgba(255, 255, 255, 0.5)'
+                        : 'rgba(44, 62, 80, 0.6)',
+                      backgroundColor: isDarkMode 
+                        ? 'rgba(255, 255, 255, 0.05)'
+                        : 'rgba(44, 62, 80, 0.05)'
+                    },
+                    '&:disabled': {
+                      color: isDarkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(44, 62, 80, 0.3)',
+                      borderColor: isDarkMode 
+                        ? 'rgba(255, 255, 255, 0.1)'
+                        : 'rgba(44, 62, 80, 0.2)'
+                    }
+                  }}
                 >
                   Refresh
                 </Button>
@@ -182,22 +260,60 @@ export default function TransactionHistoryTable({ isDarkMode = false }: Transact
           {/* Filters */}
           {showFilters && (
             <>
-              <Divider sx={{ my: 2 }} />
+              <Divider sx={{ 
+                my: 2, 
+                borderColor: isDarkMode 
+                  ? 'rgba(255, 255, 255, 0.1)'
+                  : 'rgba(44, 62, 80, 0.2)'
+              }} />
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6} md={3}>
                   <FormControl fullWidth size="small">
-                    <InputLabel>Event Type</InputLabel>
+                    <InputLabel sx={{ color: isDarkMode ? 'white' : '#2c3e50' }}>Event Type</InputLabel>
                     <Select
                       value={filters.eventType}
                       onChange={(e) => setFilters({ ...filters, eventType: e.target.value })}
                       label="Event Type"
+                      sx={{
+                        color: isDarkMode ? 'white' : '#2c3e50',
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: isDarkMode 
+                            ? 'rgba(255, 255, 255, 0.2)'
+                            : 'rgba(44, 62, 80, 0.3)'
+                        },
+                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                          borderColor: isDarkMode 
+                            ? 'rgba(255, 255, 255, 0.3)'
+                            : 'rgba(44, 62, 80, 0.5)'
+                        },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                          borderColor: isDarkMode 
+                            ? 'rgba(255, 255, 255, 0.5)'
+                            : 'rgba(44, 62, 80, 0.7)'
+                        },
+                        '& .MuiSvgIcon-root': {
+                          color: isDarkMode ? 'white' : '#2c3e50'
+                        }
+                      }}
+                      MenuProps={{
+                        PaperProps: {
+                          sx: {
+                            background: isDarkMode 
+                              ? 'rgba(44, 62, 80, 0.95)'
+                              : 'rgba(245, 247, 250, 0.95)',
+                            border: isDarkMode 
+                              ? '1px solid rgba(255, 255, 255, 0.2)'
+                              : '1px solid rgba(44, 62, 80, 0.3)'
+                          }
+                        }
+                      }}
                     >
-                      <MenuItem value="">All</MenuItem>
-                      <MenuItem value="Supply">Supply</MenuItem>
-                      <MenuItem value="Withdraw">Withdraw</MenuItem>
-                      <MenuItem value="Borrow">Borrow</MenuItem>
-                      <MenuItem value="Repay">Repay</MenuItem>
-                      <MenuItem value="Liquidation">Liquidation</MenuItem>
+                      <MenuItem value="" sx={{ color: isDarkMode ? 'white' : '#2c3e50' }}>All</MenuItem>
+                      <MenuItem value="Supply" sx={{ color: isDarkMode ? 'white' : '#2c3e50' }}>Supply</MenuItem>
+                      <MenuItem value="Withdraw" sx={{ color: isDarkMode ? 'white' : '#2c3e50' }}>Withdraw</MenuItem>
+                      <MenuItem value="Borrow" sx={{ color: isDarkMode ? 'white' : '#2c3e50' }}>Borrow</MenuItem>
+                      <MenuItem value="Repay" sx={{ color: isDarkMode ? 'white' : '#2c3e50' }}>Repay</MenuItem>
+                      <MenuItem value="Liquidation" sx={{ color: isDarkMode ? 'white' : '#2c3e50' }}>Liquidation</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
@@ -209,20 +325,80 @@ export default function TransactionHistoryTable({ isDarkMode = false }: Transact
                     value={filters.asset}
                     onChange={(e) => setFilters({ ...filters, asset: e.target.value })}
                     placeholder="e.g., cWETH"
+                    sx={{
+                      '& .MuiInputLabel-root': {
+                        color: isDarkMode ? 'white' : '#2c3e50'
+                      },
+                      '& .MuiOutlinedInput-root': {
+                        color: isDarkMode ? 'white' : '#2c3e50',
+                        '& fieldset': {
+                          borderColor: isDarkMode 
+                            ? 'rgba(255, 255, 255, 0.2)'
+                            : 'rgba(44, 62, 80, 0.3)'
+                        },
+                        '&:hover fieldset': {
+                          borderColor: isDarkMode 
+                            ? 'rgba(255, 255, 255, 0.3)'
+                            : 'rgba(44, 62, 80, 0.5)'
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: isDarkMode 
+                            ? 'rgba(255, 255, 255, 0.5)'
+                            : 'rgba(44, 62, 80, 0.7)'
+                        }
+                      },
+                      '& .MuiInputBase-input::placeholder': {
+                        color: isDarkMode ? 'rgba(255, 255, 255, 0.6)' : 'rgba(44, 62, 80, 0.6)',
+                        opacity: 1
+                      }
+                    }}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6} md={3}>
                   <FormControl fullWidth size="small">
-                    <InputLabel>Status</InputLabel>
+                    <InputLabel sx={{ color: isDarkMode ? 'white' : '#2c3e50' }}>Status</InputLabel>
                     <Select
                       value={filters.status}
                       onChange={(e) => setFilters({ ...filters, status: e.target.value })}
                       label="Status"
+                      sx={{
+                        color: isDarkMode ? 'white' : '#2c3e50',
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: isDarkMode 
+                            ? 'rgba(255, 255, 255, 0.2)'
+                            : 'rgba(44, 62, 80, 0.3)'
+                        },
+                        '&:hover .MuiOutlinedInput-notchedOutline': {
+                          borderColor: isDarkMode 
+                            ? 'rgba(255, 255, 255, 0.3)'
+                            : 'rgba(44, 62, 80, 0.5)'
+                        },
+                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                          borderColor: isDarkMode 
+                            ? 'rgba(255, 255, 255, 0.5)'
+                            : 'rgba(44, 62, 80, 0.7)'
+                        },
+                        '& .MuiSvgIcon-root': {
+                          color: isDarkMode ? 'white' : '#2c3e50'
+                        }
+                      }}
+                      MenuProps={{
+                        PaperProps: {
+                          sx: {
+                            background: isDarkMode 
+                              ? 'rgba(44, 62, 80, 0.95)'
+                              : 'rgba(245, 247, 250, 0.95)',
+                            border: isDarkMode 
+                              ? '1px solid rgba(255, 255, 255, 0.2)'
+                              : '1px solid rgba(44, 62, 80, 0.3)'
+                          }
+                        }
+                      }}
                     >
-                      <MenuItem value="">All</MenuItem>
-                      <MenuItem value="Success">Success</MenuItem>
-                      <MenuItem value="Pending">Pending</MenuItem>
-                      <MenuItem value="Failed">Failed</MenuItem>
+                      <MenuItem value="" sx={{ color: isDarkMode ? 'white' : '#2c3e50' }}>All</MenuItem>
+                      <MenuItem value="Success" sx={{ color: isDarkMode ? 'white' : '#2c3e50' }}>Success</MenuItem>
+                      <MenuItem value="Pending" sx={{ color: isDarkMode ? 'white' : '#2c3e50' }}>Pending</MenuItem>
+                      <MenuItem value="Failed" sx={{ color: isDarkMode ? 'white' : '#2c3e50' }}>Failed</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
@@ -233,7 +409,22 @@ export default function TransactionHistoryTable({ isDarkMode = false }: Transact
                       variant="outlined"
                       startIcon={<Clear />}
                       onClick={clearFilters}
-                      sx={{ flex: 1 }}
+                      sx={{
+                        color: isDarkMode ? 'white' : '#2c3e50',
+                        borderColor: isDarkMode 
+                          ? 'rgba(255, 255, 255, 0.3)'
+                          : 'rgba(44, 62, 80, 0.4)',
+                        minWidth: 'auto',
+                        px: 2,
+                        '&:hover': {
+                          borderColor: isDarkMode 
+                            ? 'rgba(255, 255, 255, 0.5)'
+                            : 'rgba(44, 62, 80, 0.6)',
+                          backgroundColor: isDarkMode 
+                            ? 'rgba(255, 255, 255, 0.05)'
+                            : 'rgba(44, 62, 80, 0.05)'
+                        }
+                      }}
                     >
                       Clear
                     </Button>
@@ -252,10 +443,39 @@ export default function TransactionHistoryTable({ isDarkMode = false }: Transact
           ? 'rgba(255, 255, 255, 0.05)'
           : 'rgba(44, 62, 80, 0.05)',
         border: isDarkMode 
-          ? '1px solid rgba(255, 255, 255, 0.1)'
-          : '1px solid rgba(44, 62, 80, 0.1)'
+          ? '2px solid rgba(255, 255, 255, 0.3)'
+          : '2px solid rgba(44, 62, 80, 0.4)',
+        boxShadow: isDarkMode 
+          ? '0 4px 12px rgba(0, 0, 0, 0.3)'
+          : '0 4px 12px rgba(44, 62, 80, 0.15)'
       }}>
-        <TableContainer>
+        <TableContainer sx={{
+          background: isDarkMode 
+            ? 'transparent'
+            : 'transparent',
+          '& .MuiTable-root': {
+            background: 'transparent'
+          },
+          '& .MuiTableHead-root': {
+            background: isDarkMode 
+              ? 'rgba(255, 255, 255, 0.05)'
+              : 'rgba(44, 62, 80, 0.05)'
+          },
+          '& .MuiTableRow-root': {
+            background: 'transparent',
+            '&:hover': {
+              background: isDarkMode 
+                ? 'rgba(255, 255, 255, 0.05)'
+                : 'rgba(44, 62, 80, 0.05)'
+            }
+          },
+          '& .MuiTableCell-root': {
+            color: isDarkMode ? 'white' : '#2c3e50',
+            borderBottom: isDarkMode 
+              ? '1px solid rgba(255, 255, 255, 0.1)'
+              : '1px solid rgba(44, 62, 80, 0.1)'
+          }
+        }}>
           <Table>
             <TableHead>
               <TableRow>
@@ -275,7 +495,7 @@ export default function TransactionHistoryTable({ isDarkMode = false }: Transact
                 <TableRow>
                   <TableCell colSpan={9} sx={{ textAlign: 'center', py: 4 }}>
                     <CircularProgress />
-                    <Typography variant="body2" sx={{ mt: 1 }}>
+                    <Typography variant="body2" sx={{ mt: 1, fontFamily: 'sans-serif' }}>
                       Loading transactions...
                     </Typography>
                   </TableCell>
@@ -283,7 +503,7 @@ export default function TransactionHistoryTable({ isDarkMode = false }: Transact
               ) : transactions.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} sx={{ textAlign: 'center', py: 4 }}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'sans-serif' }}>
                       No transactions found
                     </Typography>
                   </TableCell>
@@ -296,7 +516,7 @@ export default function TransactionHistoryTable({ isDarkMode = false }: Transact
                         <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
                           {tx.txHash.slice(0, 10)}...{tx.txHash.slice(-8)}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'sans-serif' }}>
                           Block #{tx.blockNumber}
                         </Typography>
                       </Box>
@@ -311,7 +531,7 @@ export default function TransactionHistoryTable({ isDarkMode = false }: Transact
                     </TableCell>
                     <TableCell>
                       {tx.assets.map((asset, index) => (
-                        <Typography key={index} variant="body2">
+                        <Typography key={index} variant="body2" sx={{ fontFamily: 'sans-serif' }}>
                           {asset.token}
                         </Typography>
                       ))}
@@ -336,7 +556,7 @@ export default function TransactionHistoryTable({ isDarkMode = false }: Transact
                       ))}
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2">{tx.date}</Typography>
+                      <Typography variant="body2" sx={{ fontFamily: 'sans-serif' }}>{tx.date}</Typography>
                     </TableCell>
                     <TableCell>
                       <Chip

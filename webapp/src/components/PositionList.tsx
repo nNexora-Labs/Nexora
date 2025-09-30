@@ -42,9 +42,10 @@ interface PositionListProps {
   hasSupplied?: boolean;
   isDecrypted?: boolean;
   onTransactionSuccess?: () => Promise<void>;
+  isDarkMode?: boolean;
 }
 
-export default function PositionList({ suppliedBalance: propSuppliedBalance, hasSupplied: propHasSupplied, isDecrypted: propIsDecrypted, onTransactionSuccess }: PositionListProps = {}) {
+export default function PositionList({ suppliedBalance: propSuppliedBalance, hasSupplied: propHasSupplied, isDecrypted: propIsDecrypted, onTransactionSuccess, isDarkMode = false }: PositionListProps = {}) {
   const { address, isConnected } = useAccount();
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
 
@@ -133,8 +134,12 @@ export default function PositionList({ suppliedBalance: propSuppliedBalance, has
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h6">
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h6" sx={{ 
+          fontFamily: 'sans-serif', 
+          color: isDarkMode ? 'white' : '#2c3e50', 
+          fontWeight: '600' 
+        }}>
           Your Supply Positions ({positions.length})
         </Typography>
         <Button
@@ -143,39 +148,77 @@ export default function PositionList({ suppliedBalance: propSuppliedBalance, has
           startIcon={<Refresh />}
           onClick={loadSupplyPositions}
           disabled={isLoading}
+          sx={{
+            color: isDarkMode ? 'white' : '#2c3e50',
+            borderColor: isDarkMode 
+              ? 'rgba(255, 255, 255, 0.3)'
+              : 'rgba(44, 62, 80, 0.4)',
+            '&:hover': {
+              borderColor: isDarkMode 
+                ? 'rgba(255, 255, 255, 0.5)'
+                : 'rgba(44, 62, 80, 0.6)',
+              backgroundColor: isDarkMode 
+                ? 'rgba(255, 255, 255, 0.05)'
+                : 'rgba(44, 62, 80, 0.05)'
+            }
+          }}
         >
           Refresh
         </Button>
       </Box>
 
-      {positions.length > 0 && (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          <Typography variant="body2">
-            <strong>Note:</strong> Positions show your aggregated supply per asset. 
-            The vault combines all your supplies into a single share balance. 
-            You can withdraw from your total position using the withdraw button.
-          </Typography>
-        </Alert>
-      )}
       
-      <TableContainer component={Paper} sx={{ mb: 2 }}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Asset</TableCell>
-              <TableCell>APY</TableCell>
-              <TableCell>Amount</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Action</TableCell>
-            </TableRow>
-          </TableHead>
+      <Card sx={{
+        mb: 3,
+        background: 'transparent',
+        border: 'transparent',
+        boxShadow: 'none'
+      }}>
+        <TableContainer sx={{
+          background: 'transparent',
+          '& .MuiTable-root': {
+            background: 'transparent'
+          },
+          '& .MuiTableHead-root': {
+            background: isDarkMode 
+              ? 'rgba(255, 255, 255, 0.05)'
+              : 'rgba(44, 62, 80, 0.05)'
+          },
+          '& .MuiTableRow-root': {
+            background: 'transparent',
+            '&:hover': {
+              background: isDarkMode 
+                ? 'rgba(255, 255, 255, 0.02)'
+                : 'rgba(44, 62, 80, 0.02)'
+            }
+          },
+          '& .MuiTableCell-root': {
+            borderBottom: isDarkMode 
+              ? '1px solid rgba(255, 255, 255, 0.1)'
+              : '1px solid rgba(44, 62, 80, 0.1)',
+            color: isDarkMode ? 'white' : '#2c3e50'
+          }
+        }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: '600', color: isDarkMode ? 'white' : '#2c3e50' }}>Asset</TableCell>
+                <TableCell sx={{ fontWeight: '600', color: isDarkMode ? 'white' : '#2c3e50' }}>APY</TableCell>
+                <TableCell sx={{ fontWeight: '600', color: isDarkMode ? 'white' : '#2c3e50' }}>Amount</TableCell>
+                <TableCell sx={{ fontWeight: '600', color: isDarkMode ? 'white' : '#2c3e50' }}>Status</TableCell>
+                <TableCell sx={{ fontWeight: '600', color: isDarkMode ? 'white' : '#2c3e50' }}>Action</TableCell>
+              </TableRow>
+            </TableHead>
           <TableBody>
             {positions.map((position, index) => (
               <TableRow key={position.id}>
                 <TableCell>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <AccountBalance />
-                    <Typography variant="body2">{position.asset}</Typography>
+                    <Typography variant="body2" sx={{ 
+                      fontFamily: 'sans-serif',
+                      color: isDarkMode ? 'white' : '#2c3e50'
+                    }}>{position.asset}</Typography>
                   </Box>
                 </TableCell>
                 <TableCell>
@@ -187,7 +230,10 @@ export default function PositionList({ suppliedBalance: propSuppliedBalance, has
                   />
                 </TableCell>
                 <TableCell>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{ 
+                    fontFamily: 'sans-serif',
+                    color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(44, 62, 80, 0.7)'
+                  }}>
                     {position.amount}
                   </Typography>
                 </TableCell>
@@ -205,6 +251,20 @@ export default function PositionList({ suppliedBalance: propSuppliedBalance, has
                     startIcon={<Send />}
                     onClick={() => setWithdrawDialogOpen(true)}
                     disabled={isDecrypting}
+                    sx={{
+                      color: isDarkMode ? 'white' : '#2c3e50',
+                      borderColor: isDarkMode 
+                        ? 'rgba(255, 255, 255, 0.3)'
+                        : 'rgba(44, 62, 80, 0.4)',
+                      '&:hover': {
+                        borderColor: isDarkMode 
+                          ? 'rgba(255, 255, 255, 0.5)'
+                          : 'rgba(44, 62, 80, 0.6)',
+                        backgroundColor: isDarkMode 
+                          ? 'rgba(255, 255, 255, 0.05)'
+                          : 'rgba(44, 62, 80, 0.05)'
+                      }
+                    }}
                   >
                     Withdraw
                   </Button>
@@ -213,7 +273,8 @@ export default function PositionList({ suppliedBalance: propSuppliedBalance, has
             ))}
           </TableBody>
         </Table>
-      </TableContainer>
+        </TableContainer>
+      </Card>
 
       {/* Withdraw Dialog */}
       <Dialog 

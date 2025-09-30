@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { sepolia } from 'wagmi/chains';
+import { createPublicClient, http, parseEther } from 'viem';
 import {
   Box,
   TextField,
@@ -95,11 +97,13 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
 
   // Separate transaction receipts for each step
   const { isLoading: isConfirmingStep1, isSuccess: isSuccessStep1 } = useWaitForTransactionReceipt({
-    hash: step1Hash as `0x${string}`,
+    hash: step1Hash,
+    query: { enabled: Boolean(step1Hash) },
   });
-
+ 
   const { isLoading: isConfirmingStep2, isSuccess: isSuccessStep2 } = useWaitForTransactionReceipt({
-    hash: step2Hash as `0x${string}`,
+    hash: step2Hash,
+    query: { enabled: Boolean(step2Hash) },
   });
 
   const [amount, setAmount] = useState('');
@@ -107,8 +111,8 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
   const [showSuccess, setShowSuccess] = useState(false);
   const [swapDirection, setSwapDirection] = useState<'wrap' | 'unwrap'>('wrap');
   const [unwrapStep, setUnwrapStep] = useState<'none' | 'step1' | 'step2'>('none');
-  const [step1Hash, setStep1Hash] = useState<string | null>(null);
-  const [step2Hash, setStep2Hash] = useState<string | null>(null);
+  const [step1Hash, setStep1Hash] = useState<`0x${string}` | undefined>(undefined);
+  const [step2Hash, setStep2Hash] = useState<`0x${string}` | undefined>(undefined);
 
   // Contract address
   const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
@@ -146,35 +150,13 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
   }, [amount, ethBalance, swapDirection, isDecrypted, cWETHBalance, hasCWETH]);
 
   useEffect(() => {
-    if (isSuccessStep1 && unwrapStep === 'step1') {
-      // Step 1 completed, now execute step 2
-      setUnwrapStep('step2');
-      
-      // Execute step 2: completeUnwrap
-      const executeStep2 = async () => {
-        try {
-          const amountWei = BigInt(Math.floor(parseFloat(amount) * 1e18));
-          const step2Hash = await writeContract({
-            address: CWETH_ADDRESS as `0x${string}`,
-            abi: CWETH_ABI,
-            functionName: 'completeUnwrap',
-            args: [amountWei],
-          });
-          setStep2Hash(step2Hash);
-        } catch (err) {
-          console.error('Step 2 failed:', err);
-          setUnwrapStep('none');
-        }
-      };
-      
-      executeStep2();
-    } else if (isSuccessStep2 && unwrapStep === 'step2') {
+    if (isSuccessStep2 && unwrapStep === 'step2') {
       // Both steps completed
       setShowSuccess(true);
       setAmount('');
       setUnwrapStep('none');
-      setStep1Hash(null);
-      setStep2Hash(null);
+      setStep1Hash(undefined);
+      setStep2Hash(undefined);
       setTimeout(() => setShowSuccess(false), 5000);
       
       if (onTransactionSuccess) {
@@ -190,7 +172,7 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
         onTransactionSuccess();
       }
     }
-  }, [isSuccessStep1, isSuccessStep2, isSuccess, onTransactionSuccess, unwrapStep, amount, writeContract, CWETH_ADDRESS]);
+  }, [isSuccessStep2, isSuccess, onTransactionSuccess, unwrapStep]);
 
   const handleMaxAmount = () => {
     if (swapDirection === 'wrap' && ethBalance) {
@@ -206,19 +188,19 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
   };
 
   const handleSwap = async () => {
-    console.log('🔄 handleSwap called:', { 
-      isValidAmount, 
-      amount, 
-      address, 
+    console.log('🔄 handleSwap called:', {
+      isValidAmount,
+      amount,
+      address,
       swapDirection,
-      unwrapStep 
+      unwrapStep
     });
     
     if (!isValidAmount || !amount || !address) {
       console.log('❌ Validation failed:', { isValidAmount, amount, address });
       return;
     }
-
+ 
     try {
       if (swapDirection === 'wrap') {
         console.log('📦 Starting wrap process...');
@@ -226,60 +208,52 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
           address: CWETH_ADDRESS as `0x${string}`,
           abi: CWETH_ABI,
           functionName: 'wrap',
-          value: BigInt(Math.floor(parseFloat(amount) * 1e18)),
+          value: parseEther(amount),
         });
       } else {
         console.log('📤 Starting unwrap process...');
-        // For unwrap, we need to implement the two-step process
-        // Step 1: Call unwrap with encrypted amount and proof
-        // Step 2: Call completeUnwrap with plaintext amount
-        
         setUnwrapStep('step1');
         
-        // First, we need to encrypt the amount and get the proof
-        // Importing FHE utilities
-        const { encryptAndRegister } = await import('../utils/fhe');
-        const { getFHEInstance } = await import('../utils/fhe');
+        // Import FHE utilities and ensure instance is ready
+        const { encryptAndRegister, getFHEInstance } = await import('../utils/fhe');
+        await getFHEInstance();
         
-        // Getting FHE instance
-        const fheInstance = await getFHEInstance();
+        const amountWei = parseEther(amount);
         
-        const amountWei = BigInt(Math.floor(parseFloat(amount) * 1e18));
-        
-        // Encrypting amount
-        // Encrypt the amount
+        // Encrypt amount for unwrap step
         const encryptedAmount = await encryptAndRegister(
           CWETH_ADDRESS,
           address,
           amountWei
         );
         
-        // Encrypted amount received
-        
-        if (!encryptedAmount) {
-          throw new Error('Failed to encrypt amount for unwrap - FHE encryption failed');
+        if (!encryptedAmount || !encryptedAmount.handles?.length || !encryptedAmount.inputProof) {
+          throw new Error('Failed to encrypt amount for unwrap');
         }
         
-        if (!encryptedAmount.handles || encryptedAmount.handles.length === 0) {
-          throw new Error('Failed to encrypt amount - no handles returned');
-        }
-        
-        if (!encryptedAmount.inputProof) {
-          throw new Error('Failed to encrypt amount - no proof returned');
-        }
-        
-        // Calling unwrap function
-        // Step 1: Call unwrap with encrypted amount
-        const step1Hash = await writeContract({
+        // Step 1: Burn cWETH (unwrap)
+        const tx1 = await writeContract({
           address: CWETH_ADDRESS as `0x${string}`,
           abi: CWETH_ABI,
           functionName: 'unwrap',
-          args: [encryptedAmount.handles[0], encryptedAmount.inputProof],
+          args: [encryptedAmount.handles[0] as `0x${string}`, encryptedAmount.inputProof as `0x${string}`],
         });
-        setStep1Hash(step1Hash);
+        setStep1Hash(tx1 as `0x${string}`);
         
-        // Step 1 completed
-        // Note: Step 2 will be handled by useEffect when step 1 completes
+        // Wait for step 1 confirmation before proceeding
+        const rpcUrl = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://eth-sepolia.public.blastapi.io';
+        const publicClient = createPublicClient({ chain: sepolia, transport: http(rpcUrl) });
+        await publicClient.waitForTransactionReceipt({ hash: tx1 as `0x${string}` });
+        
+        // Step 2: Withdraw WETH -> ETH and send to user
+        setUnwrapStep('step2');
+        const tx2 = await writeContract({
+          address: CWETH_ADDRESS as `0x${string}`,
+          abi: CWETH_ABI,
+          functionName: 'completeUnwrap',
+          args: [amountWei],
+        });
+        setStep2Hash(tx2 as `0x${string}`);
       }
     } catch (err) {
       console.error('❌ Swap failed:', err);
@@ -325,7 +299,7 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <SwapHoriz sx={{ mr: 1, color: 'primary.main' }} />
-              <Typography variant="h6">
+              <Typography variant="h6" sx={{ fontFamily: 'sans-serif' }}>
                 ETH ↔ cWETH Swapper
               </Typography>
             </Box>
@@ -348,7 +322,7 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
             </ToggleButtonGroup>
           </Box>
           
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontFamily: 'sans-serif' }}>
             {swapDirection === 'wrap' 
               ? 'Convert your ETH to confidential WETH (cWETH) tokens. Your balance will be encrypted and private.'
               : 'Convert your confidential WETH (cWETH) tokens back to ETH. Your balance will be decrypted.'
@@ -392,23 +366,23 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
           <Divider sx={{ my: 2 }} />
 
           <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" gutterBottom>
+            <Typography variant="subtitle2" gutterBottom sx={{ fontFamily: 'sans-serif' }}>
               Swap Summary
             </Typography>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="body2">
+              <Typography variant="body2" sx={{ fontFamily: 'sans-serif' }}>
                 {swapDirection === 'wrap' ? 'ETH Amount:' : 'cWETH Amount:'}
               </Typography>
-              <Typography variant="body2">{amount || '0'} {swapDirection === 'wrap' ? 'ETH' : 'cWETH'}</Typography>
+              <Typography variant="body2" sx={{ fontFamily: 'sans-serif' }}>{amount || '0'} {swapDirection === 'wrap' ? 'ETH' : 'cWETH'}</Typography>
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="body2">
+              <Typography variant="body2" sx={{ fontFamily: 'sans-serif' }}>
                 {swapDirection === 'wrap' ? 'cWETH Amount:' : 'ETH Amount:'}
               </Typography>
-              <Typography variant="body2">{amount || '0'} {swapDirection === 'wrap' ? 'cWETH' : 'ETH'}</Typography>
+              <Typography variant="body2" sx={{ fontFamily: 'sans-serif' }}>{amount || '0'} {swapDirection === 'wrap' ? 'cWETH' : 'ETH'}</Typography>
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="body2">Status:</Typography>
+              <Typography variant="body2" sx={{ fontFamily: 'sans-serif' }}>Status:</Typography>
               <Chip
                 label={swapDirection === 'wrap' ? 'Confidential' : 'Public'}
                 size="small"
@@ -459,7 +433,7 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
 
           {hash && (
             <Box sx={{ mt: 2, textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'sans-serif' }}>
                 Transaction Hash: {hash.slice(0, 10)}...{hash.slice(-8)}
               </Typography>
             </Box>

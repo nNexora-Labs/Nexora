@@ -536,7 +536,7 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
       
       {/* Header */}
       <Box sx={{ mb: 1.5, textAlign: 'center' }}>
-        <Typography variant="h6" gutterBottom sx={{ mb: 1, fontWeight: 600 }}>
+        <Typography variant="h6" gutterBottom sx={{ mb: 1, fontWeight: 600, fontFamily: 'sans-serif' }}>
           Supply cWETH
         </Typography>
       </Box>
@@ -556,7 +556,7 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
             }
           }}
         >
-          <Typography variant="body2">
+          <Typography variant="body2" sx={{ fontFamily: 'sans-serif' }}>
             {isApproved ? 'Successfully supplied cWETH!' : 'Operator set! Click Supply again to complete.'}
           </Typography>
         </Alert>
@@ -577,7 +577,7 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
             }
           }}
         >
-          <Typography variant="body2">
+          <Typography variant="body2" sx={{ fontFamily: 'sans-serif' }}>
             Transaction failed: {isReceiptError ? 'Transaction was reverted on-chain' : error?.message}
           </Typography>
         </Alert>
@@ -598,7 +598,7 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
             }
           }}
         >
-          <Typography variant="body2">
+          <Typography variant="body2" sx={{ fontFamily: 'sans-serif' }}>
             {balanceError}
           </Typography>
         </Alert>
@@ -616,7 +616,7 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
           placeholder="0.00"
           InputProps={{
             startAdornment: (
-              <Typography variant="body1" sx={{ mr: 1, color: 'text.secondary' }}>
+              <Typography variant="body1" sx={{ mr: 1, color: 'text.secondary', fontFamily: 'sans-serif' }}>
                 cWETH
               </Typography>
             ),
@@ -681,27 +681,27 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
         }
       }}>
-        <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, mb: 0.5 }}>
+        <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, mb: 0.5, fontFamily: 'sans-serif' }}>
           Summary
         </Typography>
         
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-          <Typography variant="body2" color="text.secondary">Amount</Typography>
-          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'sans-serif' }}>Amount</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 500, fontFamily: 'sans-serif' }}>
             {amount ? `${parseFloat(amount).toFixed(4)} cWETH` : '0.0000 cWETH'}
           </Typography>
         </Box>
         
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-          <Typography variant="body2" color="text.secondary">Protocol Fee</Typography>
-          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'sans-serif' }}>Protocol Fee</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 500, fontFamily: 'sans-serif' }}>
             0.000000 cWETH
           </Typography>
         </Box>
         
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-          <Typography variant="body2" color="text.secondary">Network Fee</Typography>
-          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'sans-serif' }}>Network Fee</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 500, fontFamily: 'sans-serif' }}>
             {isGasLoading ? 'Loading...' : calculateNetworkFee('SUPPLY')}
           </Typography>
         </Box>
@@ -709,8 +709,8 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
         <Divider sx={{ my: 0.5 }} />
         
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>Total</Typography>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'sans-serif' }}>Total</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'sans-serif' }}>
             {isGasLoading ? 'Loading...' : calculateTotalCost()}
           </Typography>
         </Box>
@@ -724,7 +724,7 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
           borderRadius: 1,
           transition: 'background-color 0.2s ease-in-out'
         }}>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'sans-serif' }}>
             {isPending ? 'Pending...' : isConfirming ? 'Confirming...' : isEncrypting ? 'Encrypting...' : 'Ready'}
           </Typography>
         </Box>
@@ -801,7 +801,7 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
             '100%': { opacity: 1, transform: 'translateY(0)' }
           }
         }}>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'sans-serif' }}>
             {hash?.slice(0, 10)}...{hash?.slice(-8)}
           </Typography>
         </Box>
