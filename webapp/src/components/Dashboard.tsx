@@ -37,13 +37,44 @@ import TransactionHistoryTable from './TransactionHistoryTable';
 import styles from './SwapStyles.module.css';
 import { encryptAndRegister } from '../utils/fhe';
 
-// Contract ABI for ConfidentialWETH wrap function
+// Contract ABI for ConfidentialWETH wrap/unwrap functions
 const CWETH_ABI = [
   {
     "inputs": [],
     "name": "wrap",
     "outputs": [],
     "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "externalEuint64",
+        "name": "amountInput",
+        "type": "bytes"
+      },
+      {
+        "internalType": "bytes",
+        "name": "inputProof",
+        "type": "bytes"
+      }
+    ],
+    "name": "unwrap",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "completeUnwrap",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   }
 ] as const;
@@ -286,16 +317,46 @@ export default function Dashboard() {
     try {
       setIsSwapping(true);
       
-      // Convert ETH to wei
+      // Convert amount to wei
       const amountInWei = BigInt(Math.floor(parseFloat(swapAmount) * 1e18));
 
-      // Call the ConfidentialWETH wrap function
-      await writeSwapContract({
-        address: CWETH_ADDRESS as `0x${string}`,
-        abi: CWETH_ABI,
-        functionName: 'wrap',
-        value: amountInWei,
-      });
+      if (isReversed) {
+        // Reverse swap: cWETH → ETH (unwrap)
+        // For unwrap, we need to encrypt the amount and use the new signature
+        if (fhevmInstance && masterSignature) {
+          // Encrypt the amount using FHEVM
+          const encryptedAmount = fhevmInstance.encrypt64(Number(amountInWei));
+          
+          // Create proof for the encrypted amount
+          const inputProof = await fhevmInstance.generateProof(encryptedAmount);
+          
+          // Step 1: Burn cWETH tokens
+          await writeSwapContract({
+            address: CWETH_ADDRESS as `0x${string}`,
+            abi: CWETH_ABI,
+            functionName: 'unwrap',
+            args: [encryptedAmount, inputProof],
+          });
+          
+          // Step 2: Complete unwrap by sending ETH
+          await writeSwapContract({
+            address: CWETH_ADDRESS as `0x${string}`,
+            abi: CWETH_ABI,
+            functionName: 'completeUnwrap',
+            args: [Number(amountInWei)],
+          });
+        } else {
+          throw new Error('FHEVM instance or master signature not available');
+        }
+      } else {
+        // Forward swap: ETH → cWETH (wrap)
+        await writeSwapContract({
+          address: CWETH_ADDRESS as `0x${string}`,
+          abi: CWETH_ABI,
+          functionName: 'wrap',
+          value: amountInWei,
+        });
+      }
     } catch (err) {
       console.error('Swap failed:', err);
     } finally {
@@ -304,8 +365,17 @@ export default function Dashboard() {
   };
 
   const handleMaxAmount = () => {
-    if (balance) {
-      setSwapAmount((parseFloat(balance.formatted) * 0.95).toString()); // Leave some for gas
+    if (isReversed) {
+      // For reverse swaps, use cWETH balance
+      if (isCWETHDecrypted && cWETHBalance.includes('cWETH')) {
+        const cWETHAmount = parseFloat(cWETHBalance.replace(' cWETH', ''));
+        setSwapAmount((cWETHAmount * 0.95).toString()); // Leave some for gas
+      }
+    } else {
+      // For forward swaps, use ETH balance
+      if (balance) {
+        setSwapAmount((parseFloat(balance.formatted) * 0.95).toString()); // Leave some for gas
+      }
     }
   };
 
@@ -648,7 +718,7 @@ export default function Dashboard() {
                       borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(44, 62, 80, 0.3)',
                       color: isDarkMode ? 'white' : '#000000',
                       minWidth: { xs: '40px', sm: '120px', md: 'auto' },
-                      width: { xs: '40px', sm: '120px', md: 'auto' },height: '28px',
+                      width: { xs: '40px', sm: '120px', md: 'auto' },height: '30px',
                       px: { xs: 0.5, sm: 1.5 },
                       pl: { xs: 0.5, sm: 1.5 },
                       fontSize: { xs: '0.7rem', sm: '0.75rem' },
@@ -856,7 +926,7 @@ export default function Dashboard() {
                       : 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)',
                     color: isDarkMode ? 'white' : '#000000',
                     fontWeight: '600',
-                    px: { xs: 2, sm: 3 },height: '28px',
+                    px: { xs: 2, sm: 3 },height: '30px',
                     textTransform: 'none',
                     fontSize: { xs: '0.7rem', sm: '0.75rem' },
                     boxShadow: isDarkMode 
@@ -885,7 +955,7 @@ export default function Dashboard() {
                   display: 'flex', 
                   alignItems: 'center', 
                   gap: 1,
-                  height: '28px',
+                  height: '30px',
                   background: isDarkMode 
                     ? 'linear-gradient(135deg, #34495e 0%, #2c3e50 100%)'
                     : 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)',
@@ -2781,10 +2851,21 @@ export default function Dashboard() {
                             : '1px solid rgba(44, 62, 80, 0.1)'
                         }}>
                           <CardContent sx={{ textAlign: 'center', p: 3 }}>
-                            <Typography variant="body2" sx={{ opacity: 0.8, mb: 1 }}>
+                            <Typography variant="body2" sx={{ 
+                              opacity: isDarkMode ? 0.8 : 0.7, 
+                              mb: 1,
+                              fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                              color: isDarkMode ? 'white' : '#000000',
+                              fontWeight: isDarkMode ? '500' : '300'
+                            }}>
                               Total Portfolio Value
                             </Typography>
-                            <Typography variant="h4" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                            <Typography variant="h5" sx={{ 
+                              fontWeight: isDarkMode ? '600' : '400',
+                              fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                              color: isDarkMode ? 'white' : '#000000',
+                              fontFamily: 'sans-serif'
+                            }}>
                               {suppliedBalance}
                             </Typography>
                           </CardContent>
@@ -2800,10 +2881,21 @@ export default function Dashboard() {
                             : '1px solid rgba(44, 62, 80, 0.1)'
                         }}>
                           <CardContent sx={{ textAlign: 'center', p: 3 }}>
-                            <Typography variant="body2" sx={{ opacity: 0.8, mb: 1 }}>
+                            <Typography variant="body2" sx={{ 
+                              opacity: isDarkMode ? 0.8 : 0.7, 
+                              mb: 1,
+                              fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                              color: isDarkMode ? 'white' : '#000000',
+                              fontWeight: isDarkMode ? '500' : '300'
+                            }}>
                               Supplied Assets
                             </Typography>
-                            <Typography variant="h4" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                            <Typography variant="h5" sx={{ 
+                              fontWeight: isDarkMode ? '600' : '400',
+                              fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                              color: isDarkMode ? 'white' : '#000000',
+                              fontFamily: 'sans-serif'
+                            }}>
                               {suppliedBalance}
                             </Typography>
                           </CardContent>
@@ -2819,10 +2911,21 @@ export default function Dashboard() {
                             : '1px solid rgba(44, 62, 80, 0.1)'
                         }}>
                           <CardContent sx={{ textAlign: 'center', p: 3 }}>
-                            <Typography variant="body2" sx={{ opacity: 0.8, mb: 1 }}>
+                            <Typography variant="body2" sx={{ 
+                              opacity: isDarkMode ? 0.8 : 0.7, 
+                              mb: 1,
+                              fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                              color: isDarkMode ? 'white' : '#000000',
+                              fontWeight: isDarkMode ? '500' : '300'
+                            }}>
                               Borrowed Assets
                             </Typography>
-                            <Typography variant="h4" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                            <Typography variant="h5" sx={{ 
+                              fontWeight: isDarkMode ? '600' : '400',
+                              fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                              color: isDarkMode ? 'white' : '#000000',
+                              fontFamily: 'sans-serif'
+                            }}>
                               0.0000 ETH
                             </Typography>
                           </CardContent>
@@ -2838,10 +2941,21 @@ export default function Dashboard() {
                             : '1px solid rgba(44, 62, 80, 0.1)'
                         }}>
                           <CardContent sx={{ textAlign: 'center', p: 3 }}>
-                            <Typography variant="body2" sx={{ opacity: 0.8, mb: 1 }}>
+                            <Typography variant="body2" sx={{ 
+                              opacity: isDarkMode ? 0.8 : 0.7, 
+                              mb: 1,
+                              fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                              color: isDarkMode ? 'white' : '#000000',
+                              fontWeight: isDarkMode ? '500' : '300'
+                            }}>
                               Net Worth
                             </Typography>
-                            <Typography variant="h4" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                            <Typography variant="h5" sx={{ 
+                              fontWeight: isDarkMode ? '600' : '400',
+                              fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                              color: isDarkMode ? 'white' : '#000000',
+                              fontFamily: 'sans-serif'
+                            }}>
                               {suppliedBalance}
                             </Typography>
                           </CardContent>
@@ -2860,7 +2974,13 @@ export default function Dashboard() {
                         : '1px solid rgba(44, 62, 80, 0.1)'
                     }}>
                       <CardContent sx={{ p: 3 }}>
-                        <Typography variant="h6" sx={{ fontWeight: '600', mb: 3, fontFamily: 'sans-serif' }}>
+                        <Typography variant="h6" sx={{ 
+                          fontWeight: isDarkMode ? '600' : '400',
+                          fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                          color: isDarkMode ? 'white' : '#000000',
+                          mb: 3, 
+                          fontFamily: 'sans-serif'
+                        }}>
                           Asset Breakdown
                         </Typography>
                         
@@ -2887,19 +3007,39 @@ export default function Dashboard() {
                                 style={{ width: '32px', height: '32px' }}
                               />
                               <Box>
-                                <Typography variant="h6" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                                <Typography variant="h6" sx={{ 
+                                  fontWeight: isDarkMode ? '600' : '400',
+                                  fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                                  color: isDarkMode ? 'white' : '#000000',
+                                  fontFamily: 'sans-serif'
+                                }}>
                                   cWETH
                                 </Typography>
-                                <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                                <Typography variant="body2" sx={{ 
+                                  opacity: isDarkMode ? 0.8 : 0.7,
+                                  fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                                  color: isDarkMode ? 'white' : '#000000',
+                                  fontWeight: isDarkMode ? '500' : '300'
+                                }}>
                                   Wrapped Ethereum
                                 </Typography>
                               </Box>
                             </Box>
                             <Box sx={{ textAlign: 'right' }}>
-                              <Typography variant="h6" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                              <Typography variant="h6" sx={{ 
+                                fontWeight: isDarkMode ? '600' : '400',
+                                fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                                color: isDarkMode ? 'white' : '#000000',
+                                fontFamily: 'sans-serif'
+                              }}>
                                 {suppliedBalance}
                               </Typography>
-                              <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                              <Typography variant="body2" sx={{ 
+                                opacity: isDarkMode ? 0.8 : 0.7,
+                                fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                                color: isDarkMode ? 'white' : '#000000',
+                                fontWeight: isDarkMode ? '500' : '300'
+                              }}>
                                 100% of portfolio
                               </Typography>
                             </Box>
@@ -2918,27 +3058,55 @@ export default function Dashboard() {
                         : '1px solid rgba(44, 62, 80, 0.1)'
                     }}>
                       <CardContent sx={{ p: 3 }}>
-                        <Typography variant="h6" sx={{ fontWeight: '600', mb: 3, fontFamily: 'sans-serif' }}>
+                        <Typography variant="h6" sx={{ 
+                          fontWeight: isDarkMode ? '600' : '400',
+                          fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                          color: isDarkMode ? 'white' : '#000000',
+                          mb: 3, 
+                          fontFamily: 'sans-serif'
+                        }}>
                           Performance Metrics
                         </Typography>
                         
                         <Grid container spacing={3}>
                           <Grid item xs={12} sm={6}>
                             <Box sx={{ textAlign: 'center', p: 2 }}>
-                              <Typography variant="body2" sx={{ opacity: 0.8, mb: 1 }}>
+                              <Typography variant="body2" sx={{ 
+                                opacity: isDarkMode ? 0.8 : 0.7, 
+                                mb: 1,
+                                fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                                color: isDarkMode ? 'white' : '#000000',
+                                fontWeight: isDarkMode ? '500' : '300'
+                              }}>
                                 Total Yield Earned
                               </Typography>
-                              <Typography variant="h5" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                              <Typography variant="h5" sx={{ 
+                                fontWeight: isDarkMode ? '600' : '400',
+                                fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                                color: isDarkMode ? 'white' : '#000000',
+                                fontFamily: 'sans-serif'
+                              }}>
                                 0.0000 ETH
                               </Typography>
                             </Box>
                           </Grid>
                           <Grid item xs={12} sm={6}>
                             <Box sx={{ textAlign: 'center', p: 2 }}>
-                              <Typography variant="body2" sx={{ opacity: 0.8, mb: 1 }}>
+                              <Typography variant="body2" sx={{ 
+                                opacity: isDarkMode ? 0.8 : 0.7, 
+                                mb: 1,
+                                fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                                color: isDarkMode ? 'white' : '#000000',
+                                fontWeight: isDarkMode ? '500' : '300'
+                              }}>
                                 Current APY
                               </Typography>
-                              <Typography variant="h5" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                              <Typography variant="h5" sx={{ 
+                                fontWeight: isDarkMode ? '600' : '400',
+                                fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                                color: isDarkMode ? 'white' : '#000000',
+                                fontFamily: 'sans-serif'
+                              }}>
                                 5.25%
                               </Typography>
                             </Box>
@@ -3491,8 +3659,8 @@ export default function Dashboard() {
                     )}
                   </div>
                   
-                  {/* Balance Display - Only show for forward swaps (ETH → cWETH) */}
-                  {balance && !isReversed && (
+                  {/* Balance Display - Show ETH balance for forward swaps, cWETH balance for reverse swaps */}
+                  {((balance && !isReversed) || (isReversed && cWETHBalance)) && (
                     <Box sx={{ 
                       mt: 1, 
                       mb: 1,
@@ -3505,13 +3673,23 @@ export default function Dashboard() {
                         color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)',
                         fontSize: '12px'
                       }}>
-                        Balance: {parseFloat(balance.formatted).toFixed(4)} {selectedToken}
+                        Balance: {isReversed 
+                          ? (isCWETHDecrypted && cWETHBalance.includes('cWETH') 
+                              ? `${parseFloat(cWETHBalance.replace(' cWETH', '')).toFixed(4)} cWETH`
+                              : '•••••••• cWETH')
+                          : balance ? `${parseFloat(balance.formatted).toFixed(4)} ${selectedToken}` : '0.0000 ETH'
+                        }
                       </Typography>
                       <Typography variant="caption" sx={{ 
                         color: isDarkMode ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)',
                         fontSize: '11px'
                       }}>
-                        ≈ ${(parseFloat(balance.formatted) * 4000).toFixed(2)}
+                        ≈ ${isReversed 
+                          ? (isCWETHDecrypted && cWETHBalance.includes('cWETH') 
+                              ? (parseFloat(cWETHBalance.replace(' cWETH', '')) * 4000).toFixed(2)
+                              : '••••••')
+                          : balance ? (parseFloat(balance.formatted) * 4000).toFixed(2) : '0.00'
+                        }
                       </Typography>
                     </Box>
                   )}
@@ -3586,15 +3764,14 @@ export default function Dashboard() {
                         isSwapPending || 
                         isSwapConfirming || 
                         !availableTokens.find(t => t.symbol === selectedToken)?.functional ||
-                        isReversed || // Disable for reverse swaps (not implemented yet)
                         showBalanceError // Disable if amount exceeds balance
                       }
                       className={styles.primaryAction}
                       sx={{
-                        background: !isReversed && swapAmount && parseFloat(swapAmount) > 0 && availableTokens.find(t => t.symbol === selectedToken)?.functional && !showBalanceError
+                        background: swapAmount && parseFloat(swapAmount) > 0 && availableTokens.find(t => t.symbol === selectedToken)?.functional && !showBalanceError
                           ? 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)'
                           : undefined,
-                        color: !isReversed && swapAmount && parseFloat(swapAmount) > 0 && availableTokens.find(t => t.symbol === selectedToken)?.functional && !showBalanceError
+                        color: swapAmount && parseFloat(swapAmount) > 0 && availableTokens.find(t => t.symbol === selectedToken)?.functional && !showBalanceError
                           ? 'white'
                           : undefined,
                         fontWeight: '700',
@@ -3602,10 +3779,10 @@ export default function Dashboard() {
                         textTransform: 'none',
                         borderRadius: '8px',
                         py: 1,
-                        boxShadow: !isReversed && swapAmount && parseFloat(swapAmount) > 0 && availableTokens.find(t => t.symbol === selectedToken)?.functional && !showBalanceError
+                        boxShadow: swapAmount && parseFloat(swapAmount) > 0 && availableTokens.find(t => t.symbol === selectedToken)?.functional && !showBalanceError
                           ? '0 4px 12px rgba(52, 152, 219, 0.3)'
                           : 'none',
-                        '&:hover': !isReversed && swapAmount && parseFloat(swapAmount) > 0 && availableTokens.find(t => t.symbol === selectedToken)?.functional && !showBalanceError ? {
+                        '&:hover': swapAmount && parseFloat(swapAmount) > 0 && availableTokens.find(t => t.symbol === selectedToken)?.functional && !showBalanceError ? {
                           background: 'linear-gradient(135deg, #2980b9 0%, #3498db 100%)',
                           boxShadow: '0 6px 16px rgba(52, 152, 219, 0.4)'
                         } : {},
@@ -3613,10 +3790,9 @@ export default function Dashboard() {
                       }}
                     >
                       {isSwapPending || isSwapConfirming ? 'Processing...' : 
-                       isReversed ? 'Coming Soon' : 
                        !availableTokens.find(t => t.symbol === selectedToken)?.functional ? 'Coming Soon' :
                        !swapAmount || parseFloat(swapAmount) <= 0 ? 'Enter amount' : 
-                       'Swap'}
+                       isReversed ? 'Swap cWETH → ETH' : 'Swap ETH → cWETH'}
                     </Button>
                   </div>
                   <div className={styles.advancedRow}>

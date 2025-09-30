@@ -3,7 +3,6 @@
 /* eslint-disable */
 import type {
   BaseContract,
-  BigNumberish,
   BytesLike,
   FunctionFragment,
   Result,
@@ -26,22 +25,10 @@ import type {
 export interface ConfidentialLendingVaultInterface extends Interface {
   getFunction(
     nameOrSignature:
-      | "ETH_PRICE_USDC"
-      | "FIXED_INTEREST_RATE"
-      | "INITIAL_RATE"
-      | "RATE_PRECISION"
-      | "USDC_DECIMALS"
       | "asset"
-      | "currentRate"
-      | "emergencyPause"
-      | "emergencyResume"
-      | "getCurrentInterestRate"
-      | "getETHPrice"
       | "getEncryptedShares"
       | "getEncryptedTotalAssets"
       | "getEncryptedTotalShares"
-      | "getUtilizationRate"
-      | "lastUpdateTime"
       | "onConfidentialTransferReceived"
       | "owner"
       | "renounceOwnership"
@@ -54,51 +41,10 @@ export interface ConfidentialLendingVaultInterface extends Interface {
     nameOrSignatureOrTopic:
       | "ConfidentialSupply"
       | "ConfidentialWithdraw"
-      | "InterestAccrued"
       | "OwnershipTransferred"
   ): EventFragment;
 
-  encodeFunctionData(
-    functionFragment: "ETH_PRICE_USDC",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "FIXED_INTEREST_RATE",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "INITIAL_RATE",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "RATE_PRECISION",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "USDC_DECIMALS",
-    values?: undefined
-  ): string;
   encodeFunctionData(functionFragment: "asset", values?: undefined): string;
-  encodeFunctionData(
-    functionFragment: "currentRate",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "emergencyPause",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "emergencyResume",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "getCurrentInterestRate",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "getETHPrice",
-    values?: undefined
-  ): string;
   encodeFunctionData(
     functionFragment: "getEncryptedShares",
     values: [AddressLike]
@@ -109,14 +55,6 @@ export interface ConfidentialLendingVaultInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "getEncryptedTotalShares",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "getUtilizationRate",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "lastUpdateTime",
     values?: undefined
   ): string;
   encodeFunctionData(
@@ -141,47 +79,7 @@ export interface ConfidentialLendingVaultInterface extends Interface {
     values: [BytesLike, BytesLike]
   ): string;
 
-  decodeFunctionResult(
-    functionFragment: "ETH_PRICE_USDC",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "FIXED_INTEREST_RATE",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "INITIAL_RATE",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "RATE_PRECISION",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "USDC_DECIMALS",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(functionFragment: "asset", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "currentRate",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "emergencyPause",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "emergencyResume",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "getCurrentInterestRate",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "getETHPrice",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(
     functionFragment: "getEncryptedShares",
     data: BytesLike
@@ -192,14 +90,6 @@ export interface ConfidentialLendingVaultInterface extends Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "getEncryptedTotalShares",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "getUtilizationRate",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "lastUpdateTime",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -236,18 +126,6 @@ export namespace ConfidentialWithdrawEvent {
   export type OutputTuple = [user: string];
   export interface OutputObject {
     user: string;
-  }
-  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
-  export type Filter = TypedDeferredTopicFilter<Event>;
-  export type Log = TypedEventLog<Event>;
-  export type LogDescription = TypedLogDescription<Event>;
-}
-
-export namespace InterestAccruedEvent {
-  export type InputTuple = [timestamp: BigNumberish];
-  export type OutputTuple = [timestamp: bigint];
-  export interface OutputObject {
-    timestamp: bigint;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -311,27 +189,7 @@ export interface ConfidentialLendingVault extends BaseContract {
     event?: TCEvent
   ): Promise<this>;
 
-  ETH_PRICE_USDC: TypedContractMethod<[], [bigint], "view">;
-
-  FIXED_INTEREST_RATE: TypedContractMethod<[], [bigint], "view">;
-
-  INITIAL_RATE: TypedContractMethod<[], [bigint], "view">;
-
-  RATE_PRECISION: TypedContractMethod<[], [bigint], "view">;
-
-  USDC_DECIMALS: TypedContractMethod<[], [bigint], "view">;
-
   asset: TypedContractMethod<[], [string], "view">;
-
-  currentRate: TypedContractMethod<[], [bigint], "view">;
-
-  emergencyPause: TypedContractMethod<[], [void], "nonpayable">;
-
-  emergencyResume: TypedContractMethod<[], [void], "nonpayable">;
-
-  getCurrentInterestRate: TypedContractMethod<[], [bigint], "view">;
-
-  getETHPrice: TypedContractMethod<[], [bigint], "view">;
 
   getEncryptedShares: TypedContractMethod<
     [user: AddressLike],
@@ -343,17 +201,8 @@ export interface ConfidentialLendingVault extends BaseContract {
 
   getEncryptedTotalShares: TypedContractMethod<[], [string], "view">;
 
-  getUtilizationRate: TypedContractMethod<[], [bigint], "view">;
-
-  lastUpdateTime: TypedContractMethod<[], [bigint], "view">;
-
   onConfidentialTransferReceived: TypedContractMethod<
-    [
-      operator: AddressLike,
-      from: AddressLike,
-      amount: BytesLike,
-      data: BytesLike
-    ],
+    [arg0: AddressLike, from: AddressLike, amount: BytesLike, arg3: BytesLike],
     [string],
     "nonpayable"
   >;
@@ -385,38 +234,8 @@ export interface ConfidentialLendingVault extends BaseContract {
   ): T;
 
   getFunction(
-    nameOrSignature: "ETH_PRICE_USDC"
-  ): TypedContractMethod<[], [bigint], "view">;
-  getFunction(
-    nameOrSignature: "FIXED_INTEREST_RATE"
-  ): TypedContractMethod<[], [bigint], "view">;
-  getFunction(
-    nameOrSignature: "INITIAL_RATE"
-  ): TypedContractMethod<[], [bigint], "view">;
-  getFunction(
-    nameOrSignature: "RATE_PRECISION"
-  ): TypedContractMethod<[], [bigint], "view">;
-  getFunction(
-    nameOrSignature: "USDC_DECIMALS"
-  ): TypedContractMethod<[], [bigint], "view">;
-  getFunction(
     nameOrSignature: "asset"
   ): TypedContractMethod<[], [string], "view">;
-  getFunction(
-    nameOrSignature: "currentRate"
-  ): TypedContractMethod<[], [bigint], "view">;
-  getFunction(
-    nameOrSignature: "emergencyPause"
-  ): TypedContractMethod<[], [void], "nonpayable">;
-  getFunction(
-    nameOrSignature: "emergencyResume"
-  ): TypedContractMethod<[], [void], "nonpayable">;
-  getFunction(
-    nameOrSignature: "getCurrentInterestRate"
-  ): TypedContractMethod<[], [bigint], "view">;
-  getFunction(
-    nameOrSignature: "getETHPrice"
-  ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
     nameOrSignature: "getEncryptedShares"
   ): TypedContractMethod<[user: AddressLike], [string], "view">;
@@ -427,20 +246,9 @@ export interface ConfidentialLendingVault extends BaseContract {
     nameOrSignature: "getEncryptedTotalShares"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
-    nameOrSignature: "getUtilizationRate"
-  ): TypedContractMethod<[], [bigint], "view">;
-  getFunction(
-    nameOrSignature: "lastUpdateTime"
-  ): TypedContractMethod<[], [bigint], "view">;
-  getFunction(
     nameOrSignature: "onConfidentialTransferReceived"
   ): TypedContractMethod<
-    [
-      operator: AddressLike,
-      from: AddressLike,
-      amount: BytesLike,
-      data: BytesLike
-    ],
+    [arg0: AddressLike, from: AddressLike, amount: BytesLike, arg3: BytesLike],
     [string],
     "nonpayable"
   >;
@@ -483,13 +291,6 @@ export interface ConfidentialLendingVault extends BaseContract {
     ConfidentialWithdrawEvent.OutputObject
   >;
   getEvent(
-    key: "InterestAccrued"
-  ): TypedContractEvent<
-    InterestAccruedEvent.InputTuple,
-    InterestAccruedEvent.OutputTuple,
-    InterestAccruedEvent.OutputObject
-  >;
-  getEvent(
     key: "OwnershipTransferred"
   ): TypedContractEvent<
     OwnershipTransferredEvent.InputTuple,
@@ -518,17 +319,6 @@ export interface ConfidentialLendingVault extends BaseContract {
       ConfidentialWithdrawEvent.InputTuple,
       ConfidentialWithdrawEvent.OutputTuple,
       ConfidentialWithdrawEvent.OutputObject
-    >;
-
-    "InterestAccrued(uint256)": TypedContractEvent<
-      InterestAccruedEvent.InputTuple,
-      InterestAccruedEvent.OutputTuple,
-      InterestAccruedEvent.OutputObject
-    >;
-    InterestAccrued: TypedContractEvent<
-      InterestAccruedEvent.InputTuple,
-      InterestAccruedEvent.OutputTuple,
-      InterestAccruedEvent.OutputObject
     >;
 
     "OwnershipTransferred(address,address)": TypedContractEvent<

@@ -9,13 +9,26 @@ const nextConfig = {
   // Enable experimental features for better performance
   experimental: {
     optimizeCss: true,
+    // Add this for faster dev builds
+    turbo: {
+      rules: {
+        '*.svg': {
+          loaders: ['@svgr/webpack'],
+          as: '*.js',
+        },
+      },
+    },
   },
   
-  // Image optimization
-  images: {
-    domains: ['localhost'],
-    unoptimized: true, // For static exports
-  },
+  // Development optimizations
+  ...(process.env.NODE_ENV === 'development' && {
+    typescript: {
+      ignoreBuildErrors: true, // Skip TS errors in dev for faster builds
+    },
+    eslint: {
+      ignoreDuringBuilds: true, // Skip ESLint in dev for faster builds
+    },
+  }),
   
 
   async headers() {
@@ -40,7 +53,17 @@ const nextConfig = {
     ];
   },
   
-  webpack: (config, { isServer, webpack }) => {
+  webpack: (config, { isServer, webpack, dev }) => {
+    // Development optimizations
+    if (dev) {
+      config.optimization = {
+        ...config.optimization,
+        removeAvailableModules: false,
+        removeEmptyChunks: false,
+        splitChunks: false,
+      };
+    }
+
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,

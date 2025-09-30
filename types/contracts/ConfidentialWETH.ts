@@ -26,6 +26,8 @@ import type {
 export interface ConfidentialWETHInterface extends Interface {
   getFunction(
     nameOrSignature:
+      | "WETH"
+      | "completeUnwrap"
       | "confidentialBalanceOf"
       | "confidentialTotalSupply"
       | "confidentialTransfer(address,bytes32,bytes)"
@@ -38,34 +40,38 @@ export interface ConfidentialWETHInterface extends Interface {
       | "confidentialTransferFromAndCall(address,address,bytes32,bytes)"
       | "decimals"
       | "discloseEncryptedAmount"
-      | "emergencyWithdraw"
       | "finalizeDiscloseEncryptedAmount"
       | "getEncryptedBalance"
-      | "getEncryptedTotalSupply"
       | "isOperator"
       | "name"
       | "owner"
+      | "rate"
       | "renounceOwnership"
       | "setOperator"
       | "symbol"
       | "tokenURI"
       | "transferOwnership"
+      | "underlying"
+      | "unwrap"
       | "wrap"
   ): FunctionFragment;
 
   getEvent(
     nameOrSignatureOrTopic:
       | "AmountDisclosed"
-      | "ConfidentialDeposit"
       | "ConfidentialTransfer"
       | "ConfidentialUnwrap"
-      | "ConfidentialWithdrawal"
       | "ConfidentialWrap"
       | "DecryptionFulfilled"
       | "OperatorSet"
       | "OwnershipTransferred"
   ): EventFragment;
 
+  encodeFunctionData(functionFragment: "WETH", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "completeUnwrap",
+    values: [BigNumberish]
+  ): string;
   encodeFunctionData(
     functionFragment: "confidentialBalanceOf",
     values: [AddressLike]
@@ -112,10 +118,6 @@ export interface ConfidentialWETHInterface extends Interface {
     values: [BytesLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "emergencyWithdraw",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
     functionFragment: "finalizeDiscloseEncryptedAmount",
     values: [BigNumberish, BigNumberish, BytesLike[]]
   ): string;
@@ -124,15 +126,12 @@ export interface ConfidentialWETHInterface extends Interface {
     values: [AddressLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "getEncryptedTotalSupply",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
     functionFragment: "isOperator",
     values: [AddressLike, AddressLike]
   ): string;
   encodeFunctionData(functionFragment: "name", values?: undefined): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
+  encodeFunctionData(functionFragment: "rate", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "renounceOwnership",
     values?: undefined
@@ -147,8 +146,21 @@ export interface ConfidentialWETHInterface extends Interface {
     functionFragment: "transferOwnership",
     values: [AddressLike]
   ): string;
+  encodeFunctionData(
+    functionFragment: "underlying",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "unwrap",
+    values: [BytesLike, BytesLike]
+  ): string;
   encodeFunctionData(functionFragment: "wrap", values?: undefined): string;
 
+  decodeFunctionResult(functionFragment: "WETH", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "completeUnwrap",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "confidentialBalanceOf",
     data: BytesLike
@@ -195,10 +207,6 @@ export interface ConfidentialWETHInterface extends Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "emergencyWithdraw",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
     functionFragment: "finalizeDiscloseEncryptedAmount",
     data: BytesLike
   ): Result;
@@ -206,13 +214,10 @@ export interface ConfidentialWETHInterface extends Interface {
     functionFragment: "getEncryptedBalance",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(
-    functionFragment: "getEncryptedTotalSupply",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(functionFragment: "isOperator", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "name", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "rate", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "renounceOwnership",
     data: BytesLike
@@ -227,6 +232,8 @@ export interface ConfidentialWETHInterface extends Interface {
     functionFragment: "transferOwnership",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "underlying", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "unwrap", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "wrap", data: BytesLike): Result;
 }
 
@@ -236,18 +243,6 @@ export namespace AmountDisclosedEvent {
   export interface OutputObject {
     encryptedAmount: string;
     amount: bigint;
-  }
-  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
-  export type Filter = TypedDeferredTopicFilter<Event>;
-  export type Log = TypedEventLog<Event>;
-  export type LogDescription = TypedLogDescription<Event>;
-}
-
-export namespace ConfidentialDepositEvent {
-  export type InputTuple = [user: AddressLike];
-  export type OutputTuple = [user: string];
-  export interface OutputObject {
-    user: string;
   }
   export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
   export type Filter = TypedDeferredTopicFilter<Event>;
@@ -274,18 +269,6 @@ export namespace ConfidentialTransferEvent {
 }
 
 export namespace ConfidentialUnwrapEvent {
-  export type InputTuple = [user: AddressLike];
-  export type OutputTuple = [user: string];
-  export interface OutputObject {
-    user: string;
-  }
-  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
-  export type Filter = TypedDeferredTopicFilter<Event>;
-  export type Log = TypedEventLog<Event>;
-  export type LogDescription = TypedLogDescription<Event>;
-}
-
-export namespace ConfidentialWithdrawalEvent {
   export type InputTuple = [user: AddressLike];
   export type OutputTuple = [user: string];
   export interface OutputObject {
@@ -395,6 +378,14 @@ export interface ConfidentialWETH extends BaseContract {
     event?: TCEvent
   ): Promise<this>;
 
+  WETH: TypedContractMethod<[], [string], "view">;
+
+  completeUnwrap: TypedContractMethod<
+    [amount: BigNumberish],
+    [void],
+    "nonpayable"
+  >;
+
   confidentialBalanceOf: TypedContractMethod<
     [account: AddressLike],
     [string],
@@ -475,8 +466,6 @@ export interface ConfidentialWETH extends BaseContract {
     "nonpayable"
   >;
 
-  emergencyWithdraw: TypedContractMethod<[], [void], "nonpayable">;
-
   finalizeDiscloseEncryptedAmount: TypedContractMethod<
     [requestId: BigNumberish, amount: BigNumberish, signatures: BytesLike[]],
     [void],
@@ -489,8 +478,6 @@ export interface ConfidentialWETH extends BaseContract {
     "view"
   >;
 
-  getEncryptedTotalSupply: TypedContractMethod<[], [string], "view">;
-
   isOperator: TypedContractMethod<
     [holder: AddressLike, spender: AddressLike],
     [boolean],
@@ -500,6 +487,8 @@ export interface ConfidentialWETH extends BaseContract {
   name: TypedContractMethod<[], [string], "view">;
 
   owner: TypedContractMethod<[], [string], "view">;
+
+  rate: TypedContractMethod<[], [bigint], "view">;
 
   renounceOwnership: TypedContractMethod<[], [void], "nonpayable">;
 
@@ -519,12 +508,26 @@ export interface ConfidentialWETH extends BaseContract {
     "nonpayable"
   >;
 
+  underlying: TypedContractMethod<[], [string], "view">;
+
+  unwrap: TypedContractMethod<
+    [amountInput: BytesLike, inputProof: BytesLike],
+    [void],
+    "nonpayable"
+  >;
+
   wrap: TypedContractMethod<[], [void], "payable">;
 
   getFunction<T extends ContractMethod = ContractMethod>(
     key: string | FunctionFragment
   ): T;
 
+  getFunction(
+    nameOrSignature: "WETH"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "completeUnwrap"
+  ): TypedContractMethod<[amount: BigNumberish], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "confidentialBalanceOf"
   ): TypedContractMethod<[account: AddressLike], [string], "view">;
@@ -610,9 +613,6 @@ export interface ConfidentialWETH extends BaseContract {
     nameOrSignature: "discloseEncryptedAmount"
   ): TypedContractMethod<[encryptedAmount: BytesLike], [void], "nonpayable">;
   getFunction(
-    nameOrSignature: "emergencyWithdraw"
-  ): TypedContractMethod<[], [void], "nonpayable">;
-  getFunction(
     nameOrSignature: "finalizeDiscloseEncryptedAmount"
   ): TypedContractMethod<
     [requestId: BigNumberish, amount: BigNumberish, signatures: BytesLike[]],
@@ -622,9 +622,6 @@ export interface ConfidentialWETH extends BaseContract {
   getFunction(
     nameOrSignature: "getEncryptedBalance"
   ): TypedContractMethod<[user: AddressLike], [string], "view">;
-  getFunction(
-    nameOrSignature: "getEncryptedTotalSupply"
-  ): TypedContractMethod<[], [string], "view">;
   getFunction(
     nameOrSignature: "isOperator"
   ): TypedContractMethod<
@@ -638,6 +635,9 @@ export interface ConfidentialWETH extends BaseContract {
   getFunction(
     nameOrSignature: "owner"
   ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "rate"
+  ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
     nameOrSignature: "renounceOwnership"
   ): TypedContractMethod<[], [void], "nonpayable">;
@@ -658,6 +658,16 @@ export interface ConfidentialWETH extends BaseContract {
     nameOrSignature: "transferOwnership"
   ): TypedContractMethod<[newOwner: AddressLike], [void], "nonpayable">;
   getFunction(
+    nameOrSignature: "underlying"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "unwrap"
+  ): TypedContractMethod<
+    [amountInput: BytesLike, inputProof: BytesLike],
+    [void],
+    "nonpayable"
+  >;
+  getFunction(
     nameOrSignature: "wrap"
   ): TypedContractMethod<[], [void], "payable">;
 
@@ -667,13 +677,6 @@ export interface ConfidentialWETH extends BaseContract {
     AmountDisclosedEvent.InputTuple,
     AmountDisclosedEvent.OutputTuple,
     AmountDisclosedEvent.OutputObject
-  >;
-  getEvent(
-    key: "ConfidentialDeposit"
-  ): TypedContractEvent<
-    ConfidentialDepositEvent.InputTuple,
-    ConfidentialDepositEvent.OutputTuple,
-    ConfidentialDepositEvent.OutputObject
   >;
   getEvent(
     key: "ConfidentialTransfer"
@@ -688,13 +691,6 @@ export interface ConfidentialWETH extends BaseContract {
     ConfidentialUnwrapEvent.InputTuple,
     ConfidentialUnwrapEvent.OutputTuple,
     ConfidentialUnwrapEvent.OutputObject
-  >;
-  getEvent(
-    key: "ConfidentialWithdrawal"
-  ): TypedContractEvent<
-    ConfidentialWithdrawalEvent.InputTuple,
-    ConfidentialWithdrawalEvent.OutputTuple,
-    ConfidentialWithdrawalEvent.OutputObject
   >;
   getEvent(
     key: "ConfidentialWrap"
@@ -737,17 +733,6 @@ export interface ConfidentialWETH extends BaseContract {
       AmountDisclosedEvent.OutputObject
     >;
 
-    "ConfidentialDeposit(address)": TypedContractEvent<
-      ConfidentialDepositEvent.InputTuple,
-      ConfidentialDepositEvent.OutputTuple,
-      ConfidentialDepositEvent.OutputObject
-    >;
-    ConfidentialDeposit: TypedContractEvent<
-      ConfidentialDepositEvent.InputTuple,
-      ConfidentialDepositEvent.OutputTuple,
-      ConfidentialDepositEvent.OutputObject
-    >;
-
     "ConfidentialTransfer(address,address,bytes32)": TypedContractEvent<
       ConfidentialTransferEvent.InputTuple,
       ConfidentialTransferEvent.OutputTuple,
@@ -768,17 +753,6 @@ export interface ConfidentialWETH extends BaseContract {
       ConfidentialUnwrapEvent.InputTuple,
       ConfidentialUnwrapEvent.OutputTuple,
       ConfidentialUnwrapEvent.OutputObject
-    >;
-
-    "ConfidentialWithdrawal(address)": TypedContractEvent<
-      ConfidentialWithdrawalEvent.InputTuple,
-      ConfidentialWithdrawalEvent.OutputTuple,
-      ConfidentialWithdrawalEvent.OutputObject
-    >;
-    ConfidentialWithdrawal: TypedContractEvent<
-      ConfidentialWithdrawalEvent.InputTuple,
-      ConfidentialWithdrawalEvent.OutputTuple,
-      ConfidentialWithdrawalEvent.OutputObject
     >;
 
     "ConfidentialWrap(address)": TypedContractEvent<

@@ -12,39 +12,22 @@ import {SepoliaConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
 
 /// @title Confidential Lending Vault
 /// @notice ERC-4626 analogous vault for confidential lending with encrypted balances
-/// @dev This contract implements supply-only functionality for Phase 1
+/// @dev This contract implements only supply and withdraw functionlity 
 contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFungibleTokenReceiver, SepoliaConfig {
     using SafeERC20 for IERC20;
 
     // Events - CONFIDENTIAL: No plaintext amounts exposed
     event ConfidentialSupply(address indexed user);
     event ConfidentialWithdraw(address indexed user);
-    event InterestAccrued(uint256 timestamp);
 
-    // State variables
-    IERC20 public immutable asset; // cWETH token
-    uint256 public constant INITIAL_RATE = 1000000000000000000; // 1e18 (100% initial rate)
-    uint256 public constant RATE_PRECISION = 1e18;
+    IERC20 public immutable asset;
     
-    // Encrypted state
     mapping(address => euint64) private _encryptedShares;
     euint64 private _encryptedTotalShares;
     euint64 private _encryptedTotalAssets;
-    
-    // Interest rate parameters (fixed for Phase 1)
-    uint256 public currentRate = INITIAL_RATE;
-    uint256 public lastUpdateTime;
-    uint256 public constant FIXED_INTEREST_RATE = 50000000000000000; // 5% annual rate (0.05e18)
-    
-    // Oracle price (fixed for Phase 1: 1 ETH = 4000 USDC)
-    uint256 public constant ETH_PRICE_USDC = 4000e6; // 4000 USDC (6 decimals)
-    uint256 public constant USDC_DECIMALS = 6;
 
     constructor(address _asset) Ownable(msg.sender) {
         asset = IERC20(_asset);
-        lastUpdateTime = block.timestamp;
-
-        // Initialize encrypted state variables
         _encryptedTotalShares = FHE.asEuint64(0);
         _encryptedTotalAssets = FHE.asEuint64(0);
         FHE.allowThis(_encryptedTotalShares);
@@ -53,16 +36,14 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
 
     /// @notice Handle incoming confidential transfers from cWETH
     /// @dev This function is called when cWETH tokens are transferred to this vault
-    /// @param operator The address that initiated the transfer
     /// @param from The address that sent the tokens
     /// @param amount The encrypted amount transferred
-    /// @param data Additional data (unused)
     /// @return ebool indicating if the transfer was accepted
     function onConfidentialTransferReceived(
-        address operator,
+        address /* operator */,
         address from,
         euint64 amount,
-        bytes calldata data
+        bytes calldata /* data */
     ) external override returns (ebool) {
         // Only accept transfers from the cWETH contract
         require(msg.sender == address(asset), "ConfidentialLendingVault: Only cWETH transfers allowed");
@@ -113,26 +94,19 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
     ) external nonReentrant {
         require(inputProof.length > 0, "Invalid input proof");
 
-        // Convert external encrypted handle to internal euint64
         euint64 amount = FHE.fromExternal(encryptedAmount, inputProof);
-
-        // Allow the asset (cWETH) to consume this encrypted value transiently
         FHE.allowTransient(amount, address(asset));
 
-        // Pull tokens from user into the vault
         euint64 transferred = ConfidentialFungibleToken(address(asset)).confidentialTransferFrom(
             msg.sender,
             address(this),
             amount
         );
 
-        // Keep access to the transferred ciphertext
         FHE.allowThis(transferred);
         
-        // Update encrypted state directly (since we're not using callback pattern)
-        euint64 encryptedShares = transferred; // 1:1 ratio for now
+        euint64 encryptedShares = transferred;
         
-        // Update user shares
         euint64 currentUserShares = _encryptedShares[msg.sender];
         if (!FHE.isInitialized(currentUserShares)) {
             currentUserShares = FHE.asEuint64(0);
@@ -145,13 +119,11 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
         _encryptedTotalShares = FHE.add(_encryptedTotalShares, encryptedShares);
         _encryptedTotalAssets = FHE.add(_encryptedTotalAssets, transferred);
         
-        // Allow contract and user to access encrypted values
         FHE.allowThis(newUserShares);
         FHE.allow(newUserShares, msg.sender);
         FHE.allowThis(_encryptedTotalShares);
         FHE.allowThis(_encryptedTotalAssets);
         
-        // Emit CONFIDENTIAL event (no amounts exposed)
         emit ConfidentialSupply(msg.sender);
     }
 
@@ -185,74 +157,28 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
     ) external nonReentrant {
         require(inputProof.length > 0, "Invalid input proof");
 
-        // Convert external encrypted handle to internal euint64
         euint64 withdrawalAmount = FHE.fromExternal(encryptedAmount, inputProof);
-
-        // Get user's current encrypted shares
         euint64 userShares = _encryptedShares[msg.sender];
         
-        // Check if user has sufficient shares (this will be handled by FHEVM)
-        // The FHEVM will ensure withdrawalAmount <= userShares
-        
-        // Update encrypted state - subtract from user's shares
         _encryptedShares[msg.sender] = FHE.sub(userShares, withdrawalAmount);
         _encryptedTotalShares = FHE.sub(_encryptedTotalShares, withdrawalAmount);
         _encryptedTotalAssets = FHE.sub(_encryptedTotalAssets, withdrawalAmount);
         
-        // Allow contract and user to access updated encrypted values
         FHE.allowThis(_encryptedShares[msg.sender]);
         FHE.allow(_encryptedShares[msg.sender], msg.sender);
         FHE.allowThis(_encryptedTotalShares);
         FHE.allowThis(_encryptedTotalAssets);
 
-        // Allow the asset (cWETH) to use this encrypted value for transfer
         FHE.allowTransient(withdrawalAmount, address(asset));
 
-        // Transfer cWETH tokens back to user
         ConfidentialFungibleToken(address(asset)).confidentialTransferFromAndCall(
-            address(this),  // from: vault
-            msg.sender,     // to: user
-            withdrawalAmount, // encrypted amount
-            bytes("")       // empty data
+            address(this),
+            msg.sender,
+            withdrawalAmount,
+            bytes("")
         );
         
-        // Emit CONFIDENTIAL event (no amounts exposed)
         emit ConfidentialWithdraw(msg.sender);
     }
 
-    /// @notice Calculate utilization rate
-    /// @return The utilization rate (0-100%)
-    function getUtilizationRate() external pure returns (uint256) {
-        // For Phase 1, we'll use a fixed utilization rate
-        return 50; // Fixed 50% utilization for Phase 1
-    }
-
-    /// @notice Get current interest rate
-    /// @return The current interest rate
-    function getCurrentInterestRate() external pure returns (uint256) {
-        return FIXED_INTEREST_RATE;
-    }
-
-    /// @notice Get ETH price in USDC
-    /// @return The ETH price in USDC
-    function getETHPrice() external pure returns (uint256) {
-        return ETH_PRICE_USDC;
-    }
-
-    /// @notice Emergency function to pause deposits (only owner)
-    function emergencyPause() external onlyOwner {
-        // Implementation would pause the contract
-        // For now, this is a placeholder
-    }
-
-    /// @notice Emergency function to resume deposits (only owner)
-    function emergencyResume() external onlyOwner {
-        // Implementation would resume the contract
-        // For now, this is a placeholder
-    }
-
-    /// @notice Receive function to accept ETH deposits
-    receive() external payable {
-        // ETH deposits are handled by the supply() function
-    }
 }

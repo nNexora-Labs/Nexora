@@ -13,10 +13,15 @@ const deployConfidentialLending: DeployFunction = async function (hre: HardhatRu
   console.log("Deploying ConfidentialWETH...");
   const cWETH = await deploy("ConfidentialWETH", {
     from: deployer,
-    args: [],
+    args: [
+      deployer, // owner
+      "Confidential WETH", // name
+      "cWETH", // symbol
+      "https://nexora.com/metadata/cweth" // uri
+    ],
     log: true,
     waitConfirmations: 1,
-    gasLimit: 5000000, // Manual gas limit
+    gasLimit: 4000000, // Reduced gas limit
   });
 
   console.log("ConfidentialWETH deployed to:", cWETH.address);
@@ -28,7 +33,7 @@ const deployConfidentialLending: DeployFunction = async function (hre: HardhatRu
     args: [cWETH.address],
     log: true,
     waitConfirmations: 1,
-    gasLimit: 5000000, // Manual gas limit
+    gasLimit: 4000000, // Reduced gas limit
   });
 
   console.log("ConfidentialLendingVault deployed to:", vault.address);
@@ -55,7 +60,12 @@ const deployConfidentialLending: DeployFunction = async function (hre: HardhatRu
     try {
       await hre.run("verify:verify", {
         address: cWETH.address,
-        constructorArguments: [],
+        constructorArguments: [
+          deployer, // owner
+          "Confidential WETH", // name
+          "cWETH", // symbol
+          "https://nexora.com/metadata/cweth" // uri
+        ],
       });
       console.log("✅ ConfidentialWETH verified on Etherscan");
     } catch (error) {

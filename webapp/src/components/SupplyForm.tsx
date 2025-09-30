@@ -189,24 +189,21 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
       if (isDecrypted && cWETHBalance.includes('cWETH')) {
         const balanceWei = parseFloat(cWETHBalance.replace(' cWETH', ''));
         
-        // Calculate total cost including gas fees
-        const protocolFee = 0.00001; // cWETH
-        const networkFeeStr = calculateNetworkFee('SUPPLY');
-        const networkFeeValue = parseFloat(networkFeeStr.replace(' ETH', ''));
-        const totalCost = amountWei + protocolFee + networkFeeValue;
+        // Calculate total cost (no protocol fee, no network fee)
+        const protocolFee = 0.000000; // No protocol fee
+        const totalCost = amountWei + protocolFee; // Only amount + protocol fee
         
         const isValid = amountWei > 0 && totalCost <= balanceWei;
         setIsValidAmount(isValid);
         
         if (totalCost > balanceWei) {
-          setBalanceError(`Insufficient balance! You have ${balanceWei.toFixed(4)} cWETH available, but need ${totalCost.toFixed(6)} cWETH (including fees).`);
+          setBalanceError(`Insufficient balance! You have ${balanceWei.toFixed(4)} cWETH available, but need ${totalCost.toFixed(6)} cWETH.`);
         }
         
-        console.log('🔍 Decrypted balance validation with fees:', { 
+        console.log('🔍 Decrypted balance validation:', { 
           amountWei, 
           balanceWei, 
           protocolFee, 
-          networkFeeValue, 
           totalCost, 
           isValid 
         });
@@ -228,17 +225,13 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
 
   // Calculate total cost including real network fee
   const calculateTotalCost = (): string => {
-    if (!amount) return '0.00000 ETH';
+    if (!amount) return '0.000000 cWETH';
     
     const amountValue = parseFloat(amount);
-    const protocolFee = 0.00001;
+    const protocolFee = 0.000000; // No protocol fee
     
-    // Extract network fee value from the calculated fee string
-    const networkFeeStr = calculateNetworkFee('SUPPLY');
-    const networkFeeValue = parseFloat(networkFeeStr.replace(' ETH', ''));
-    
-    const total = amountValue + protocolFee + networkFeeValue;
-    return `${total.toFixed(6)} ETH`;
+    const total = amountValue + protocolFee;
+    return `${total.toFixed(6)} cWETH`;
   };
 
   // Function to check if vault is operator
@@ -702,7 +695,7 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
           <Typography variant="body2" color="text.secondary">Protocol Fee</Typography>
           <Typography variant="body2" sx={{ fontWeight: 500 }}>
-            0.00001 cWETH
+            0.000000 cWETH
           </Typography>
         </Box>
         

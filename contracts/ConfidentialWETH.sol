@@ -5,121 +5,110 @@ import {ConfidentialFungibleToken} from "@openzeppelin/confidential-contracts/to
 import {SepoliaConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
 import "@fhevm/solidity/lib/FHE.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {FHESafeMath} from "@openzeppelin/confidential-contracts/utils/FHESafeMath.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {externalEuint64} from "@fhevm/solidity/lib/FHE.sol";
 
-/// @title Confidential WETH (cWETH)
-/// @notice ERC7984 implementation for confidential WETH with wrap/unwrap functionality
-/// @dev This contract allows users to wrap ETH into confidential WETH tokens
+/// @title Confidential WETH (cWETH) - OpenZeppelin Pattern
+/// @notice ERC7984 implementation for confidential WETH following OpenZeppelin patterns
+/// @dev Uses ETH -> WETH -> cWETH and cWETH -> WETH -> ETH flow
 contract ConfidentialWETH is ConfidentialFungibleToken, Ownable, SepoliaConfig {
+    using SafeERC20 for IERC20;
+
     // Events - CONFIDENTIAL: No plaintext amounts exposed
-    event ConfidentialDeposit(address indexed user);
-    event ConfidentialWithdrawal(address indexed user);
     event ConfidentialWrap(address indexed user);
     event ConfidentialUnwrap(address indexed user);
 
-    // Mapping to store encrypted balances
-    mapping(address => euint64) private _encryptedBalances;
-    
-    // Total supply tracking (encrypted)
-    euint64 private _totalSupply;
+    // WETH contract address on Sepolia
+    IERC20 public constant WETH = IERC20(0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9);
 
-    constructor() ConfidentialFungibleToken("Confidential Wrapped Ether", "cWETH", "https://api.example.com/metadata/") Ownable(msg.sender) {
-        // Initialize encrypted state variables
-        _totalSupply = FHE.asEuint64(0);
-        FHE.allowThis(_totalSupply);
-    }
+    constructor(
+        address owner,
+        string memory name,
+        string memory symbol,
+        string memory uri
+    ) ConfidentialFungibleToken(name, symbol, uri) Ownable(owner) {}
 
-    /// @notice Wrap ETH into confidential WETH
-    /// @dev Users send ETH and receive encrypted cWETH tokens
-    /// @dev CONFIDENTIAL: No plaintext amounts are exposed
+    /// @notice Wrap ETH to cWETH (ETH -> WETH -> cWETH)
+    /// @dev User sends ETH, contract wraps to WETH, then mints cWETH
     function wrap() external payable {
         require(msg.value > 0, "ConfidentialWETH: Cannot wrap 0 ETH");
 
-        // Convert ETH amount to encrypted value
-        euint64 encryptedAmount = FHE.asEuint64(uint64(msg.value));
+        // Step 1: ETH -> WETH (using WETH's deposit function)
+        // Call WETH.deposit() to convert ETH to WETH
+        (bool success, ) = address(WETH).call{value: msg.value}(
+            abi.encodeWithSignature("deposit()")
+        );
+        require(success, "ConfidentialWETH: WETH deposit failed");
 
-        // Update encrypted balance
-        _encryptedBalances[msg.sender] = FHE.add(_encryptedBalances[msg.sender], encryptedAmount);
+        // Step 2: Transfer WETH from WETH contract to this contract
+        // The WETH contract now holds the WETH, we need to transfer it here
+        // Note: WETH.deposit() creates WETH tokens for the caller (this contract)
+        // So we already have the WETH tokens in this contract
 
-        // Update total supply
-        _totalSupply = FHE.add(_totalSupply, encryptedAmount);
+        // Step 3: WETH -> cWETH (using OpenZeppelin pattern)
+        uint256 wethAmount = msg.value; // 1:1 rate for ETH:WETH
+        uint256 cWETHAmount = wethAmount; // 1:1 rate for WETH:cWETH
 
-        // Allow contract and user to access the encrypted balance
-        FHE.allowThis(_encryptedBalances[msg.sender]);
-        FHE.allow(_encryptedBalances[msg.sender], msg.sender);
-        FHE.allowThis(_totalSupply);
+        // Mint cWETH tokens to user
+        _mint(msg.sender, FHE.asEuint64(uint64(cWETHAmount)));
 
-        // Emit CONFIDENTIAL event (no amounts exposed)
         emit ConfidentialWrap(msg.sender);
     }
 
-    /// @notice Get encrypted balance of a user
-    /// @param user The user address
-    /// @return The encrypted balance
-    function getEncryptedBalance(address user) external view returns (euint64) {
-        return _encryptedBalances[user];
-    }
-
-    /// @notice Get encrypted total supply
-    /// @return The encrypted total supply
-    function getEncryptedTotalSupply() external view returns (euint64) {
-        return _totalSupply;
-    }
-
-    /// @notice Emergency function to withdraw ETH (only owner)
-    /// @dev This function should only be used in emergency situations
-    function emergencyWithdraw() external onlyOwner {
-        uint256 balance = address(this).balance;
-        require(balance > 0, "ConfidentialWETH: No ETH to withdraw");
+    /// @notice Unwrap cWETH to ETH (cWETH -> WETH -> ETH)
+    /// @dev Burns cWETH, unwraps WETH to ETH, sends ETH to user
+    /// @param amountInput The encrypted amount to unwrap
+    /// @param inputProof The proof for the encrypted amount
+    function unwrap(externalEuint64 amountInput, bytes calldata inputProof) external {
+        // Step 1: cWETH -> WETH (using OpenZeppelin pattern)
+        euint64 amount = FHE.fromExternal(amountInput, inputProof);
         
-        (bool success, ) = owner().call{value: balance}("");
-        require(success, "ConfidentialWETH: Emergency withdrawal failed");
+        // Burn the cWETH tokens
+        _burn(msg.sender, amount);
+
+        // Emit event - the actual ETH transfer will be handled by completeUnwrap
+        emit ConfidentialUnwrap(msg.sender);
     }
 
-    /// @notice Receive function to accept ETH deposits
-    /// @dev CONFIDENTIAL: No plaintext amounts are exposed
-    receive() external payable {
-        emit ConfidentialDeposit(msg.sender);
+    /// @notice Complete the unwrap process by sending ETH
+    /// @dev This function should be called after unwrap to actually send ETH
+    /// @param amount The amount of ETH to send (must match the burned cWETH amount)
+    function completeUnwrap(uint256 amount) external {
+        require(amount > 0, "ConfidentialWETH: Cannot unwrap 0 ETH");
+
+        // Step 2: WETH -> ETH
+        // Transfer WETH from this contract to WETH contract for withdrawal
+        WETH.safeTransfer(address(WETH), amount);
+
+        // Call WETH.withdraw() to convert WETH to ETH
+        (bool success, ) = address(WETH).call(
+            abi.encodeWithSignature("withdraw(uint256)", amount)
+        );
+        require(success, "ConfidentialWETH: WETH withdraw failed");
+
+        // Send ETH to user
+        (bool ethSuccess, ) = msg.sender.call{value: amount}("");
+        require(ethSuccess, "ConfidentialWETH: ETH transfer failed");
     }
 
-    /// @notice Override _update to use our custom _encryptedBalances mapping
-    /// @dev This ensures that transfers use our custom balance storage
-    function _update(address from, address to, euint64 amount) internal override returns (euint64 transferred) {
-        ebool success;
-        euint64 ptr;
-
-        if (from == address(0)) {
-            // Minting - increase total supply
-            (success, ptr) = FHESafeMath.tryIncrease(_totalSupply, amount);
-            FHE.allowThis(ptr);
-            _totalSupply = ptr;
-        } else {
-            // Transfer from existing balance
-            euint64 fromBalance = _encryptedBalances[from];
-            require(FHE.isInitialized(fromBalance), ConfidentialFungibleTokenZeroBalance(from));
-            (success, ptr) = FHESafeMath.tryDecrease(fromBalance, amount);
-            FHE.allowThis(ptr);
-            FHE.allow(ptr, from);
-            _encryptedBalances[from] = ptr;
-        }
-
-        transferred = FHE.select(success, amount, FHE.asEuint64(0));
-
-        if (to == address(0)) {
-            // Burning - decrease total supply
-            ptr = FHE.sub(_totalSupply, transferred);
-            FHE.allowThis(ptr);
-            _totalSupply = ptr;
-        } else {
-            // Transfer to recipient
-            euint64 toBalance = _encryptedBalances[to];
-            (success, ptr) = FHESafeMath.tryIncrease(toBalance, transferred);
-            FHE.allowThis(ptr);
-            FHE.allow(ptr, to);
-            _encryptedBalances[to] = ptr;
-        }
-
-        return transferred;
+    /// @notice Get the underlying WETH token
+    /// @return The WETH token address
+    function underlying() public pure returns (address) {
+        return address(WETH);
     }
 
+    /// @notice Get the conversion rate (1:1 for ETH:WETH:cWETH)
+    /// @return The conversion rate
+    function rate() public pure returns (uint256) {
+        return 1;
+    }
+
+    /// @notice Get encrypted balance for a user
+    /// @dev Required by the dashboard to display encrypted balances
+    /// @param user The user address to get balance for
+    /// @return The encrypted balance as euint64
+    function getEncryptedBalance(address user) external view returns (euint64) {
+        return confidentialBalanceOf(user);
+    }
 }

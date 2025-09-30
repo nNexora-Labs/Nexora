@@ -138,7 +138,7 @@ export const useSuppliedBalance = (masterSignature: string | null, getMasterSign
         encryptedShares !== '0x0000000000000000000000000000000000000000000000000000000000000000' &&
         encryptedShares.length > 2;
       
-      setHasSupplied(hasEncryptedShares);
+      setHasSupplied(Boolean(hasEncryptedShares));
       
       if (!hasEncryptedShares) {
         setSuppliedBalance('••••••••');

@@ -180,7 +180,7 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
         masterSig.durationDays
       );
 
-      const decryptedValue = result[encryptedBalance];
+      const decryptedValue = result[encryptedBalanceState];
       if (decryptedValue !== undefined) {
         let ethValue: number;
         if (typeof decryptedValue === 'bigint') {
