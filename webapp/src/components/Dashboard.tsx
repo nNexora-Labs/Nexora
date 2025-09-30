@@ -73,11 +73,21 @@ export default function Dashboard() {
   // Individual balance hooks - now use master signature
   const { suppliedBalance, isDecrypting: isDecryptingSupplied, hasSupplied, refetchEncryptedShares } = useSuppliedBalance(masterSignature, getMasterSignature);
   const { formattedBalance: cWETHBalance, hasCWETH, isDecrypted: isCWETHDecrypted, isDecrypting: isDecryptingCWETH, refetchCWETHBalance } = useCWETHBalance(masterSignature, getMasterSignature);
-  const { formattedTVL: vaultTVL, hasTVL, isDecrypted: isTVLDecrypted, refreshTVL } = useVaultTVL(masterSignature, getMasterSignature);
+  const { 
+    tvlBalance: vaultTVL, 
+    hasTVL, 
+    isDecrypted: isTVLDecrypted, 
+    isDecrypting: isDecryptingTVL,
+    isLoadingTVL: isTVLLoading,
+    canDecrypt: canDecryptTVL,
+    decryptTVL,
+    lockTVL: lockTVLIndividual,
+    fetchEncryptedTVL: fetchTVL
+  } = useVaultTVL();
   const { sharePercentage, hasShares, isDecrypting: isDecryptingShares, refreshShares } = useSharePercentage(masterSignature, getMasterSignature);
   
   // Check if any decryption is in progress
-  const isAnyDecrypting = isDecryptingSupplied || isDecryptingCWETH || isDecryptingShares || isMasterDecrypting;
+  const isAnyDecrypting = isDecryptingSupplied || isDecryptingCWETH || isDecryptingShares || isMasterDecrypting || isDecryptingTVL;
 
   // Refresh all blockchain data
   const refreshAllBalances = useCallback(async () => {
@@ -86,14 +96,13 @@ export default function Dashboard() {
       await Promise.all([
         refetchEncryptedShares(),
         refetchCWETHBalance(),
-        refreshTVL(),
         refreshShares()
       ]);
       console.log('✅ All blockchain data refreshed');
     } catch (error) {
       console.error('❌ Error refreshing blockchain data:', error);
     }
-  }, [refetchEncryptedShares, refetchCWETHBalance, refreshTVL, refreshShares]);
+  }, [refetchEncryptedShares, refetchCWETHBalance, refreshShares]);
   
   // Debug logging
   console.log('🔍 Dashboard values:', { 
@@ -109,7 +118,9 @@ export default function Dashboard() {
     isAnyDecrypting,
     masterSignature: masterSignature ? 'present' : 'missing',
     isCWETHDecrypted,
-    isTVLDecrypted
+    isTVLDecrypted,
+    canDecryptTVL,
+    isDecryptingTVL
   });
   const [activeTab, setActiveTab] = useState<'dashboard' | 'supply' | 'borrow' | 'portfolio'>('dashboard');
   const [walletInfoAnchor, setWalletInfoAnchor] = useState<null | HTMLElement>(null);
@@ -1048,14 +1059,65 @@ export default function Dashboard() {
                       }}>
                         Protocol TVL
                   </Typography>
-                      <Typography variant="h5" sx={{ 
-                        fontWeight: isDarkMode ? '600' : '400',
-                        fontSize: { xs: '0.9rem', sm: '1.25rem' },
-                        color: isDarkMode ? 'white' : '#000000',
-                        fontFamily: 'sans-serif'
-                      }}>
-                        {vaultTVL}
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                        <Typography variant="h5" sx={{ 
+                          fontWeight: isDarkMode ? '600' : '400',
+                          fontSize: { xs: '0.9rem', sm: '1.25rem' },
+                          color: isDarkMode ? 'white' : '#000000',
+                          fontFamily: 'sans-serif'
+                        }}>
+                          {vaultTVL}
+                        </Typography>
+                        {!hasTVL && (
+                          <IconButton
+                            size="small"
+                            onClick={fetchTVL}
+                            disabled={isTVLLoading}
+                            sx={{
+                              color: isDarkMode ? '#2196f3' : '#1976d2',
+                              '&:hover': {
+                                backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.04)',
+                              },
+                              minWidth: 'auto',
+                              width: '24px',
+                              height: '24px',
+                              fontSize: '14px'
+                            }}
+                            title="Fetch TVL Data"
+                          >
+                            {isTVLLoading ? <CircularProgress size={16} /> : <TrendingUp fontSize="small" />}
+                          </IconButton>
+                        )}
+                        {(canDecryptTVL || true) && hasTVL && (
+                          <IconButton
+                            size="small"
+                            onClick={isTVLDecrypted ? lockTVLIndividual : decryptTVL}
+                            disabled={isDecryptingTVL}
+                            sx={{
+                              color: isTVLDecrypted ? (isDarkMode ? '#4caf50' : '#2e7d32') : (isDarkMode ? '#ff9800' : '#f57c00'),
+                              '&:hover': {
+                                backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.04)',
+                              },
+                              '&:disabled': {
+                                color: isDarkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.26)',
+                              },
+                              minWidth: 'auto',
+                              width: '24px',
+                              height: '24px',
+                              fontSize: '14px'
+                            }}
+                            title={isTVLDecrypted ? 'Lock TVL' : 'Decrypt TVL'}
+                          >
+                            {isDecryptingTVL ? (
+                              <CircularProgress size={16} />
+                            ) : isTVLDecrypted ? (
+                              <LockOpen fontSize="small" />
+                            ) : (
+                              <Lock fontSize="small" />
+                            )}
+                          </IconButton>
+                        )}
+                      </Box>
         </Box>
                   </Grid>
                 </Grid>

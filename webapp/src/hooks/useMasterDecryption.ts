@@ -12,6 +12,8 @@ const CONTRACT_ADDRESSES = [
   process.env.NEXT_PUBLIC_VAULT_ADDRESS,
 ].filter(Boolean) as string[];
 
+console.log('🔍 Master decryption contract addresses:', CONTRACT_ADDRESSES);
+
 export const useMasterDecryption = () => {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
@@ -90,6 +92,13 @@ export const useMasterDecryption = () => {
         }
 
         console.log('✅ Master decryption signature created');
+        console.log('🔍 Master signature details:', {
+          userAddress: sig.userAddress,
+          contractAddresses: sig.contractAddresses,
+          isValid: sig.isValid(),
+          signature: sig.signature.substring(0, 10) + '...'
+        });
+        console.log('🔍 Full contract addresses:', sig.contractAddresses);
         masterSignatureRef.current = sig;
         
         // Store the full signature object in localStorage using FhevmDecryptionSignature's method
