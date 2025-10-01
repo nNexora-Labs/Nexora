@@ -95,6 +95,23 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
   const { writeContract, data: hash, isPending, error } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
+  const [amount, setAmount] = useState('');
+  const [isValidAmount, setIsValidAmount] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [swapDirection, setSwapDirection] = useState<'wrap' | 'unwrap'>('wrap');
+  const [unwrapStep, setUnwrapStep] = useState<'none' | 'step1' | 'step2'>('none');
+  const [step1Hash, setStep1Hash] = useState<`0x${string}` | undefined>(undefined);
+  const [step2Hash, setStep2Hash] = useState<`0x${string}` | undefined>(undefined);
+
+  // Capture transaction hashes when they become available
+  useEffect(() => {
+    if (hash && unwrapStep === 'step1' && !step1Hash) {
+      setStep1Hash(hash);
+    } else if (hash && unwrapStep === 'step2' && !step2Hash) {
+      setStep2Hash(hash);
+    }
+  }, [hash, unwrapStep, step1Hash, step2Hash]);
+
   // Separate transaction receipts for each step
   const { isLoading: isConfirmingStep1, isSuccess: isSuccessStep1 } = useWaitForTransactionReceipt({
     hash: step1Hash,
@@ -105,14 +122,6 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
     hash: step2Hash,
     query: { enabled: Boolean(step2Hash) },
   });
-
-  const [amount, setAmount] = useState('');
-  const [isValidAmount, setIsValidAmount] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [swapDirection, setSwapDirection] = useState<'wrap' | 'unwrap'>('wrap');
-  const [unwrapStep, setUnwrapStep] = useState<'none' | 'step1' | 'step2'>('none');
-  const [step1Hash, setStep1Hash] = useState<`0x${string}` | undefined>(undefined);
-  const [step2Hash, setStep2Hash] = useState<`0x${string}` | undefined>(undefined);
 
   // Contract address
   const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
@@ -232,28 +241,24 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
         }
         
         // Step 1: Burn cWETH (unwrap)
-        const tx1 = await writeContract({
+        await writeContract({
           address: CWETH_ADDRESS as `0x${string}`,
           abi: CWETH_ABI,
           functionName: 'unwrap',
           args: [encryptedAmount.handles[0] as `0x${string}`, encryptedAmount.inputProof as `0x${string}`],
         });
-        setStep1Hash(tx1 as `0x${string}`);
         
-        // Wait for step 1 confirmation before proceeding
-        const rpcUrl = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://eth-sepolia.public.blastapi.io';
-        const publicClient = createPublicClient({ chain: sepolia, transport: http(rpcUrl) });
-        await publicClient.waitForTransactionReceipt({ hash: tx1 as `0x${string}` });
+        // The hash will be available in the 'hash' variable from useWriteContract hook
+        // We'll set it in a useEffect when the hash becomes available
         
         // Step 2: Withdraw WETH -> ETH and send to user
         setUnwrapStep('step2');
-        const tx2 = await writeContract({
+        await writeContract({
           address: CWETH_ADDRESS as `0x${string}`,
           abi: CWETH_ABI,
           functionName: 'completeUnwrap',
           args: [amountWei],
         });
-        setStep2Hash(tx2 as `0x${string}`);
       }
     } catch (err) {
       console.error('❌ Swap failed:', err);

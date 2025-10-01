@@ -105,7 +105,7 @@ export const getFHEInstance = async (provider?: any): Promise<FhevmInstance> => 
     console.log('✅ CDN script loaded successfully');
         } catch (cdnError) {
           console.error('❌ CDN loading failed:', cdnError);
-          throw new Error(`Failed to load Zama SDK from CDN: ${cdnError.message}. Please check your internet connection and try again.`);
+          throw new Error(`Failed to load Zama SDK from CDN: ${cdnError instanceof Error ? cdnError.message : String(cdnError)}. Please check your internet connection and try again.`);
         }
       }
       
@@ -316,7 +316,7 @@ export const encryptAndRegister = async (
     throw new Error('Buffer encrypt method not available');
   } catch (error) {
     console.error('encryptAndRegister failed:', error);
-    throw new Error(`Failed to encrypt amount: ${error.message}`);
+    throw new Error(`Failed to encrypt amount: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
 

@@ -4,13 +4,16 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
 # Environment variables
 .env
+.env.*
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env.example
 
 # Hardhat files
 cache/
@@ -20,6 +23,7 @@ typechain-types/
 coverage/
 coverage.json
 gas-report.txt
+gas-report-*.txt
 
 # Build outputs
 dist/
@@ -133,4 +137,65 @@ deployments/hardhat/
 # **/*.test.ts
 # **/*.spec.js
 # **/*.spec.ts
+
+# Vercel
 .vercel
+
+# Turbo
+.turbo
+
+# Sentry
+.sentryclirc
+
+# Local development files
+*.local
+
+# Package manager files (keep package-lock.json for consistency)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# FHEVM specific
+precompiled-fhevm-core-contracts-addresses.json
+
+# Hardhat specific
+dev-config.json
+hardhat.config.ts.bak
+
+# Deployment artifacts
+deployments/localhost.json
+deployments/hardhat.json
+
+# Gas reports
+gas-report*.txt
+
+# Test artifacts
+test-results/
+test-coverage/
+
+# ESLint
+.eslintrc.json.backup
+
+# Backup files
+*.backup
+*.bak
+*.orig
+
+# Lock files for different package managers (choose one)
+# yarn.lock
+# pnpm-lock.yaml
+
+# Local scripts
+scripts/local-*
+scripts/debug-*
+scripts/test-*
+scripts/deploy-*
+
+# Documentation build
+docs/build/
+docs/dist/
+
+# IDE specific
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json

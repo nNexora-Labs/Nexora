@@ -118,7 +118,7 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
 
       if (result.data && result.data !== '0x') {
         const balanceData = result.data as `0x${string}`;
-        setEncryptedBalance(balanceData);
+        setEncryptedBalanceState(balanceData);
         
         // Check if balance changed
         if (balanceData !== lastEncryptedBalanceRef.current) {
@@ -131,7 +131,7 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
         }
       } else {
         console.log('🔍 No balance data or empty result:', result.data);
-        setEncryptedBalance('0x0000000000000000000000000000000000000000000000000000000000000000');
+        setEncryptedBalanceState('0x0000000000000000000000000000000000000000000000000000000000000000');
         setHasCWETH(false);
       }
     } catch (error) {
@@ -169,6 +169,11 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
       const fheInstance = await getFHEInstance();
       
       // Decrypt balance using master signature
+      if (!encryptedBalanceState) {
+        console.log('No encrypted balance data to decrypt');
+        return;
+      }
+      
       const result = await fheInstance.userDecrypt(
         [{ handle: encryptedBalanceState, contractAddress: CWETH_ADDRESS }],
         masterSig.privateKey,
@@ -221,11 +226,13 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
       console.log('🔍 useCWETHBalance: encryptedBalance received:', balanceData, 'type:', typeof balanceData);
       
       // Check if we have valid encrypted balance data
-      const hasEncryptedBalance = balanceData && 
+      const hasEncryptedBalance = Boolean(
+        balanceData && 
         typeof balanceData === 'string' && 
         balanceData !== '0x' && 
         balanceData !== '0x0000000000000000000000000000000000000000000000000000000000000000' &&
-        balanceData.length > 2;
+        balanceData.length > 2
+      );
       
       setHasCWETH(hasEncryptedBalance);
       setEncryptedBalanceState(balanceData);

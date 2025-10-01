@@ -4,13 +4,16 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
 # Environment variables
 .env
+.env.*
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env.example
 
 # Next.js build output
 .next/
@@ -115,7 +118,107 @@ Thumbs.db
 # Local development
 .env*.local
 
-# Package manager lock files (optional - uncomment if you want to ignore them)
+# Next.js specific
+.next/cache/
+.next/standalone/
+.next/static/
+.next/swc/
+
+# React specific
+.eslintcache
+
+# FHEVM temporary files
+fhevmTemp/
+
+# Local development files
+*.local
+
+# Package manager files (keep package-lock.json for consistency)
 # package-lock.json
 # yarn.lock
 # pnpm-lock.yaml
+
+# Test artifacts
+test-results/
+test-coverage/
+
+# Backup files
+*.backup
+*.bak
+*.orig
+
+# Lock files for different package managers (choose one)
+# yarn.lock
+# pnpm-lock.yaml
+
+# Local scripts
+scripts/local-*
+scripts/debug-*
+scripts/test-*
+
+# Documentation build
+docs/build/
+docs/dist/
+
+# IDE specific
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+
+# Webpack
+.webpack/
+
+# SWC
+.swc/
+
+# Next.js telemetry
+.next/telemetry/
+
+# Vercel analytics
+.vercel/analytics/
+
+# FHEVM specific
+precompiled-fhevm-core-contracts-addresses.json
+
+# Wallet connection cache
+.walletconnect/
+
+# Local storage
+.local-storage/
+
+# Browser cache
+.browser-cache/
+
+# Performance monitoring
+.performance/
+
+# Error tracking
+.error-tracking/
+
+# Analytics
+.analytics/
+
+# User data (never commit)
+user-data/
+user-settings/
+
+# Development tools
+.dev-tools/
+debug-*
+
+# Hot reload
+.hot-reload/
+
+# Bundle analyzer
+.bundle-analyzer/
+
+# Source maps (optional - uncomment if you don't want to track them)
+# *.map
+
+# Service worker
+sw.js
+workbox-*.js
+
+# PWA files
+manifest.json
+sw.js

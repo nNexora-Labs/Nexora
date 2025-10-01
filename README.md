@@ -2,7 +2,7 @@
 
 A fully end-to-end encrypted lending protocol using Zama fhevm that focuses on ETH supply functionality. This is Phase 1 of a larger confidential DeFi protocol built for the Zama Developer Program.
 
-## 🚀 [Try the Live Application](https://webapp-three-sage.vercel.app/)
+## 🚀 Try the Live Application
 
 **Ready to test?** The protocol is live and deployed! Connect your wallet and start using confidential ETH lending features immediately.
 
@@ -281,7 +281,7 @@ This project is built for the Zama Developer Program. Contributions and feedback
 ## 🌐 Live Application
 
 **Try the Protocol Now:**
-🚀 **[https://webapp-three-sage.vercel.app/](https://webapp-three-sage.vercel.app/)**
+🚀 **[https://nexora-sooty-alpha.vercel.app/](https://nexora-sooty-alpha.vercel.app/)**
 
 The Confidential Lending Protocol is live on Vercel and ready for testing! Connect your wallet and start using the confidential ETH lending features immediately.
 
