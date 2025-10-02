@@ -161,7 +161,8 @@ export default function Dashboard() {
     canDecrypt: canDecryptTVL,
     decryptTVL,
     lockTVL: lockTVLIndividual,
-    fetchEncryptedTVL: fetchTVL
+    fetchEncryptedTVL: fetchTVL,
+    refreshTVL
   } = useVaultTVL(masterSignature, getMasterSignature, isSwapPending || isSwapConfirming);
 
   // Check if any decryption is in progress
@@ -175,13 +176,13 @@ export default function Dashboard() {
         refetchEncryptedShares(),
         refetchCWETHBalance(),
         refreshShares(),
-        fetchTVL() // Add TVL refresh
+        refreshTVL() // Use explicit TVL refresh for immediate update
       ]);
       console.log('✅ All blockchain data refreshed');
     } catch (error) {
       console.error('❌ Error refreshing blockchain data:', error);
     }
-  }, [refetchEncryptedShares, refetchCWETHBalance, refreshShares, fetchTVL]);
+  }, [refetchEncryptedShares, refetchCWETHBalance, refreshShares, refreshTVL]);
 
   // Debug logging
   console.log('🔍 Dashboard values:', { 
@@ -218,9 +219,17 @@ export default function Dashboard() {
   useEffect(() => {
     if (isSwapSuccess) {
       console.log('🎉 Swap completed, immediately refreshing TVL...');
-      fetchTVL();
+      refreshTVL();
     }
-  }, [isSwapSuccess, fetchTVL]);
+  }, [isSwapSuccess, refreshTVL]);
+
+  // Additional TVL refresh when master signature changes (after successful transactions)
+  useEffect(() => {
+    if (masterSignature && isConnected) {
+      console.log('🔄 Master signature available, refreshing TVL for immediate update...');
+      refreshTVL();
+    }
+  }, [masterSignature, refreshTVL, isConnected]);
 
   // Contract addresses
   const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
@@ -365,32 +374,82 @@ export default function Dashboard() {
         
         // Encrypt amount for unwrap
         console.log('🔐 Encrypting amount for unwrap:', amountInWei.toString());
+        console.log('📋 Encryption parameters:', {
+          contractAddress: CWETH_ADDRESS,
+          userAddress: address,
+          amountWei: amountInWei.toString()
+        });
         
-        const encryptedAmount = await encryptAndRegister(
-          CWETH_ADDRESS,
-          address,
-          amountInWei
-        );
+        let encryptedAmount;
+        let formattedEncryptedAmount: `0x${string}`;
+        let formattedInputProof: `0x${string}`;
         
-        console.log('✅ Encryption result:', encryptedAmount);
-        
-        if (!encryptedAmount || !encryptedAmount.handles?.length || !encryptedAmount.inputProof) {
-          throw new Error('Failed to encrypt amount for unwrap. Please try again.');
+        try {
+          encryptedAmount = await encryptAndRegister(
+            CWETH_ADDRESS,
+            address,
+            amountInWei
+          );
+          
+          console.log('✅ Encryption result:', encryptedAmount);
+          console.log('🔍 Encryption result details:', {
+            hasResult: !!encryptedAmount,
+            hasHandles: !!encryptedAmount?.handles,
+            handlesLength: encryptedAmount?.handles?.length,
+            hasInputProof: !!encryptedAmount?.inputProof,
+            handlesType: typeof encryptedAmount?.handles?.[0],
+            inputProofType: typeof encryptedAmount?.inputProof
+          });
+          
+          if (!encryptedAmount || !encryptedAmount.handles?.length || !encryptedAmount.inputProof) {
+            throw new Error('Failed to encrypt amount for unwrap. Please try again.');
+          }
+          
+          console.log('📝 Calling unwrap with encrypted data...');
+          
+          // Normalize the encrypted payload to match expected format
+          const toHex = (v: any): `0x${string}` => {
+            if (v instanceof Uint8Array) {
+              return ('0x' + Array.from(v).map((b: number) => b.toString(16).padStart(2, '0')).join('')) as `0x${string}`;
+            }
+            if (typeof v === 'string') {
+              return v.startsWith('0x') ? v as `0x${string}` : ('0x' + v) as `0x${string}`;
+            }
+            throw new Error('Unsupported encrypted payload type');
+          };
+          
+          // Format as proper hex strings for contract call
+          formattedEncryptedAmount = toHex(encryptedAmount.handles[0]);
+          formattedInputProof = toHex(encryptedAmount.inputProof);
+          
+          console.log('🔧 Formatted encrypted data:', {
+            encryptedAmount: formattedEncryptedAmount,
+            inputProof: formattedInputProof,
+          });
+        } catch (encryptError) {
+          console.error('❌ Encryption failed in Dashboard:', encryptError);
+          throw encryptError;
         }
         
-        console.log('📝 Calling unwrap with encrypted data...');
-        
         // Call the ConfidentialWETH unwrap function
-        await writeSwapContract({
+        console.log('📤 Submitting unwrap transaction to wallet...');
+        console.log('🔍 Using formatted data:', {
+          encryptedAmount: formattedEncryptedAmount,
+          inputProof: formattedInputProof,
+          amountWei: amountInWei.toString()
+        });
+        
+        const result = await writeSwapContract({
           address: CWETH_ADDRESS as `0x${string}`,
           abi: CWETH_ABI,
           functionName: 'unwrap',
           args: [
-            encryptedAmount.handles[0] as `0x${string}`, 
-            encryptedAmount.inputProof as `0x${string}`,
+            formattedEncryptedAmount, 
+            formattedInputProof,
             amountInWei
           ],
         });
+        console.log('✅ Unwrap transaction submitted successfully:', result);
       } else {
         // ETH → cWETH (wrap)
         console.log('📦 Starting wrap process in dashboard...');

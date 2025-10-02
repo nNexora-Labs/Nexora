@@ -116,15 +116,15 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
     }
   }, [VAULT_ADDRESS]);
 
-  // Aggressive polling for TVL updates - more frequent when transactions are pending
+  // More frequent polling for TVL updates to match other hooks
   useEffect(() => {
     if (!isConnected) return;
     
     // Initial fetch
     fetchEncryptedTVL();
     
-    // Set up polling - reduced frequency to avoid rate limiting
-    const pollInterval = isTransactionPending ? 2000 : 10000; // 2s when pending, 10s normally
+    // Set up polling - much more frequent to match other hooks
+    const pollInterval = isTransactionPending ? 1000 : 3000; // 1s when pending, 3s normally (was 10s)
     // Set up polling
     
     const interval = setInterval(() => {
@@ -134,6 +134,14 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
     
     return () => clearInterval(interval);
   }, [isConnected, fetchEncryptedTVL, isTransactionPending]);
+
+  // Additional trigger: refetch TVL when master signature changes (like other hooks)
+  useEffect(() => {
+    if (masterSignature && isConnected) {
+      console.log('🔄 Master signature available, refetching TVL...');
+      fetchEncryptedTVL();
+    }
+  }, [masterSignature, fetchEncryptedTVL, isConnected]);
 
   // Decrypt TVL using master signature
   const decryptTVL = useCallback(async () => {
