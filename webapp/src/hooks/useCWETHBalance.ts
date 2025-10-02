@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAccount, useReadContract, useWalletClient } from 'wagmi';
+import { createPublicClient, http, encodeFunctionData } from 'viem';
+import { sepolia } from 'wagmi/chains';
 import { getFHEInstance } from '../utils/fhe';
 import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
 import { ethers } from 'ethers';
@@ -71,8 +73,6 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
       setIsLoadingBalance(true);
       
       // Create a simple public client for raw calls
-      const { createPublicClient, http, encodeFunctionData } = await import('viem');
-      const { sepolia } = await import('wagmi/chains');
       
       // Use your dedicated Infura RPC endpoint
       const rpcUrls = [

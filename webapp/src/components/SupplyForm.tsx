@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt, useWalletClient } from 'wagmi';
+import { createPublicClient, http, encodeFunctionData } from 'viem';
+import { sepolia } from 'wagmi/chains';
 import {
   Box,
   TextField,
@@ -245,8 +247,6 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
 
     try {
       console.log('Creating public client for operator check...');
-      const { createPublicClient, http, encodeFunctionData } = await import('viem');
-      const { sepolia } = await import('wagmi/chains');
       
       const publicClient = createPublicClient({
         chain: sepolia,

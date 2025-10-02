@@ -3,6 +3,4 @@
 /* eslint-disable */
 import type * as confidentialWethSol from "./ConfidentialWETH.sol";
 export type { confidentialWethSol };
-import type * as simpleConfidentialWethSol from "./SimpleConfidentialWETH.sol";
-export type { simpleConfidentialWethSol };
 export type { ConfidentialLendingVault } from "./ConfidentialLendingVault";

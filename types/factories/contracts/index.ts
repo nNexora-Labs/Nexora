@@ -2,5 +2,4 @@
 /* tslint:disable */
 /* eslint-disable */
 export * as confidentialWethSol from "./ConfidentialWETH.sol";
-export * as simpleConfidentialWethSol from "./SimpleConfidentialWETH.sol";
 export { ConfidentialLendingVault__factory } from "./ConfidentialLendingVault__factory";

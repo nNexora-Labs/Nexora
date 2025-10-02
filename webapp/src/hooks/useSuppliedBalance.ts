@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAccount, useWalletClient } from 'wagmi';
+import { createPublicClient, http, encodeFunctionData } from 'viem';
+import { sepolia } from 'wagmi/chains';
 import { getFHEInstance } from '../utils/fhe';
 import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
 import { ethers } from 'ethers';
@@ -53,8 +55,6 @@ export const useSuppliedBalance = (masterSignature: string | null, getMasterSign
 
     try {
       // Create public client for raw calls
-      const { createPublicClient, http, encodeFunctionData } = await import('viem');
-      const { sepolia } = await import('wagmi/chains');
       
       const rpcUrls = [
         process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/edae100994ea476180577c9218370251'

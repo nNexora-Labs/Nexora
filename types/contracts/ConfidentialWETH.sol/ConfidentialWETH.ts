@@ -27,7 +27,6 @@ export interface ConfidentialWETHInterface extends Interface {
   getFunction(
     nameOrSignature:
       | "WETH"
-      | "completeUnwrap"
       | "confidentialBalanceOf"
       | "confidentialTotalSupply"
       | "confidentialTransfer(address,bytes32,bytes)"
@@ -68,10 +67,6 @@ export interface ConfidentialWETHInterface extends Interface {
   ): EventFragment;
 
   encodeFunctionData(functionFragment: "WETH", values?: undefined): string;
-  encodeFunctionData(
-    functionFragment: "completeUnwrap",
-    values: [BigNumberish]
-  ): string;
   encodeFunctionData(
     functionFragment: "confidentialBalanceOf",
     values: [AddressLike]
@@ -152,15 +147,11 @@ export interface ConfidentialWETHInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "unwrap",
-    values: [BytesLike, BytesLike]
+    values: [BytesLike, BytesLike, BigNumberish]
   ): string;
   encodeFunctionData(functionFragment: "wrap", values?: undefined): string;
 
   decodeFunctionResult(functionFragment: "WETH", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "completeUnwrap",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(
     functionFragment: "confidentialBalanceOf",
     data: BytesLike
@@ -380,12 +371,6 @@ export interface ConfidentialWETH extends BaseContract {
 
   WETH: TypedContractMethod<[], [string], "view">;
 
-  completeUnwrap: TypedContractMethod<
-    [amount: BigNumberish],
-    [void],
-    "nonpayable"
-  >;
-
   confidentialBalanceOf: TypedContractMethod<
     [account: AddressLike],
     [string],
@@ -511,7 +496,7 @@ export interface ConfidentialWETH extends BaseContract {
   underlying: TypedContractMethod<[], [string], "view">;
 
   unwrap: TypedContractMethod<
-    [encryptedAmount: BytesLike, inputProof: BytesLike],
+    [encryptedAmount: BytesLike, inputProof: BytesLike, amount: BigNumberish],
     [void],
     "nonpayable"
   >;
@@ -525,9 +510,6 @@ export interface ConfidentialWETH extends BaseContract {
   getFunction(
     nameOrSignature: "WETH"
   ): TypedContractMethod<[], [string], "view">;
-  getFunction(
-    nameOrSignature: "completeUnwrap"
-  ): TypedContractMethod<[amount: BigNumberish], [void], "nonpayable">;
   getFunction(
     nameOrSignature: "confidentialBalanceOf"
   ): TypedContractMethod<[account: AddressLike], [string], "view">;
@@ -663,7 +645,7 @@ export interface ConfidentialWETH extends BaseContract {
   getFunction(
     nameOrSignature: "unwrap"
   ): TypedContractMethod<
-    [encryptedAmount: BytesLike, inputProof: BytesLike],
+    [encryptedAmount: BytesLike, inputProof: BytesLike, amount: BigNumberish],
     [void],
     "nonpayable"
   >;
