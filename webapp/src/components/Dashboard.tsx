@@ -620,7 +620,7 @@ export default function Dashboard() {
                   fontWeight: isDarkMode ? '800' : '500',
                   fontSize: { xs: '1.1rem', sm: '1.5rem' },
                   letterSpacing: '-0.02em',
-                  fontFamily: 'var(--font-inter), "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                  fontFamily: 'sans-serif',
                   background: isDarkMode 
                     ? 'linear-gradient(135deg, #ffffff 0%, #8a9ba8 50%, #ffffff 100%)'
                     : 'linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%)',

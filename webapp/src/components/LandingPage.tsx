@@ -105,7 +105,7 @@ export default function LandingPage() {
                 fontWeight: 800,
                 fontSize: { xs: '1.1rem', sm: '1.5rem' },
                 letterSpacing: '-0.02em',
-                fontFamily: 'var(--font-inter), "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                fontFamily: 'sans-serif',
                 background: 'linear-gradient(135deg, #ffffff 0%, #8a9ba8 50%, #ffffff 100%)',
                 backgroundClip: 'text',
                 WebkitBackgroundClip: 'text',
@@ -222,7 +222,7 @@ export default function LandingPage() {
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               lineHeight: 1.1,
-              fontFamily: '"Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+              fontFamily: 'sans-serif',
             }}
           >
             Confidential Lending
@@ -239,7 +239,7 @@ export default function LandingPage() {
               mx: 'auto',
               fontWeight: 400,
               lineHeight: 1.6,
-              fontFamily: '"Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+              fontFamily: 'sans-serif',
             }}
           >
             The first fully encrypted lending protocol using Zama&apos;s FHE technology. 
@@ -341,7 +341,7 @@ export default function LandingPage() {
               fontWeight: 700,
               mb: 2,
               color: 'white',
-              fontFamily: '"Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+              fontFamily: 'sans-serif',
             }}
           >
             Why Choose Nexora?
@@ -352,7 +352,7 @@ export default function LandingPage() {
               color: 'rgba(255, 255, 255, 0.7)',
               maxWidth: '600px',
               mx: 'auto',
-              fontFamily: '"Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+              fontFamily: 'sans-serif',
             }}
           >
             Built with privacy-first principles using the latest in fully homomorphic encryption
@@ -388,7 +388,7 @@ export default function LandingPage() {
                       fontWeight: 600,
                       mb: 2,
                       color: 'white',
-                      fontFamily: '"Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                      fontFamily: 'sans-serif',
                     }}
                   >
                     {feature.title}
@@ -398,7 +398,7 @@ export default function LandingPage() {
                     sx={{
                       color: 'rgba(255, 255, 255, 0.7)',
                       lineHeight: 1.6,
-                      fontFamily: '"Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                      fontFamily: 'sans-serif',
                     }}
                   >
                     {feature.description}
@@ -428,7 +428,7 @@ export default function LandingPage() {
                     fontWeight: 800,
                     fontSize: '1.2rem',
                     letterSpacing: '-0.02em',
-                    fontFamily: 'var(--font-inter), "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                    fontFamily: 'sans-serif',
                     background: 'linear-gradient(135deg, #ffffff 0%, #8a9ba8 50%, #ffffff 100%)',
                     backgroundClip: 'text',
                     WebkitBackgroundClip: 'text',
