@@ -3,10 +3,10 @@ const nextConfig = {
   // Enable static exports for better performance
   output: 'standalone',
   
-  // Optimize for production
-  swcMinify: true,
+  // Set the workspace root to avoid lockfile warnings
+  outputFileTracingRoot: require('path').join(__dirname, '../'),
   
-  // Enable experimental features for better performance
+  /* // Enable experimental features for better performance
   experimental: {
     optimizeCss: true,
     // Add this for faster dev builds
@@ -18,7 +18,7 @@ const nextConfig = {
         },
       },
     },
-  },
+  },  */
   
   // Development optimizations
   ...(process.env.NODE_ENV === 'development' && {

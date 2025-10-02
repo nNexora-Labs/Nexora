@@ -37,29 +37,21 @@ const CWETH_ABI = [
     "inputs": [
       {
         "internalType": "externalEuint64",
-        "name": "amountInput",
-        "type": "bytes"
+        "name": "encryptedAmount",
+        "type": "bytes32"
       },
       {
         "internalType": "bytes",
         "name": "inputProof",
         "type": "bytes"
-      }
-    ],
-    "name": "unwrap",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
+      },
       {
         "internalType": "uint256",
         "name": "amount",
         "type": "uint256"
       }
     ],
-    "name": "completeUnwrap",
+    "name": "unwrap",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -95,33 +87,34 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
   const { writeContract, data: hash, isPending, error } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
+  const [fheInitialized, setFheInitialized] = useState(false);
+  const [fheError, setFheError] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
   const [isValidAmount, setIsValidAmount] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [swapDirection, setSwapDirection] = useState<'wrap' | 'unwrap'>('wrap');
-  const [unwrapStep, setUnwrapStep] = useState<'none' | 'step1' | 'step2'>('none');
-  const [step1Hash, setStep1Hash] = useState<`0x${string}` | undefined>(undefined);
-  const [step2Hash, setStep2Hash] = useState<`0x${string}` | undefined>(undefined);
 
-  // Capture transaction hashes when they become available
+  // Initialize FHE on component mount
   useEffect(() => {
-    if (hash && unwrapStep === 'step1' && !step1Hash) {
-      setStep1Hash(hash);
-    } else if (hash && unwrapStep === 'step2' && !step2Hash) {
-      setStep2Hash(hash);
-    }
-  }, [hash, unwrapStep, step1Hash, step2Hash]);
+    const initializeFHE = async () => {
+      if (!isConnected || !address) return;
+      
+      try {
+        console.log('🔧 Initializing FHE for unwrap functionality...');
+        const { getFHEInstance } = await import('../utils/fhe');
+        await getFHEInstance();
+        setFheInitialized(true);
+        setFheError(null);
+        console.log('✅ FHE initialized successfully');
+      } catch (error) {
+        console.error('❌ FHE initialization failed:', error);
+        setFheError(error instanceof Error ? error.message : 'Failed to initialize FHE');
+        setFheInitialized(false);
+      }
+    };
 
-  // Separate transaction receipts for each step
-  const { isLoading: isConfirmingStep1, isSuccess: isSuccessStep1 } = useWaitForTransactionReceipt({
-    hash: step1Hash,
-    query: { enabled: Boolean(step1Hash) },
-  });
- 
-  const { isLoading: isConfirmingStep2, isSuccess: isSuccessStep2 } = useWaitForTransactionReceipt({
-    hash: step2Hash,
-    query: { enabled: Boolean(step2Hash) },
-  });
+    initializeFHE();
+  }, [isConnected, address]);
 
   // Contract address
   const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
@@ -141,38 +134,28 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
       setIsValidAmount(amountWei > 0 && amountWei <= balanceWei);
     } else if (amount && swapDirection === 'unwrap') {
       const amountWei = parseFloat(amount);
-      // For unwrap, we need to check if user has cWETH balance
+      // For unwrap, we need to check if user has cWETH balance AND FHE is initialized
+      let hasValidBalance = false;
+      
       if (isDecrypted && cWETHBalance.includes('cWETH')) {
         const balanceWei = parseFloat(cWETHBalance.replace(' cWETH', ''));
-        setIsValidAmount(amountWei > 0 && amountWei <= balanceWei);
+        hasValidBalance = amountWei > 0 && amountWei <= balanceWei;
       } else if (hasCWETH) {
         // If user has encrypted cWETH but it's not decrypted, allow any positive amount
         // The contract will handle the validation
-        setIsValidAmount(amountWei > 0);
-      } else {
-        // No cWETH balance at all
-        setIsValidAmount(false);
+        hasValidBalance = amountWei > 0;
       }
+      
+      // For unwrap, also require FHE to be initialized and no FHE errors
+      setIsValidAmount(hasValidBalance && fheInitialized && !fheError);
     } else {
       setIsValidAmount(false);
     }
-  }, [amount, ethBalance, swapDirection, isDecrypted, cWETHBalance, hasCWETH]);
+  }, [amount, ethBalance, swapDirection, isDecrypted, cWETHBalance, hasCWETH, fheInitialized, fheError]);
 
   useEffect(() => {
-    if (isSuccessStep2 && unwrapStep === 'step2') {
-      // Both steps completed
-      setShowSuccess(true);
-      setAmount('');
-      setUnwrapStep('none');
-      setStep1Hash(undefined);
-      setStep2Hash(undefined);
-      setTimeout(() => setShowSuccess(false), 5000);
-      
-      if (onTransactionSuccess) {
-        onTransactionSuccess();
-      }
-    } else if (isSuccess && unwrapStep === 'none') {
-      // Regular wrap transaction completed
+    if (isSuccess) {
+      // Transaction completed successfully
       setShowSuccess(true);
       setAmount('');
       setTimeout(() => setShowSuccess(false), 5000);
@@ -181,7 +164,7 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
         onTransactionSuccess();
       }
     }
-  }, [isSuccessStep2, isSuccess, onTransactionSuccess, unwrapStep]);
+  }, [isSuccess, onTransactionSuccess]);
 
   const handleMaxAmount = () => {
     if (swapDirection === 'wrap' && ethBalance) {
@@ -201,8 +184,7 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
       isValidAmount,
       amount,
       address,
-      swapDirection,
-      unwrapStep
+      swapDirection
     });
     
     if (!isValidAmount || !amount || !address) {
@@ -221,13 +203,21 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
         });
       } else {
         console.log('📤 Starting unwrap process...');
-        setUnwrapStep('step1');
         
-        // Import FHE utilities and ensure instance is ready
-        const { encryptAndRegister, getFHEInstance } = await import('../utils/fhe');
-        await getFHEInstance();
+        // Check if FHE is initialized
+        if (!fheInitialized) {
+          throw new Error('FHE not initialized. Please wait for initialization to complete.');
+        }
+        
+        if (fheError) {
+          throw new Error(`FHE initialization failed: ${fheError}`);
+        }
+        
+        // Import FHE utilities
+        const { encryptAndRegister } = await import('../utils/fhe');
         
         const amountWei = parseEther(amount);
+        console.log('🔐 Encrypting amount for unwrap:', amountWei.toString());
         
         // Encrypt amount for unwrap step
         const encryptedAmount = await encryptAndRegister(
@@ -236,33 +226,28 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
           amountWei
         );
         
+        console.log('✅ Encryption result:', encryptedAmount);
+        
         if (!encryptedAmount || !encryptedAmount.handles?.length || !encryptedAmount.inputProof) {
-          throw new Error('Failed to encrypt amount for unwrap');
+          throw new Error('Failed to encrypt amount for unwrap. Please try again.');
         }
         
-        // Step 1: Burn cWETH (unwrap)
+        console.log('📝 Calling unwrap with encrypted data...');
+        
+        // Single-step unwrap: burn cWETH and withdraw ETH
         await writeContract({
           address: CWETH_ADDRESS as `0x${string}`,
           abi: CWETH_ABI,
           functionName: 'unwrap',
-          args: [encryptedAmount.handles[0] as `0x${string}`, encryptedAmount.inputProof as `0x${string}`],
-        });
-        
-        // The hash will be available in the 'hash' variable from useWriteContract hook
-        // We'll set it in a useEffect when the hash becomes available
-        
-        // Step 2: Withdraw WETH -> ETH and send to user
-        setUnwrapStep('step2');
-        await writeContract({
-          address: CWETH_ADDRESS as `0x${string}`,
-          abi: CWETH_ABI,
-          functionName: 'completeUnwrap',
-          args: [amountWei],
+          args: [
+            encryptedAmount.handles[0] as `0x${string}`, 
+            encryptedAmount.inputProof as `0x${string}`,
+            amountWei
+          ],
         });
       }
     } catch (err) {
       console.error('❌ Swap failed:', err);
-      setUnwrapStep('none');
     }
   };
 
@@ -296,6 +281,18 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {swapDirection === 'wrap' ? 'Conversion' : 'Unwrapping'} failed: {error.message}
+        </Alert>
+      )}
+
+      {swapDirection === 'unwrap' && !fheInitialized && !fheError && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Initializing FHE for confidential operations...
+        </Alert>
+      )}
+
+      {swapDirection === 'unwrap' && fheError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          FHE initialization failed: {fheError}
         </Alert>
       )}
 
@@ -411,9 +408,9 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
               });
               handleSwap();
             }}
-            disabled={!isValidAmount || isPending || isConfirming || isConfirmingStep1 || isConfirmingStep2}
+            disabled={!isValidAmount || isPending || isConfirming}
             startIcon={
-              isPending || isConfirming || isConfirmingStep1 || isConfirmingStep2 ? (
+              isPending || isConfirming ? (
                 <CircularProgress size={20} />
               ) : (
                 <SwapHoriz />
@@ -424,15 +421,11 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
             {isPending
               ? 'Confirming Transaction...'
               : isConfirming
-              ? unwrapStep === 'step1' 
-                ? 'Burning cWETH...'
-                : unwrapStep === 'step2'
-                ? 'Converting to ETH...'
-                : `${swapDirection === 'wrap' ? 'Converting' : 'Unwrapping'}...`
-              : unwrapStep === 'step1'
-              ? 'Step 1: Burn cWETH'
-              : unwrapStep === 'step2'
-              ? 'Step 2: Convert to ETH'
+              ? `${swapDirection === 'wrap' ? 'Converting' : 'Unwrapping'}...`
+              : swapDirection === 'unwrap' && !fheInitialized
+              ? 'Initializing FHE...'
+              : swapDirection === 'unwrap' && fheError
+              ? 'FHE Error - Cannot Unwrap'
               : `${swapDirection === 'wrap' ? 'Convert ETH → cWETH' : 'Convert cWETH → ETH'}`}
           </Button>
 

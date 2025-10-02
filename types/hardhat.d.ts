@@ -93,14 +93,6 @@ declare module "hardhat/types/runtime" {
       name: "IWETH",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.IWETH__factory>;
-    getContractFactory(
-      name: "IWETH",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.IWETH__factory>;
-    getContractFactory(
-      name: "SimpleConfidentialWETH",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.SimpleConfidentialWETH__factory>;
 
     getContractAt(
       name: "EthereumConfig",
@@ -202,16 +194,6 @@ declare module "hardhat/types/runtime" {
       address: string | ethers.Addressable,
       signer?: ethers.Signer
     ): Promise<Contracts.IWETH>;
-    getContractAt(
-      name: "IWETH",
-      address: string | ethers.Addressable,
-      signer?: ethers.Signer
-    ): Promise<Contracts.IWETH>;
-    getContractAt(
-      name: "SimpleConfidentialWETH",
-      address: string | ethers.Addressable,
-      signer?: ethers.Signer
-    ): Promise<Contracts.SimpleConfidentialWETH>;
 
     deployContract(
       name: "EthereumConfig",
@@ -293,14 +275,6 @@ declare module "hardhat/types/runtime" {
       name: "IWETH",
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.IWETH>;
-    deployContract(
-      name: "IWETH",
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.IWETH>;
-    deployContract(
-      name: "SimpleConfidentialWETH",
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.SimpleConfidentialWETH>;
 
     deployContract(
       name: "EthereumConfig",
@@ -402,16 +376,6 @@ declare module "hardhat/types/runtime" {
       args: any[],
       signerOrOptions?: ethers.Signer | DeployContractOptions
     ): Promise<Contracts.IWETH>;
-    deployContract(
-      name: "IWETH",
-      args: any[],
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.IWETH>;
-    deployContract(
-      name: "SimpleConfidentialWETH",
-      args: any[],
-      signerOrOptions?: ethers.Signer | DeployContractOptions
-    ): Promise<Contracts.SimpleConfidentialWETH>;
 
     // default types
     getContractFactory(

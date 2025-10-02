@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
+import { createPublicClient, http } from 'viem';
+import { sepolia } from 'wagmi/chains';
 
 export const useGasFee = () => {
   const { address, isConnected } = useAccount();
@@ -24,8 +26,6 @@ export const useGasFee = () => {
 
     try {
       // Create a public client to fetch gas price
-      const { createPublicClient, http } = await import('viem');
-      const { sepolia } = await import('wagmi/chains');
       
       const rpcUrls = [
         process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/edae100994ea476180577c9218370251'
@@ -73,8 +73,6 @@ export const useGasFee = () => {
       // Try to get gas price from a different method as fallback
       try {
         console.log('🔄 Trying alternative gas price method...');
-        const { createPublicClient, http } = await import('viem');
-        const { sepolia } = await import('wagmi/chains');
         
         const fallbackClient = createPublicClient({
           chain: sepolia,
