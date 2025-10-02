@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { createPublicClient, http } from 'viem';
 import { sepolia } from 'wagmi/chains';
+import { CONTRACT_ADDRESSES } from '../config/contracts';
 
 export const useGasFee = () => {
   const { address, isConnected } = useAccount();

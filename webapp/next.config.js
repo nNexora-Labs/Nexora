@@ -1,10 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable static exports for better performance
-  output: 'standalone',
-  
-  // Set the workspace root to avoid lockfile warnings
-  outputFileTracingRoot: require('path').join(__dirname, '../'),
+  // Only use standalone output for production builds
+  ...(process.env.NODE_ENV === 'production' && {
+    output: 'standalone',
+    outputFileTracingRoot: require('path').join(__dirname, '../'),
+  }),
   
   /* // Enable experimental features for better performance
   experimental: {
@@ -47,6 +47,16 @@ const nextConfig = {
           {
             key: 'Referrer-Policy',
             value: 'origin-when-cross-origin',
+          },
+        ],
+      },
+      // Ensure CSS files have correct MIME type
+      {
+        source: '/_next/static/css/(.*)',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'text/css',
           },
         ],
       },

@@ -41,8 +41,18 @@ export default function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLaunchApp = () => {
-    console.log('Launch App button clicked, navigating to /app...');
-    router.push('/app');
+    console.log('Launch App button clicked, navigating to /dashboard...');
+    console.log('Router object:', router);
+    console.log('Current URL:', window.location.href);
+    
+    try {
+      router.push('/dashboard');
+      console.log('Navigation initiated successfully');
+    } catch (error) {
+      console.error('Navigation failed:', error);
+      // Fallback to window.location if router fails
+      window.location.href = '/dashboard';
+    }
   };
 
   const features = [
