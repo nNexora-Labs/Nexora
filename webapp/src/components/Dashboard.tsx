@@ -37,13 +37,36 @@ import TransactionHistoryTable from './TransactionHistoryTable';
 import styles from './SwapStyles.module.css';
 import { encryptAndRegister } from '../utils/fhe';
 
-// Contract ABI for ConfidentialWETH wrap function
+// Contract ABI for ConfidentialWETH wrap/unwrap functions
 const CWETH_ABI = [
   {
     "inputs": [],
     "name": "wrap",
     "outputs": [],
     "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "externalEuint64",
+        "name": "encryptedAmount",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes",
+        "name": "inputProof",
+        "type": "bytes"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "unwrap",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   }
 ] as const;
@@ -119,6 +142,8 @@ export default function Dashboard() {
   const [selectedToken, setSelectedToken] = useState('ETH');
   const [tokenDropdownOpen, setTokenDropdownOpen] = useState(false);
   const [isReversed, setIsReversed] = useState(false);
+  const [fheInitialized, setFheInitialized] = useState(false);
+  const [fheError, setFheError] = useState<string | null>(null);
   const [showBalanceError, setShowBalanceError] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true); // true = night mode, false = day mode
 
@@ -215,6 +240,28 @@ export default function Dashboard() {
     setIsMounted(true);
   }, []);
 
+  // Initialize FHE for unwrap functionality
+  useEffect(() => {
+    const initializeFHE = async () => {
+      if (!isConnected || !address) return;
+      
+      try {
+        console.log('🔧 Initializing FHE for dashboard unwrap functionality...');
+        const { getFHEInstance } = await import('../utils/fhe');
+        await getFHEInstance();
+        setFheInitialized(true);
+        setFheError(null);
+        console.log('✅ FHE initialized successfully in dashboard');
+      } catch (error) {
+        console.error('❌ FHE initialization failed in dashboard:', error);
+        setFheError(error instanceof Error ? error.message : 'Failed to initialize FHE');
+        setFheInitialized(false);
+      }
+    };
+
+    initializeFHE();
+  }, [isConnected, address]);
+
   // Handle SupplyForm close event
   useEffect(() => {
     const handleCloseSupplyDialog = () => {
@@ -281,23 +328,83 @@ export default function Dashboard() {
 
   // Swap functionality
   const handleSwap = async () => {
-    if (!swapAmount || !address || parseFloat(swapAmount) <= 0) return;
+    console.log('🖱️ Swap button clicked!', {
+      swapAmount,
+      address,
+      isReversed,
+      fheInitialized,
+      fheError,
+      selectedToken
+    });
+
+    if (!swapAmount || !address || parseFloat(swapAmount) <= 0) {
+      console.log('❌ Validation failed:', { swapAmount, address });
+      return;
+    }
 
     try {
       setIsSwapping(true);
       
-      // Convert ETH to wei
+      // Convert amount to wei
       const amountInWei = BigInt(Math.floor(parseFloat(swapAmount) * 1e18));
 
-      // Call the ConfidentialWETH wrap function
+      if (isReversed) {
+        // cWETH → ETH (unwrap)
+        console.log('📤 Starting unwrap process in dashboard...');
+        
+        // Check if FHE is initialized
+        if (!fheInitialized) {
+          console.log('❌ FHE not initialized');
+          throw new Error('FHE not initialized. Please wait for initialization to complete.');
+        }
+        
+        if (fheError) {
+          console.log('❌ FHE error:', fheError);
+          throw new Error(`FHE initialization failed: ${fheError}`);
+        }
+        
+        // Encrypt amount for unwrap
+        console.log('🔐 Encrypting amount for unwrap:', amountInWei.toString());
+        
+        const encryptedAmount = await encryptAndRegister(
+          CWETH_ADDRESS,
+          address,
+          amountInWei
+        );
+        
+        console.log('✅ Encryption result:', encryptedAmount);
+        
+        if (!encryptedAmount || !encryptedAmount.handles?.length || !encryptedAmount.inputProof) {
+          throw new Error('Failed to encrypt amount for unwrap. Please try again.');
+        }
+        
+        console.log('📝 Calling unwrap with encrypted data...');
+        
+        // Call the ConfidentialWETH unwrap function
+        await writeSwapContract({
+          address: CWETH_ADDRESS as `0x${string}`,
+          abi: CWETH_ABI,
+          functionName: 'unwrap',
+          args: [
+            encryptedAmount.handles[0] as `0x${string}`, 
+            encryptedAmount.inputProof as `0x${string}`,
+            amountInWei
+          ],
+        });
+      } else {
+        // ETH → cWETH (wrap)
+        console.log('📦 Starting wrap process in dashboard...');
+        
+        // Call the ConfidentialWETH wrap function
         await writeSwapContract({
           address: CWETH_ADDRESS as `0x${string}`,
           abi: CWETH_ABI,
           functionName: 'wrap',
           value: amountInWei,
         });
+      }
     } catch (err) {
-      console.error('Swap failed:', err);
+      console.error('❌ Swap failed:', err);
     } finally {
       setIsSwapping(false);
     }
@@ -367,8 +474,6 @@ export default function Dashboard() {
       setShowBalanceError(false);
     }
   };
-
-
 
   // Only render after component is mounted to avoid hydration issues
   if (!isMounted) {
@@ -4157,21 +4262,25 @@ export default function Dashboard() {
                       size="small" 
                       variant="contained" 
                       onClick={handleSwap}
-                      disabled={
-                        !swapAmount || 
-                        parseFloat(swapAmount) <= 0 || 
-                        isSwapPending || 
-                        isSwapConfirming || 
-                        !availableTokens.find(t => t.symbol === selectedToken)?.functional ||
-                        isReversed || // Disable for reverse swaps (not implemented yet)
-                        showBalanceError // Disable if amount exceeds balance
-                      }
+                      disabled={(() => {
+                        const hasValidAmount = swapAmount && parseFloat(swapAmount) > 0;
+                        const isTokenFunctional = availableTokens.find(t => t.symbol === selectedToken)?.functional;
+                        const isFHEReady = !isReversed || (fheInitialized && !fheError);
+                        const hasNoBalanceError = !showBalanceError;
+                        
+                        return !hasValidAmount || 
+                               isSwapPending || 
+                               isSwapConfirming || 
+                               !isTokenFunctional ||
+                               !isFHEReady ||
+                               !hasNoBalanceError;
+                      })()}
                       className={styles.primaryAction}
                       sx={{
-                        background: !isReversed && swapAmount && parseFloat(swapAmount) > 0 && availableTokens.find(t => t.symbol === selectedToken)?.functional && !showBalanceError
+                        background: swapAmount && parseFloat(swapAmount) > 0 && availableTokens.find(t => t.symbol === selectedToken)?.functional && !showBalanceError && (!isReversed || (fheInitialized && !fheError))
                           ? 'linear-gradient(135deg, #3498db 0%, #2980b9 100%)'
                           : undefined,
-                        color: !isReversed && swapAmount && parseFloat(swapAmount) > 0 && availableTokens.find(t => t.symbol === selectedToken)?.functional && !showBalanceError
+                        color: swapAmount && parseFloat(swapAmount) > 0 && availableTokens.find(t => t.symbol === selectedToken)?.functional && !showBalanceError && (!isReversed || (fheInitialized && !fheError))
                           ? 'white'
                           : undefined,
                         fontWeight: '700',
@@ -4179,10 +4288,10 @@ export default function Dashboard() {
                         textTransform: 'none',
                         borderRadius: '8px',
                         py: 1,
-                        boxShadow: !isReversed && swapAmount && parseFloat(swapAmount) > 0 && availableTokens.find(t => t.symbol === selectedToken)?.functional && !showBalanceError
+                        boxShadow: swapAmount && parseFloat(swapAmount) > 0 && availableTokens.find(t => t.symbol === selectedToken)?.functional && !showBalanceError && (!isReversed || (fheInitialized && !fheError))
                           ? '0 4px 12px rgba(52, 152, 219, 0.3)'
                           : 'none',
-                        '&:hover': !isReversed && swapAmount && parseFloat(swapAmount) > 0 && availableTokens.find(t => t.symbol === selectedToken)?.functional && !showBalanceError ? {
+                        '&:hover': swapAmount && parseFloat(swapAmount) > 0 && availableTokens.find(t => t.symbol === selectedToken)?.functional && !showBalanceError && (!isReversed || (fheInitialized && !fheError)) ? {
                           background: 'linear-gradient(135deg, #2980b9 0%, #3498db 100%)',
                           boxShadow: '0 6px 16px rgba(52, 152, 219, 0.4)'
                         } : {},
@@ -4190,8 +4299,9 @@ export default function Dashboard() {
                       }}
                     >
                       {isSwapPending || isSwapConfirming ? 'Processing...' : 
-                       isReversed ? 'Coming Soon' : 
                        !availableTokens.find(t => t.symbol === selectedToken)?.functional ? 'Coming Soon' :
+                       isReversed && !fheInitialized ? 'Initializing FHE...' :
+                       isReversed && fheError ? 'FHE Error' :
                        !swapAmount || parseFloat(swapAmount) <= 0 ? 'Enter amount' : 
                        'Swap'}
                     </Button>

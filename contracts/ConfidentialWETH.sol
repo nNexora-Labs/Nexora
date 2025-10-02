@@ -45,24 +45,18 @@ contract ConfidentialWETH is ConfidentialFungibleToken, Ownable, SepoliaConfig, 
         emit ConfidentialWrap(msg.sender);
     }
 
-    /// @notice Burn cWETH amount (encrypted) in preparation for payout
-    /// @param encryptedAmount Encrypted amount to burn
+    /// @notice Unwrap cWETH to ETH in a single transaction
+    /// @param encryptedAmount Encrypted amount to unwrap
     /// @param inputProof Proof for encrypted amount
-    function unwrap(externalEuint64 encryptedAmount, bytes calldata inputProof) external nonReentrant {
+    /// @param amount Plaintext amount to withdraw (must match encrypted amount)
+    function unwrap(externalEuint64 encryptedAmount, bytes calldata inputProof, uint256 amount) external nonReentrant {
+        require(amount > 0, "ConfidentialWETH: Cannot unwrap 0 ETH");
+        
         // Decrypt into FHE context (still confidential on-chain)
-        euint64 amount = FHE.fromExternal(encryptedAmount, inputProof);
+        euint64 encryptedAmountFHE = FHE.fromExternal(encryptedAmount, inputProof);
 
         // Burn cWETH from caller
-        _burn(msg.sender, amount);
-
-        emit ConfidentialUnwrap(msg.sender);
-    }
-
-    /// @notice Complete the unwrap by withdrawing WETH and sending ETH
-    /// @dev Must be called after a prior unwrap that burned user's cWETH
-    /// @param amount Plaintext amount to withdraw and send (must match prior burn)
-    function completeUnwrap(uint256 amount) external nonReentrant {
-        require(amount > 0, "ConfidentialWETH: Cannot unwrap 0 ETH");
+        _burn(msg.sender, encryptedAmountFHE);
 
         // Ensure we have enough WETH; withdraw directly from this contract
         require(WETH.balanceOf(address(this)) >= amount, "ConfidentialWETH: Insufficient WETH balance");
@@ -73,6 +67,8 @@ contract ConfidentialWETH is ConfidentialFungibleToken, Ownable, SepoliaConfig, 
         // Send ETH to the caller
         (bool ethSuccess, ) = payable(msg.sender).call{value: amount}("");
         require(ethSuccess, "ConfidentialWETH: ETH transfer failed");
+
+        emit ConfidentialUnwrap(msg.sender);
     }
 
     /// @notice Accept ETH from WETH.withdraw

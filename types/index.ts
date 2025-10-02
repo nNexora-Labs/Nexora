@@ -48,5 +48,3 @@ export type { ConfidentialWETH } from "./contracts/ConfidentialWETH.sol/Confiden
 export { ConfidentialWETH__factory } from "./factories/contracts/ConfidentialWETH.sol/ConfidentialWETH__factory";
 export type { IWETH } from "./contracts/ConfidentialWETH.sol/IWETH";
 export { IWETH__factory } from "./factories/contracts/ConfidentialWETH.sol/IWETH__factory";
-export type { SimpleConfidentialWETH } from "./contracts/SimpleConfidentialWETH.sol/SimpleConfidentialWETH";
-export { SimpleConfidentialWETH__factory } from "./factories/contracts/SimpleConfidentialWETH.sol/SimpleConfidentialWETH__factory";

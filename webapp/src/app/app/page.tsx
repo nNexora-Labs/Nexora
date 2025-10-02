@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Box } from '@mui/material';
-import LandingPage from '../components/LandingPage';
+import Dashboard from '../../components/Dashboard';
 
 // Create wagmi config
 const config = createConfig({
@@ -110,14 +110,14 @@ const theme = createTheme({
   },
 });
 
-export default function HomePage() {
+export default function AppPage() {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider theme={theme}>
           <CssBaseline />
           <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
-            <LandingPage />
+            <Dashboard />
           </Box>
         </ThemeProvider>
       </QueryClientProvider>
