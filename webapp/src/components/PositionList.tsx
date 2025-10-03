@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
+import { getSafeContractAddresses } from '../config/contractConfig';
 import {
   Box,
   Typography,
@@ -85,10 +86,11 @@ export default function PositionList({ suppliedBalance: propSuppliedBalance, has
     setIsLoading(true);
     
     try {
-      const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS;
+      const contractAddresses = getSafeContractAddresses();
+      const VAULT_ADDRESS = contractAddresses?.VAULT_ADDRESS;
       
       if (!VAULT_ADDRESS) {
-        console.error('Vault address not configured');
+        console.error('Vault address not configured or invalid');
         return;
       }
       

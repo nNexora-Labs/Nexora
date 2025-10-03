@@ -7,6 +7,7 @@ import { sepolia } from 'wagmi/chains';
 import { getFHEInstance } from '../utils/fhe';
 import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
 import { ethers } from 'ethers';
+import { getSafeContractAddresses } from '../config/contractConfig';
 
 // Contract ABI for getting encrypted shares
 const VAULT_ABI = [
@@ -48,7 +49,9 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
   
-  const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x0000000000000000000000000000000000000000';
+  // Get contract addresses with validation
+  const contractAddresses = getSafeContractAddresses();
+  const VAULT_ADDRESS = contractAddresses?.VAULT_ADDRESS;
 
   // Core state
   const [encryptedUserSharesState, setEncryptedUserSharesStateState] = useState<string | null>(null);
@@ -56,6 +59,7 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
   const [sharePercentage, setSharePercentage] = useState<string>('••••••••');
   const [isDecrypting, setIsDecrypting] = useState<boolean>(false);
   const [hasShares, setHasShares] = useState<boolean>(false);
+  const [decryptionError, setDecryptionError] = useState<string | null>(null);
 
   // Refs for preventing multiple simultaneous decryption attempts
   const isDecryptingRef = useRef(false);
@@ -67,7 +71,7 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
     functionName: 'getEncryptedShares',
     args: address ? [address] : undefined,
     query: {
-      enabled: !!address && !!VAULT_ADDRESS && VAULT_ADDRESS !== '0x0000000000000000000000000000000000000000' && typeof window !== 'undefined',
+      enabled: !!address && !!VAULT_ADDRESS && typeof window !== 'undefined',
       refetchInterval: 2000, // Poll every 2 seconds for real-time updates
       refetchIntervalInBackground: true, // Continue polling even when tab is not active
       staleTime: 1000, // Consider data stale after 1 second
@@ -81,7 +85,7 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
     functionName: 'getEncryptedTotalShares',
     args: [],
     query: {
-      enabled: !!VAULT_ADDRESS && VAULT_ADDRESS !== '0x0000000000000000000000000000000000000000' && typeof window !== 'undefined',
+      enabled: !!VAULT_ADDRESS && typeof window !== 'undefined',
       refetchInterval: 2000, // Poll every 2 seconds for real-time updates
       refetchIntervalInBackground: true, // Continue polling even when tab is not active
       staleTime: 1000, // Consider data stale after 1 second
@@ -128,7 +132,8 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
 
   // Fetch encrypted shares from contract
   const fetchEncryptedShares = useCallback(async () => {
-    if (!address || !VAULT_ADDRESS || VAULT_ADDRESS === '0x0000000000000000000000000000000000000000') {
+    if (!address || !VAULT_ADDRESS) {
+      console.warn('Missing address or vault address for fetching encrypted shares');
       return;
     }
 
@@ -234,14 +239,28 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
         throw new Error('Master signature not available');
       }
 
+      // Check if the master signature is authorized for the current contract address
+      if (!VAULT_ADDRESS || !masterSig.contractAddresses.includes(VAULT_ADDRESS as `0x${string}`)) {
+        console.warn('⚠️ Master signature not authorized for current contract address. Clearing cache and requesting re-authorization.');
+        
+        // Clear the old signature from localStorage
+        localStorage.removeItem(`fhe_master_decryption_${address}`);
+        
+        // Clear the current signature state and show error
+        setDecryptionError('Contract address changed. Please re-authorize decryption.');
+        setIsDecrypting(false);
+        isDecryptingRef.current = false;
+        return;
+      }
+
       // Get FHE instance
       const fheInstance = await getFHEInstance();
       
       // Decrypt both user shares and total shares using master signature
       const result = await fheInstance.userDecrypt(
         [
-          { handle: encryptedUserSharesState, contractAddress: VAULT_ADDRESS },
-          { handle: encryptedTotalSharesState, contractAddress: VAULT_ADDRESS }
+          { handle: encryptedUserSharesState, contractAddress: VAULT_ADDRESS as `0x${string}` },
+          { handle: encryptedTotalSharesState, contractAddress: VAULT_ADDRESS as `0x${string}` }
         ],
         masterSig.privateKey,
         masterSig.publicKey,

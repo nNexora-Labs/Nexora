@@ -7,6 +7,7 @@ import { sepolia } from 'wagmi/chains';
 import { getFHEInstance } from '../utils/fhe';
 import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
 import { ethers } from 'ethers';
+import { getSafeContractAddresses } from '../config/contractConfig';
 
 // Simplified ABI for cWETH contract
 const CWETH_ABI = [
@@ -35,7 +36,9 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
   
-  const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
+  // Get contract addresses with validation
+  const contractAddresses = getSafeContractAddresses();
+  const CWETH_ADDRESS = contractAddresses?.CWETH_ADDRESS;
 
   // Core state - minimal and stable
   const [encryptedBalanceState, setEncryptedBalanceState] = useState<string | null>(null);
@@ -65,7 +68,8 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
 
   // Simple balance fetch function - no dependencies
   const fetchBalance = useCallback(async () => {
-    if (!address || !CWETH_ADDRESS || CWETH_ADDRESS === '0x0000000000000000000000000000000000000000') {
+    if (!address || !CWETH_ADDRESS) {
+      console.warn('Missing address or cWETH address for fetching balance');
       return;
     }
 

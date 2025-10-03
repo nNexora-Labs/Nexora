@@ -133,17 +133,8 @@ export const getFHEInstance = async (provider?: any): Promise<FhevmInstance> => 
       let cachedKey = publicKeyStorage.get(aclAddress);
       
       // Clear cache for new contract addresses to force re-initialization
-      const currentCWETHAddress = process.env.NEXT_PUBLIC_CWETH_ADDRESS;
-      const currentVaultAddress = process.env.NEXT_PUBLIC_VAULT_ADDRESS;
-      
-      // If contract addresses changed, clear the cache
-      if (currentCWETHAddress && currentVaultAddress) {
-        const cacheKey = `${currentCWETHAddress}-${currentVaultAddress}`;
-        if (!publicKeyStorage.has(cacheKey)) {
-          console.log('New contract addresses detected, clearing FHEVM cache...');
-          publicKeyStorage.clear();
-        }
-      }
+      // Note: We'll handle contract address changes in the hooks instead
+      // This keeps the FHE utility focused on FHE operations only
       
     // Creating FHE instance
     console.log('🔧 Creating FHE instance...');
@@ -227,10 +218,7 @@ export const cleanupFHEInstance = () => {
 // Force re-initialization for new contract addresses
 export const reinitializeFHEForNewContracts = () => {
   console.log('Forcing FHEVM re-initialization for new contracts...');
-  console.log('Current contract addresses:', {
-    cWETH: process.env.NEXT_PUBLIC_CWETH_ADDRESS,
-    vault: process.env.NEXT_PUBLIC_VAULT_ADDRESS
-  });
+  console.log('Current contract addresses will be handled by contract configuration system');
   
   fheInstance = null;
   isInitializing = false;

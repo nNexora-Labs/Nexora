@@ -5,12 +5,7 @@ import { useAccount, useWalletClient } from 'wagmi';
 import { getFHEInstance } from '../utils/fhe';
 import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
 import { ethers } from 'ethers';
-
-// Contract addresses that need decryption access
-const CONTRACT_ADDRESSES = [
-  process.env.NEXT_PUBLIC_CWETH_ADDRESS,
-  process.env.NEXT_PUBLIC_VAULT_ADDRESS,
-].filter(Boolean) as string[];
+import { getSafeContractAddresses } from '../config/contractConfig';
 
   // Master decryption contract addresses
 
@@ -24,11 +19,14 @@ export const useMasterDecryption = () => {
   const [masterSignature, setMasterSignature] = useState<string | null>(null);
   const [decryptionError, setDecryptionError] = useState<string | null>(null);
   
+  // Get contract addresses with validation
+  const contractAddresses = getSafeContractAddresses();
+  
   // Ref to store the actual FhevmDecryptionSignature object for reuse
   const masterSignatureRef = useRef<FhevmDecryptionSignature | null>(null);
   const isUnlockingRef = useRef(false);
 
-  // Clear decryption state on disconnect
+  // Clear decryption state on disconnect or contract address change
   useEffect(() => {
     if (!isConnected && address) {
       localStorage.removeItem(`fhe_master_decryption_${address}`);
@@ -40,6 +38,43 @@ export const useMasterDecryption = () => {
       isUnlockingRef.current = false;
     }
   }, [isConnected, address]);
+
+  // Clear decryption state when contract addresses change
+  useEffect(() => {
+    if (address && contractAddresses) {
+      const storedSignature = localStorage.getItem(`fhe_master_decryption_${address}`);
+      if (storedSignature) {
+        try {
+          const parsed = JSON.parse(storedSignature);
+          // Check if stored signature is for different contract addresses
+          const storedAddresses = parsed.contractAddresses || [];
+          const currentAddresses = [contractAddresses.CWETH_ADDRESS, contractAddresses.VAULT_ADDRESS];
+          
+          // Compare addresses (sort to handle different order)
+          const storedSorted = storedAddresses.sort();
+          const currentSorted = currentAddresses.sort();
+          
+          if (JSON.stringify(storedSorted) !== JSON.stringify(currentSorted)) {
+            console.log('🔄 Contract addresses changed, clearing old decryption signature');
+            localStorage.removeItem(`fhe_master_decryption_${address}`);
+            setMasterSignature(null);
+            setIsAllDecrypted(false);
+            setIsDecrypting(false);
+            setDecryptionError(null);
+            masterSignatureRef.current = null;
+            isUnlockingRef.current = false;
+          }
+        } catch (error) {
+          console.warn('Failed to parse stored signature:', error);
+          localStorage.removeItem(`fhe_master_decryption_${address}`);
+        }
+      }
+    }
+  }, [address, contractAddresses]);
+  const CONTRACT_ADDRESSES = contractAddresses ? [
+    contractAddresses.CWETH_ADDRESS,
+    contractAddresses.VAULT_ADDRESS,
+  ] : [];
 
   // Master unlock function - now prevents multiple simultaneous calls
   const unlockAllBalances = useCallback(async () => {

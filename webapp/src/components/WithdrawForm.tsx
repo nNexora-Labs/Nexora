@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { getSafeContractAddresses } from '../config/contractConfig';
 import {
   Box,
   TextField,
@@ -71,6 +72,8 @@ export default function WithdrawForm({ onTransactionSuccess, suppliedBalance: pr
       setShowSuccess(true);
       setAmount('');
       setIsValidAmount(false);
+      setTransactionError(null);
+      setUserCancelled(false);
       
       // Call onTransactionSuccess to refresh balances in Dashboard
       if (onTransactionSuccess) {
@@ -84,13 +87,36 @@ export default function WithdrawForm({ onTransactionSuccess, suppliedBalance: pr
     }
   }, [isSuccess, hash, onTransactionSuccess]);
 
+  // Handle transaction errors
+  useEffect(() => {
+    if (error) {
+      console.log('Transaction error:', error);
+      
+      // Check if user rejected the transaction
+      if (error.message.toLowerCase().includes('user rejected') || 
+          error.message.toLowerCase().includes('user denied') ||
+          error.message.toLowerCase().includes('rejected the request')) {
+        setUserCancelled(true);
+        setTransactionError(null);
+      } else {
+        // Other errors (network, contract, etc.)
+        setTransactionError(error.message);
+        setUserCancelled(false);
+      }
+    }
+  }, [error]);
+
   const [amount, setAmount] = useState('');
   const [isValidAmount, setIsValidAmount] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [balanceError, setBalanceError] = useState<string | null>(null);
+  const [transactionError, setTransactionError] = useState<string | null>(null);
+  const [userCancelled, setUserCancelled] = useState(false);
 
   // Contract address
-  const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x0000000000000000000000000000000000000000';
+  // Get contract addresses with validation
+  const contractAddresses = getSafeContractAddresses();
+  const VAULT_ADDRESS = contractAddresses?.VAULT_ADDRESS;
 
   useEffect(() => {
     console.log('🔍 WithdrawForm validation:', { amount, hasSupplied, suppliedBalance });
@@ -169,6 +195,11 @@ export default function WithdrawForm({ onTransactionSuccess, suppliedBalance: pr
   const handleWithdraw = async () => {
     if (!isValidAmount || !amount || !address) return;
 
+    // Clear previous error states when starting new transaction
+    setTransactionError(null);
+    setUserCancelled(false);
+    setBalanceError(null);
+
     try {
       console.log('Starting withdraw process...');
       
@@ -184,7 +215,7 @@ export default function WithdrawForm({ onTransactionSuccess, suppliedBalance: pr
       console.log('Creating encrypted input for vault:', VAULT_ADDRESS, 'user:', address);
       
       const encryptedInput = await fheInstance.createEncryptedInput(
-        VAULT_ADDRESS,
+        VAULT_ADDRESS!,
         address
       );
       
@@ -310,7 +341,28 @@ export default function WithdrawForm({ onTransactionSuccess, suppliedBalance: pr
         </Alert>
       )}
 
-      {error && (
+      {userCancelled && (
+        <Alert 
+          severity="warning" 
+          sx={{ 
+            mb: 1.5, 
+            borderRadius: '4px',
+            transition: 'all 0.3s ease-in-out',
+            opacity: 0,
+            animation: 'slideInDown 0.4s ease-in-out forwards',
+            '@keyframes slideInDown': {
+              '0%': { opacity: 0, transform: 'translateY(-20px)' },
+              '100%': { opacity: 1, transform: 'translateY(0)' }
+            }
+          }}
+        >
+          <Typography variant="body2" sx={{ fontFamily: 'sans-serif' }}>
+            Transaction cancelled by user. No funds were withdrawn.
+          </Typography>
+        </Alert>
+      )}
+
+      {transactionError && (
         <Alert 
           severity="error" 
           sx={{ 
@@ -326,7 +378,7 @@ export default function WithdrawForm({ onTransactionSuccess, suppliedBalance: pr
           }}
         >
           <Typography variant="body2" sx={{ fontFamily: 'sans-serif' }}>
-            Transaction failed: {error.message}
+            Transaction failed: {transactionError}
           </Typography>
         </Alert>
       )}

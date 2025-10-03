@@ -7,6 +7,7 @@ import { sepolia } from 'wagmi/chains';
 import { getFHEInstance } from '../utils/fhe';
 import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
 import { ethers } from 'ethers';
+import { getSafeContractAddresses } from '../config/contractConfig';
 
 // Contract ABI for vault TVL
 const VAULT_ABI = [
@@ -29,7 +30,9 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
   
-  const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x0000000000000000000000000000000000000000';
+  // Get contract addresses with validation
+  const contractAddresses = getSafeContractAddresses();
+  const VAULT_ADDRESS = contractAddresses?.VAULT_ADDRESS;
 
   // TVL hook initialized
 
@@ -46,7 +49,8 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
 
   // Fetch encrypted TVL from contract with aggressive polling
   const fetchEncryptedTVL = useCallback(async () => {
-    if (!VAULT_ADDRESS || VAULT_ADDRESS === '0x0000000000000000000000000000000000000000') {
+    if (!VAULT_ADDRESS) {
+      console.warn('Missing vault address for fetching TVL');
       return;
     }
 
@@ -185,7 +189,7 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
       let result;
       try {
         result = await fheInstance.userDecrypt(
-          [{ handle: encryptedTVL, contractAddress: VAULT_ADDRESS }],
+          [{ handle: encryptedTVL, contractAddress: VAULT_ADDRESS! }],
           masterSig.privateKey,
           masterSig.publicKey,
           masterSig.signature,
@@ -197,7 +201,10 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
       } catch (userDecryptError) {
     // User decrypt failed, trying alternative
         
-        const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
+        const CWETH_ADDRESS = contractAddresses?.CWETH_ADDRESS;
+        if (!CWETH_ADDRESS) {
+          throw new Error('cWETH contract address not available for fallback decryption');
+        }
         
         try {
           result = await fheInstance.userDecrypt(

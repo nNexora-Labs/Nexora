@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
+import { getSafeContractAddresses } from '../config/contractConfig';
 
 export interface TransactionHistoryItem {
   id: string;
@@ -62,11 +63,12 @@ const useTransactionHistory = () => {
     
     try {
       // Query blockchain events for ConfidentialSupply and ConfidentialWithdraw
-      const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS;
-      const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS;
+      const contractAddresses = getSafeContractAddresses();
+      const VAULT_ADDRESS = contractAddresses?.VAULT_ADDRESS;
+      const CWETH_ADDRESS = contractAddresses?.CWETH_ADDRESS;
       
       if (!VAULT_ADDRESS || !CWETH_ADDRESS) {
-        setError('Contract addresses not configured');
+        setError('Contract addresses not configured or invalid');
         return;
       }
       

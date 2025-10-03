@@ -7,6 +7,8 @@ import { useCWETHBalance } from '../hooks/useCWETHBalance';
 import { useVaultTVL } from '../hooks/useVaultTVL';
 import { useSharePercentage } from '../hooks/useSharePercentage';
 import { useMasterDecryption } from '../hooks/useMasterDecryption';
+import ContractStatusBanner from './ContractStatusBanner';
+import { getSafeContractAddresses } from '../config/contractConfig';
 import {
   AppBar,
   Toolbar,
@@ -26,6 +28,7 @@ import {
   ListItemIcon,
   ListItemText,
   IconButton,
+  Alert,
 } from '@mui/material';
 import { AccountBalanceWallet, TrendingUp, ContentCopy, ExpandMore, Close, SwapHoriz, Lock, LockOpen } from '@mui/icons-material';
 import SupplyForm from './SupplyForm';
@@ -145,6 +148,9 @@ export default function Dashboard() {
   const [fheInitialized, setFheInitialized] = useState(false);
   const [fheError, setFheError] = useState<string | null>(null);
   const [showBalanceError, setShowBalanceError] = useState(false);
+  const [swapTransactionError, setSwapTransactionError] = useState<string | null>(null);
+  const [swapUserCancelled, setSwapUserCancelled] = useState(false);
+  const [swapSuccess, setSwapSuccess] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true); // true = night mode, false = day mode
 
   // Swap functionality hooks
@@ -253,8 +259,49 @@ export default function Dashboard() {
     }
   }, [masterSignature, refreshTVL, isConnected]);
 
+  // Handle swap transaction success
+  useEffect(() => {
+    if (isSwapSuccess && swapHash) {
+      console.log('✅ Swap transaction successful!');
+      console.log('🎯 Setting swapSuccess to true');
+      setSwapSuccess(true);
+      setSwapAmount('');
+      setSwapTransactionError(null);
+      setSwapUserCancelled(false);
+      
+      // Hide success message after 5 seconds
+      setTimeout(() => {
+        console.log('🕐 Hiding success message after 5 seconds');
+        setSwapSuccess(false);
+      }, 5000);
+    }
+  }, [isSwapSuccess, swapHash]);
+
+  // Handle swap transaction errors
+  useEffect(() => {
+    if (swapError) {
+      console.log('Swap transaction error:', swapError);
+      
+      // Check if user rejected the transaction
+      if (swapError.message.toLowerCase().includes('user rejected') || 
+          swapError.message.toLowerCase().includes('user denied') ||
+          swapError.message.toLowerCase().includes('rejected the request')) {
+        console.log('🚫 User cancelled swap transaction');
+        setSwapUserCancelled(true);
+        setSwapTransactionError(null);
+      } else {
+        console.log('❌ Swap transaction failed with error:', swapError.message);
+        // Other errors (network, contract, etc.)
+        setSwapTransactionError(swapError.message);
+        setSwapUserCancelled(false);
+      }
+    }
+  }, [swapError]);
+
   // Contract addresses
-  const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
+  // Get contract addresses with validation
+  const contractAddresses = getSafeContractAddresses();
+  const CWETH_ADDRESS = contractAddresses?.CWETH_ADDRESS;
 
   // Available tokens for swap
   const availableTokens = [
@@ -373,6 +420,11 @@ export default function Dashboard() {
       return;
     }
 
+    // Clear previous error states when starting new transaction
+    setSwapTransactionError(null);
+    setSwapUserCancelled(false);
+    setShowBalanceError(false);
+
     try {
       setIsSwapping(true);
       
@@ -408,7 +460,7 @@ export default function Dashboard() {
         
         try {
           encryptedAmount = await encryptAndRegister(
-            CWETH_ADDRESS,
+            CWETH_ADDRESS!,
             address,
             amountInWei
           );
@@ -494,7 +546,7 @@ export default function Dashboard() {
   const handleMaxAmount = () => {
     if (!isReversed && balance) {
       // For forward swaps (ETH → cWETH), use ETH balance
-      setSwapAmount((parseFloat(balance.formatted) * 0.95).toString()); // Leave some for gas
+        setSwapAmount((parseFloat(balance.formatted) * 0.95).toString()); // Leave some for gas
     } else if (isReversed) {
       if (!hasCWETH) {
         // User has no cWETH
@@ -521,6 +573,10 @@ export default function Dashboard() {
     setSwapAmount(''); // Clear the amount when closing
     setShowBalanceError(false); // Clear any balance error when closing
     setIsReversed(false); // Reset to forward swap
+    // Clear all error and success states when closing modal
+    setSwapTransactionError(null);
+    setSwapUserCancelled(false);
+    setSwapSuccess(false);
   };
 
   const handleNetworkSelect = (networkName: string) => {
@@ -574,7 +630,7 @@ export default function Dashboard() {
         // User has cWETH and it's decrypted - check if amount exceeds balance
         const cWETHAmount = parseFloat(cWETHBalance.replace(' cWETH', ''));
         if (parseFloat(value) > cWETHAmount) {
-          setShowBalanceError(true);
+      setShowBalanceError(true);
         } else {
           setShowBalanceError(false);
         }
@@ -1195,6 +1251,9 @@ export default function Dashboard() {
       }}>
         {/* Main Content Wrapper */}
         <Box sx={{ flex: 1, pt: { xs: 2, sm: 3 } }}>
+          {/* Contract Status Banner */}
+          <ContractStatusBanner isDarkMode={isDarkMode} />
+          
           {/* Tab Content */}
           {activeTab === 'dashboard' && (
                   <Box>
@@ -4220,6 +4279,72 @@ export default function Dashboard() {
                 </IconButton>
               </div>
               <div className={styles.swapBody} style={{ padding: '8px 12px', gap: '6px' }}>
+                {/* Swap Success Message */}
+                {swapSuccess && (
+                  <Alert 
+                    severity="success" 
+                    sx={{ 
+                      mb: 1.5, 
+                      borderRadius: '4px',
+                      transition: 'all 0.3s ease-in-out',
+                      opacity: 0,
+                      animation: 'slideInDown 0.4s ease-in-out forwards',
+                      '@keyframes slideInDown': {
+                        '0%': { opacity: 0, transform: 'translateY(-20px)' },
+                        '100%': { opacity: 1, transform: 'translateY(0)' }
+                      }
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ fontFamily: 'sans-serif' }}>
+                      Successfully swapped {swapAmount} {isReversed ? 'cWETH to ETH' : 'ETH to cWETH'}!
+                    </Typography>
+                  </Alert>
+                )}
+
+                {/* Swap User Cancellation Message */}
+                {swapUserCancelled && (
+                  <Alert 
+                    severity="warning" 
+                    sx={{ 
+                      mb: 1.5, 
+                      borderRadius: '4px',
+                      transition: 'all 0.3s ease-in-out',
+                      opacity: 0,
+                      animation: 'slideInDown 0.4s ease-in-out forwards',
+                      '@keyframes slideInDown': {
+                        '0%': { opacity: 0, transform: 'translateY(-20px)' },
+                        '100%': { opacity: 1, transform: 'translateY(0)' }
+                      }
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ fontFamily: 'sans-serif' }}>
+                      Swap cancelled by user. No funds were swapped.
+                    </Typography>
+                  </Alert>
+                )}
+
+                {/* Swap Transaction Error Message */}
+                {swapTransactionError && (
+                  <Alert 
+                    severity="error" 
+                    sx={{ 
+                      mb: 1.5, 
+                      borderRadius: '4px',
+                      transition: 'all 0.3s ease-in-out',
+                      opacity: 0,
+                      animation: 'slideInDown 0.4s ease-in-out forwards',
+                      '@keyframes slideInDown': {
+                        '0%': { opacity: 0, transform: 'translateY(-20px)' },
+                        '100%': { opacity: 1, transform: 'translateY(0)' }
+                      }
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ fontFamily: 'sans-serif' }}>
+                      Swap failed: {swapTransactionError}
+                    </Typography>
+                  </Alert>
+                )}
+
                 <Box>
                    <div className={styles.networkRow} style={{ marginBottom: '4px' }}>
                      <Typography variant="caption" sx={{ 

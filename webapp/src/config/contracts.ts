@@ -1,7 +1,13 @@
-export const CONTRACT_ADDRESSES = {
-  CWETH: process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000',
-  VAULT: process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x0000000000000000000000000000000000000000',
-} as const;
+import { getSafeContractAddresses } from './contractConfig';
+
+// Legacy export for backward compatibility
+export const CONTRACT_ADDRESSES = (() => {
+  const addresses = getSafeContractAddresses();
+  return {
+    CWETH: addresses?.CWETH_ADDRESS || '0x0000000000000000000000000000000000000000',
+    VAULT: addresses?.VAULT_ADDRESS || '0x0000000000000000000000000000000000000000',
+  };
+})();
 
 export const NETWORK_CONFIG = {
   SEPOLIA: {

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { sepolia } from 'wagmi/chains';
 import { createPublicClient, http, parseEther } from 'viem';
+import { getSafeContractAddresses } from '../config/contractConfig';
 import {
   Box,
   TextField,
@@ -118,7 +119,9 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
   }, [isConnected, address]);
 
   // Contract address
-  const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
+  // Get contract addresses with validation
+  const contractAddresses = getSafeContractAddresses();
+  const CWETH_ADDRESS = contractAddresses?.CWETH_ADDRESS;
   
   // Contract address loaded
 
@@ -242,7 +245,7 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
         
         // Encrypt amount for unwrap step
         const encryptedAmount = await encryptAndRegister(
-          CWETH_ADDRESS,
+          CWETH_ADDRESS!,
           address,
           amountWei
         );

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt, useWalletClient } from 'wagmi';
 import { createPublicClient, http, encodeFunctionData } from 'viem';
 import { sepolia } from 'wagmi/chains';
+import { getSafeContractAddresses } from '../config/contractConfig';
 import {
   Box,
   TextField,
@@ -171,10 +172,13 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
   const [approvalHash, setApprovalHash] = useState<string | null>(null);
   const [isEncrypting, setIsEncrypting] = useState(false);
   const [balanceError, setBalanceError] = useState<string | null>(null);
+  const [transactionError, setTransactionError] = useState<string | null>(null);
+  const [userCancelled, setUserCancelled] = useState(false);
 
-  // Contract address (will be set after deployment)
-  const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x0000000000000000000000000000000000000000';
-  const CWETH_ADDRESS = process.env.NEXT_PUBLIC_CWETH_ADDRESS || '0x0000000000000000000000000000000000000000';
+  // Get contract addresses with validation
+  const contractAddresses = getSafeContractAddresses();
+  const VAULT_ADDRESS = contractAddresses?.VAULT_ADDRESS;
+  const CWETH_ADDRESS = contractAddresses?.CWETH_ADDRESS;
   
 
   // Balance validation with decryption and gas fees
@@ -332,6 +336,8 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
       setAmount('');
       setApprovalHash(null);
       setIsApproved(false);
+      setTransactionError(null);
+      setUserCancelled(false);
       setTimeout(() => setShowSuccess(false), 5000);
       
       // Refresh all dashboard balances
@@ -345,6 +351,25 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
       console.log('❌ Transaction receipt shows error - transaction failed on-chain');
     }
   }, [isSuccess, isReceiptError, approvalHash, checkOperatorStatus, hash, error, onTransactionSuccess]);
+
+  // Handle transaction errors
+  useEffect(() => {
+    if (error) {
+      console.log('Transaction error:', error);
+      
+      // Check if user rejected the transaction
+      if (error.message.toLowerCase().includes('user rejected') || 
+          error.message.toLowerCase().includes('user denied') ||
+          error.message.toLowerCase().includes('rejected the request')) {
+        setUserCancelled(true);
+        setTransactionError(null);
+      } else {
+        // Other errors (network, contract, etc.)
+        setTransactionError(error.message);
+        setUserCancelled(false);
+      }
+    }
+  }, [error]);
 
   const handleMaxAmount = () => {
     // If balance is decrypted (contains 'cWETH'), use the actual amount
@@ -365,6 +390,11 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
 
   const handleSupply = async () => {
     if (!isValidAmount || !amount || !address || !walletClient) return;
+
+    // Clear previous error states when starting new transaction
+    setTransactionError(null);
+    setUserCancelled(false);
+    setBalanceError(null);
 
     try {
       const amountWei = BigInt(Math.floor(parseFloat(amount) * 1e18));
@@ -562,7 +592,28 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
         </Alert>
       )}
 
-      {(isReceiptError || (error && !hash)) && (
+      {userCancelled && (
+        <Alert 
+          severity="warning" 
+          sx={{ 
+            mb: 1.5, 
+            borderRadius: '4px',
+            transition: 'all 0.3s ease-in-out',
+            opacity: 0,
+            animation: 'slideInDown 0.4s ease-in-out forwards',
+            '@keyframes slideInDown': {
+              '0%': { opacity: 0, transform: 'translateY(-20px)' },
+              '100%': { opacity: 1, transform: 'translateY(0)' }
+            }
+          }}
+        >
+          <Typography variant="body2" sx={{ fontFamily: 'sans-serif' }}>
+            Transaction cancelled by user. No funds were supplied.
+          </Typography>
+        </Alert>
+      )}
+
+      {transactionError && (
         <Alert 
           severity="error" 
           sx={{ 
@@ -578,7 +629,28 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
           }}
         >
           <Typography variant="body2" sx={{ fontFamily: 'sans-serif' }}>
-            Transaction failed: {isReceiptError ? 'Transaction was reverted on-chain' : error?.message}
+            Transaction failed: {transactionError}
+          </Typography>
+        </Alert>
+      )}
+
+      {isReceiptError && (
+        <Alert 
+          severity="error" 
+          sx={{ 
+            mb: 1.5, 
+            borderRadius: '4px',
+            transition: 'all 0.3s ease-in-out',
+            opacity: 0,
+            animation: 'slideInDown 0.4s ease-in-out forwards',
+            '@keyframes slideInDown': {
+              '0%': { opacity: 0, transform: 'translateY(-20px)' },
+              '100%': { opacity: 1, transform: 'translateY(0)' }
+            }
+          }}
+        >
+          <Typography variant="body2" sx={{ fontFamily: 'sans-serif' }}>
+            Transaction failed: Transaction was reverted on-chain
           </Typography>
         </Alert>
       )}

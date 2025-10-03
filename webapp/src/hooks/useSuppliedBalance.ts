@@ -7,6 +7,7 @@ import { sepolia } from 'wagmi/chains';
 import { getFHEInstance } from '../utils/fhe';
 import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
 import { ethers } from 'ethers';
+import { getSafeContractAddresses } from '../config/contractConfig';
 
 // Contract ABI for getting encrypted shares
 const VAULT_ABI = [
@@ -41,15 +42,17 @@ export const useSuppliedBalance = (masterSignature: string | null, getMasterSign
   const [hasSupplied, setHasSupplied] = useState(false);
   const [canDecrypt, setCanDecrypt] = useState(false);
 
-  // Contract address
-  const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x0000000000000000000000000000000000000000';
+  // Get contract addresses with validation
+  const contractAddresses = getSafeContractAddresses();
+  const VAULT_ADDRESS = contractAddresses?.VAULT_ADDRESS;
 
   // Refs for preventing multiple simultaneous decryption attempts
   const isDecryptingRef = useRef(false);
 
   // Fetch encrypted shares from contract
   const fetchEncryptedShares = useCallback(async () => {
-    if (!address || !VAULT_ADDRESS || VAULT_ADDRESS === '0x0000000000000000000000000000000000000000') {
+    if (!address || !VAULT_ADDRESS) {
+      console.warn('Missing address or vault address for fetching encrypted shares');
       return;
     }
 
