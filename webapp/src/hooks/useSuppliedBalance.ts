@@ -8,6 +8,7 @@ import { getFHEInstance } from '../utils/fhe';
 import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
 import { ethers } from 'ethers';
 import { getSafeContractAddresses } from '../config/contractConfig';
+import { getSepoliaRpcUrls } from '../utils/rpc';
 
 // Contract ABI for getting encrypted shares
 const VAULT_ABI = [
@@ -60,9 +61,7 @@ export const useSuppliedBalance = (masterSignature: string | null, getMasterSign
     try {
       // Create public client for raw calls
       
-      const rpcUrls = [
-        process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/edae100994ea476180577c9218370251'
-      ];
+      const rpcUrls = getSepoliaRpcUrls();
       
       let publicClient;
       let lastError;

@@ -5,6 +5,7 @@ import { useAccount, useBalance, useWriteContract, useWaitForTransactionReceipt,
 import { createPublicClient, http, encodeFunctionData } from 'viem';
 import { sepolia } from 'wagmi/chains';
 import { getSafeContractAddresses } from '../config/contractConfig';
+import { getSepoliaRpcUrl } from '../utils/rpc';
 import {
   Box,
   TextField,
@@ -254,7 +255,7 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
       
       const publicClient = createPublicClient({
         chain: sepolia,
-        transport: http(process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/edae100994ea476180577c9218370251'),
+        transport: http(getSepoliaRpcUrl()),
       });
 
       console.log('Calling isOperator function...');

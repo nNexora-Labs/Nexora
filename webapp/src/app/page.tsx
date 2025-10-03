@@ -2,6 +2,7 @@
 
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { sepolia } from 'wagmi/chains';
+import { getSepoliaRpcUrl } from '../utils/rpc';
 import { walletConnect, injected } from 'wagmi/connectors';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
@@ -36,7 +37,7 @@ const config = createConfig({
     ] : []),
   ],
   transports: {
-    [sepolia.id]: http(process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/edae100994ea476180577c9218370251'),
+    [sepolia.id]: http(getSepoliaRpcUrl()),
   },
 });
 

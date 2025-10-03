@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Only use standalone output for production builds
-  ...(process.env.NODE_ENV === 'production' && {
+  // Only use standalone output if VERCEL_DEPLOYMENT is set
+  ...(process.env.VERCEL_DEPLOYMENT === 'true' && {
     output: 'standalone',
     outputFileTracingRoot: require('path').join(__dirname, '../'),
   }),

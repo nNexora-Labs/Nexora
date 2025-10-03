@@ -8,6 +8,8 @@ import { getFHEInstance } from '../utils/fhe';
 import { FhevmDecryptionSignature } from '../utils/FhevmDecryptionSignature';
 import { ethers } from 'ethers';
 import { getSafeContractAddresses } from '../config/contractConfig';
+import { getSepoliaRpcUrls } from '../utils/rpc';
+import { rpcCache, generateCacheKey, CACHE_TTL } from '../utils/rpcCache';
 
 // Simplified ABI for cWETH contract
 const CWETH_ABI = [
@@ -74,15 +76,24 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
       return;
     }
 
+    // Check cache first to reduce API calls
+    const cacheKey = generateCacheKey(CWETH_ADDRESS, 'getEncryptedBalance', [address], address);
+    const cachedData = rpcCache.get(cacheKey);
+    
+    if (cachedData) {
+      console.log('📦 Using cached encrypted balance data');
+      setEncryptedBalanceState(cachedData);
+      setIsLoadingBalance(false);
+      return;
+    }
+
     try {
       setIsLoadingBalance(true);
       
       // Create a simple public client for raw calls
       
       // Use your dedicated Infura RPC endpoint
-      const rpcUrls = [
-        process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/edae100994ea476180577c9218370251'
-      ];
+      const rpcUrls = getSepoliaRpcUrls();
       
       let publicClient;
       let lastError;
@@ -129,6 +140,9 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
       if (result.data && result.data !== '0x') {
         const balanceData = result.data as `0x${string}`;
         setEncryptedBalanceState(balanceData);
+        
+        // Cache the result to reduce future API calls
+        rpcCache.set(cacheKey, balanceData, CACHE_TTL.ENCRYPTED_DATA);
         
         // Check if balance changed
         if (balanceData !== lastEncryptedBalanceRef.current) {
@@ -347,6 +361,15 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
   const canDecrypt = !!encryptedBalance && encryptedBalance !== '0x0000000000000000000000000000000000000000000000000000000000000000' && !!masterSignature;
   
   // Balance hook ready
+
+  // Cleanup cache periodically to prevent memory leaks
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      rpcCache.cleanup();
+    }, 60000); // Clean every minute
+
+    return () => clearInterval(cleanupInterval);
+  }, []);
 
   return {
     formattedBalance: cWETHBalance,

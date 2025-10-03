@@ -94,10 +94,25 @@ export default function Dashboard() {
         isBalanceLoading,
         balanceError,
         formatted: balance?.formatted,
-        value: balance?.value?.toString()
+        value: balance?.value?.toString(),
+        rpcUrl: process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'fallback',
+        environment: process.env.NODE_ENV
       });
     }
   }, [address, balance, isBalanceLoading, balanceError]);
+
+  // Additional balance error debugging
+  useEffect(() => {
+    if (balanceError) {
+      console.error('🚨 Balance Error Details:', {
+        error: balanceError,
+        address,
+        isConnected,
+        rpcUrl: process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'fallback',
+        environment: process.env.NODE_ENV
+      });
+    }
+  }, [balanceError, address, isConnected]);
 
   // Master decryption hook - controls all encrypted balances
   const { 
@@ -1345,7 +1360,7 @@ export default function Dashboard() {
                       }}>
                         {balance && balance.formatted ? `${parseFloat(balance.formatted).toFixed(4)} ETH` : 
                          isBalanceLoading ? 'Loading...' : 
-                         balanceError ? 'Error loading balance' : '0.0000 ETH'}
+                         balanceError ? 'RPC Error - Check Network' : '0.0000 ETH'}
                       </Typography>
         </Box>
                   </Grid>
@@ -4948,7 +4963,7 @@ export default function Dashboard() {
             }}>
               {balance && balance.formatted ? `${parseFloat(balance.formatted).toFixed(4)} ETH` : 
                isBalanceLoading ? 'Loading...' : 
-               balanceError ? 'Error' : '0.0000 ETH'}
+               balanceError ? 'RPC Error' : '0.0000 ETH'}
             </Typography>
           </Box>
 
