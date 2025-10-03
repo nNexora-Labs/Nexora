@@ -85,7 +85,12 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
             args: [],
           });
           
-          // Make the contract call
+          // Make the contract call - with safety check
+          if (!publicClient || typeof publicClient.call !== 'function') {
+            console.error('❌ publicClient is not properly initialized in useVaultTVL');
+            throw new Error('Public client not properly initialized');
+          }
+
           const result = await publicClient.call({
             to: VAULT_ADDRESS as `0x${string}`,
             data,

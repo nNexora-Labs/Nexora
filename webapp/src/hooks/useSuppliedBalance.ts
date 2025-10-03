@@ -41,6 +41,7 @@ export const useSuppliedBalance = (masterSignature: string | null, getMasterSign
   const [isDecrypting, setIsDecrypting] = useState(false);
   const [hasSupplied, setHasSupplied] = useState(false);
   const [canDecrypt, setCanDecrypt] = useState(false);
+  const [decryptionError, setDecryptionError] = useState<string | null>(null);
 
   // Get contract addresses with validation
   const contractAddresses = getSafeContractAddresses();
@@ -85,7 +86,12 @@ export const useSuppliedBalance = (masterSignature: string | null, getMasterSign
             args: [address],
           });
           
-          // Make the contract call
+          // Make the contract call - with safety check
+          if (!publicClient || typeof publicClient.call !== 'function') {
+            console.error('❌ publicClient is not properly initialized in useSuppliedBalance');
+            throw new Error('Public client not properly initialized');
+          }
+
           const result = await publicClient.call({
             to: VAULT_ADDRESS as `0x${string}`,
             data,
@@ -185,6 +191,32 @@ export const useSuppliedBalance = (masterSignature: string | null, getMasterSign
         throw new Error('Master signature not available');
       }
 
+      // Check if the master signature is authorized for the current contract address
+      if (!VAULT_ADDRESS || !masterSig.contractAddresses.includes(VAULT_ADDRESS as `0x${string}`)) {
+        console.warn('⚠️ Master signature not authorized for current contract address in useSuppliedBalance.', {
+          currentVaultAddress: VAULT_ADDRESS,
+          authorizedAddresses: masterSig.contractAddresses,
+          isAuthorized: masterSig.contractAddresses.includes(VAULT_ADDRESS as `0x${string}`)
+        });
+        
+        // Clear the old signature from localStorage
+        localStorage.removeItem(`fhe_master_decryption_${address}`);
+        
+        // Clear the current signature state
+        setDecryptionError('Contract address changed. Please re-authorize decryption.');
+        setIsDecrypting(false);
+        return;
+      }
+
+      // Additional check: verify the contract addresses are valid
+      if (!masterSig.contractAddresses || masterSig.contractAddresses.length === 0) {
+        console.warn('⚠️ Master signature has no contract addresses in useSuppliedBalance. Clearing cache.');
+        localStorage.removeItem(`fhe_master_decryption_${address}`);
+        setDecryptionError('Invalid decryption signature. Please re-authorize.');
+        setIsDecrypting(false);
+        return;
+      }
+
       // Get FHE instance
       const fheInstance = await getFHEInstance();
       console.log('FHE instance created');
@@ -192,16 +224,39 @@ export const useSuppliedBalance = (masterSignature: string | null, getMasterSign
       // Decrypt balance using master signature
       console.log('Using master signature for decryption...');
       
-      const result = await fheInstance.userDecrypt(
-        [{ handle: encryptedShares, contractAddress: VAULT_ADDRESS }],
-        masterSig.privateKey,
-        masterSig.publicKey,
-        masterSig.signature,
-        masterSig.contractAddresses,
-        masterSig.userAddress,
-        masterSig.startTimestamp,
-        masterSig.durationDays
-      );
+      let result;
+      try {
+        result = await fheInstance.userDecrypt(
+          [{ handle: encryptedShares, contractAddress: VAULT_ADDRESS as `0x${string}` }],
+          masterSig.privateKey,
+          masterSig.publicKey,
+          masterSig.signature,
+          masterSig.contractAddresses,
+          masterSig.userAddress,
+          masterSig.startTimestamp,
+          masterSig.durationDays
+        );
+      } catch (decryptError: any) {
+        // Handle authorization errors specifically
+        if (decryptError.message && decryptError.message.includes('not authorized')) {
+          console.warn('🚫 Authorization error during decryption in useSuppliedBalance. Clearing cache and requesting re-authorization.', {
+            error: decryptError.message,
+            currentVaultAddress: VAULT_ADDRESS,
+            authorizedAddresses: masterSig.contractAddresses
+          });
+          
+          // Clear the old signature from localStorage
+          localStorage.removeItem(`fhe_master_decryption_${address}`);
+          
+          // Clear the current signature state
+          setDecryptionError('Authorization expired. Please re-authorize decryption.');
+          setIsDecrypting(false);
+          return;
+        }
+        
+        // Re-throw other decryption errors
+        throw decryptError;
+      }
 
       const decryptedValue = result[encryptedShares];
       console.log('🔍 Raw decrypted value for supplied balance:', decryptedValue, 'Type:', typeof decryptedValue);

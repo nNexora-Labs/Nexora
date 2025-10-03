@@ -47,6 +47,7 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
   const [isDecrypting, setIsDecrypting] = useState<boolean>(false);
   const [isDecrypted, setIsDecrypted] = useState<boolean>(false);
   const [isLoadingBalance, setIsLoadingBalance] = useState<boolean>(false);
+  const [decryptionError, setDecryptionError] = useState<string | null>(null);
 
   // Refs for stable references
   const lastEncryptedBalanceRef = useRef<string | null>(null);
@@ -110,7 +111,12 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
         throw new Error(`All RPC endpoints failed. Last error: ${lastError instanceof Error ? lastError.message : 'Unknown error'}`);
       }
 
-      // Make raw contract call
+      // Make raw contract call - with additional safety check
+      if (!publicClient || typeof publicClient.call !== 'function') {
+        console.error('❌ publicClient is not properly initialized');
+        throw new Error('Public client not properly initialized');
+      }
+
       const result = await publicClient.call({
         to: CWETH_ADDRESS as `0x${string}`,
         data: encodeFunctionData({
@@ -169,6 +175,32 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
         throw new Error('Master signature not available');
       }
 
+      // Check if the master signature is authorized for the current contract address
+      if (!CWETH_ADDRESS || !masterSig.contractAddresses.includes(CWETH_ADDRESS as `0x${string}`)) {
+        console.warn('⚠️ Master signature not authorized for current contract address in useCWETHBalance.', {
+          currentCWETHAddress: CWETH_ADDRESS,
+          authorizedAddresses: masterSig.contractAddresses,
+          isAuthorized: masterSig.contractAddresses.includes(CWETH_ADDRESS as `0x${string}`)
+        });
+        
+        // Clear the old signature from localStorage
+        localStorage.removeItem(`fhe_master_decryption_${address}`);
+        
+        // Clear the current signature state
+        setDecryptionError('Contract address changed. Please re-authorize decryption.');
+        setIsDecrypting(false);
+        return;
+      }
+
+      // Additional check: verify the contract addresses are valid
+      if (!masterSig.contractAddresses || masterSig.contractAddresses.length === 0) {
+        console.warn('⚠️ Master signature has no contract addresses in useCWETHBalance. Clearing cache.');
+        localStorage.removeItem(`fhe_master_decryption_${address}`);
+        setDecryptionError('Invalid decryption signature. Please re-authorize.');
+        setIsDecrypting(false);
+        return;
+      }
+
       // Get FHE instance
       const fheInstance = await getFHEInstance();
       
@@ -178,16 +210,39 @@ export const useCWETHBalance = (masterSignature: string | null, getMasterSignatu
         return;
       }
       
-      const result = await fheInstance.userDecrypt(
-        [{ handle: encryptedBalanceState, contractAddress: CWETH_ADDRESS }],
-        masterSig.privateKey,
-        masterSig.publicKey,
-        masterSig.signature,
-        masterSig.contractAddresses,
-        masterSig.userAddress,
-        masterSig.startTimestamp,
-        masterSig.durationDays
-      );
+      let result;
+      try {
+        result = await fheInstance.userDecrypt(
+          [{ handle: encryptedBalanceState, contractAddress: CWETH_ADDRESS as `0x${string}` }],
+          masterSig.privateKey,
+          masterSig.publicKey,
+          masterSig.signature,
+          masterSig.contractAddresses,
+          masterSig.userAddress,
+          masterSig.startTimestamp,
+          masterSig.durationDays
+        );
+      } catch (decryptError: any) {
+        // Handle authorization errors specifically
+        if (decryptError.message && decryptError.message.includes('not authorized')) {
+          console.warn('🚫 Authorization error during decryption in useCWETHBalance. Clearing cache and requesting re-authorization.', {
+            error: decryptError.message,
+            currentCWETHAddress: CWETH_ADDRESS,
+            authorizedAddresses: masterSig.contractAddresses
+          });
+          
+          // Clear the old signature from localStorage
+          localStorage.removeItem(`fhe_master_decryption_${address}`);
+          
+          // Clear the current signature state
+          setDecryptionError('Authorization expired. Please re-authorize decryption.');
+          setIsDecrypting(false);
+          return;
+        }
+        
+        // Re-throw other decryption errors
+        throw decryptError;
+      }
 
       const decryptedValue = result[encryptedBalanceState];
       if (decryptedValue !== undefined) {

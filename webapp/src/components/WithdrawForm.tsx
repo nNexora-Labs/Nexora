@@ -51,7 +51,7 @@ interface WithdrawFormProps {
 
 export default function WithdrawForm({ onTransactionSuccess, suppliedBalance: propSuppliedBalance, hasSupplied: propHasSupplied, isDecrypted: propIsDecrypted }: WithdrawFormProps = {}) {
   const { address, isConnected } = useAccount();
-  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { writeContract, data: hash, isPending, error, reset: resetWrite } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
   
   // Master decryption hook
@@ -75,6 +75,11 @@ export default function WithdrawForm({ onTransactionSuccess, suppliedBalance: pr
       setTransactionError(null);
       setUserCancelled(false);
       
+      // Reset the write contract state to clear pending states
+      setTimeout(() => {
+        resetWrite();
+      }, 100);
+      
       // Call onTransactionSuccess to refresh balances in Dashboard
       if (onTransactionSuccess) {
         onTransactionSuccess();
@@ -85,7 +90,7 @@ export default function WithdrawForm({ onTransactionSuccess, suppliedBalance: pr
         setShowSuccess(false);
       }, 5000);
     }
-  }, [isSuccess, hash, onTransactionSuccess]);
+  }, [isSuccess, hash, onTransactionSuccess, resetWrite]);
 
   // Handle transaction errors
   useEffect(() => {
@@ -98,13 +103,20 @@ export default function WithdrawForm({ onTransactionSuccess, suppliedBalance: pr
           error.message.toLowerCase().includes('rejected the request')) {
         setUserCancelled(true);
         setTransactionError(null);
+        setAmount(''); // Clear input on cancellation
       } else {
         // Other errors (network, contract, etc.)
         setTransactionError(error.message);
         setUserCancelled(false);
+        setAmount(''); // Clear input on error
       }
+      
+      // Reset the write contract state to clear pending states
+      setTimeout(() => {
+        resetWrite();
+      }, 100);
     }
-  }, [error]);
+  }, [error, resetWrite]);
 
   const [amount, setAmount] = useState('');
   const [isValidAmount, setIsValidAmount] = useState(false);

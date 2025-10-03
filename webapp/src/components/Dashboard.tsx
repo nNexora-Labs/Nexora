@@ -81,9 +81,23 @@ export default function Dashboard() {
   const { address, isConnected } = useAccount();
   const { connect, connectors, isPending: isConnecting } = useConnect();
   const { disconnect } = useDisconnect();
-  const { data: balance, isLoading: isBalanceLoading } = useBalance({
+  const { data: balance, isLoading: isBalanceLoading, error: balanceError } = useBalance({
     address: address,
   });
+
+  // Debug balance data
+  useEffect(() => {
+    if (address) {
+      console.log('💰 Balance Debug:', {
+        address,
+        balance,
+        isBalanceLoading,
+        balanceError,
+        formatted: balance?.formatted,
+        value: balance?.value?.toString()
+      });
+    }
+  }, [address, balance, isBalanceLoading, balanceError]);
 
   // Master decryption hook - controls all encrypted balances
   const { 
@@ -118,11 +132,15 @@ export default function Dashboard() {
       setUseVerticalNav(window.innerWidth < 900);
     };
 
-    checkLayout();
+    // Only run layout check after component is mounted to avoid hydration issues
+    if (isMounted) {
+      checkLayout();
+    }
+    
     window.addEventListener('resize', checkLayout);
     
     return () => window.removeEventListener('resize', checkLayout);
-  }, []);
+  }, [isMounted]);
   
   const availableNetworks = [
     { name: 'Ethereum', chainId: 1, functional: false, icon: '/assets/icons/eth-svgrepo-com.svg' },
@@ -152,9 +170,10 @@ export default function Dashboard() {
   const [swapUserCancelled, setSwapUserCancelled] = useState(false);
   const [swapSuccess, setSwapSuccess] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true); // true = night mode, false = day mode
+  const [isSwapCompleted, setIsSwapCompleted] = useState(false); // Local state to override wagmi pending states
 
   // Swap functionality hooks
-  const { writeContract: writeSwapContract, data: swapHash, isPending: isSwapPending, error: swapError } = useWriteContract();
+  const { writeContract: writeSwapContract, data: swapHash, isPending: isSwapPending, error: swapError, reset: resetSwapWrite } = useWriteContract();
   const { isLoading: isSwapConfirming, isSuccess: isSwapSuccess } = useWaitForTransactionReceipt({ hash: swapHash });
 
   // TVL hook - now with transaction pending state
@@ -212,28 +231,30 @@ export default function Dashboard() {
     }
   }, [refetchEncryptedShares, refetchCWETHBalance, refreshShares, refreshTVL]);
 
-  // Debug logging
-  console.log('🔍 Dashboard values:', { 
-    cWETHBalance, 
-    suppliedBalance,
-    vaultTVL,
-    sharePercentage,
-    isAllDecrypted,
-    hasSupplied,
-    hasCWETH,
-    hasTVL,
-    hasShares,
-    isAnyDecrypting,
-    masterSignature: masterSignature ? 'present' : 'missing',
-    isCWETHDecrypted,
-    isTVLDecrypted,
-    canDecryptTVL,
-    isDecryptingTVL,
-    isDecryptingSupplied,
-    isDecryptingCWETH,
-    isDecryptingShares,
-    isMasterDecrypting
-  });
+  // Debug logging - moved to useEffect to avoid hydration issues
+  useEffect(() => {
+    console.log('🔍 Dashboard values:', { 
+      cWETHBalance, 
+      suppliedBalance,
+      vaultTVL,
+      sharePercentage,
+      isAllDecrypted,
+      hasSupplied,
+      hasCWETH,
+      hasTVL,
+      hasShares,
+      isAnyDecrypting,
+      masterSignature: masterSignature ? 'present' : 'missing',
+      isCWETHDecrypted,
+      isTVLDecrypted,
+      canDecryptTVL,
+      isDecryptingTVL,
+      isDecryptingSupplied,
+      isDecryptingCWETH,
+      isDecryptingShares,
+      isMasterDecrypting
+    });
+  }, [cWETHBalance, suppliedBalance, vaultTVL, sharePercentage, isAllDecrypted, hasSupplied, hasCWETH, hasTVL, hasShares, isAnyDecrypting, masterSignature, isCWETHDecrypted, isTVLDecrypted, canDecryptTVL, isDecryptingTVL, isDecryptingSupplied, isDecryptingCWETH, isDecryptingShares, isMasterDecrypting]);
 
   // Auto-refresh all balances when transactions complete
   useEffect(() => {
@@ -268,6 +289,13 @@ export default function Dashboard() {
       setSwapAmount('');
       setSwapTransactionError(null);
       setSwapUserCancelled(false);
+      setIsSwapCompleted(true); // Mark swap as completed to override pending states
+      
+      // Reset the write contract state to clear pending states
+      setTimeout(() => {
+        resetSwapWrite();
+        setIsSwapCompleted(false); // Reset local state after wagmi reset
+      }, 100);
       
       // Hide success message after 5 seconds
       setTimeout(() => {
@@ -275,7 +303,7 @@ export default function Dashboard() {
         setSwapSuccess(false);
       }, 5000);
     }
-  }, [isSwapSuccess, swapHash]);
+  }, [isSwapSuccess, swapHash, resetSwapWrite]);
 
   // Handle swap transaction errors
   useEffect(() => {
@@ -289,14 +317,24 @@ export default function Dashboard() {
         console.log('🚫 User cancelled swap transaction');
         setSwapUserCancelled(true);
         setSwapTransactionError(null);
+        setSwapAmount(''); // Clear input on cancellation
       } else {
         console.log('❌ Swap transaction failed with error:', swapError.message);
         // Other errors (network, contract, etc.)
         setSwapTransactionError(swapError.message);
         setSwapUserCancelled(false);
+        setSwapAmount(''); // Clear input on error
       }
+      
+      setIsSwapCompleted(true); // Mark swap as completed to override pending states
+      
+      // Reset the write contract state to clear pending states
+      setTimeout(() => {
+        resetSwapWrite();
+        setIsSwapCompleted(false); // Reset local state after wagmi reset
+      }, 100);
     }
-  }, [swapError]);
+  }, [swapError, resetSwapWrite]);
 
   // Contract addresses
   // Get contract addresses with validation
@@ -424,6 +462,7 @@ export default function Dashboard() {
     setSwapTransactionError(null);
     setSwapUserCancelled(false);
     setShowBalanceError(false);
+    setIsSwapCompleted(false); // Reset completion state for new transaction
 
     try {
       setIsSwapping(true);
@@ -577,6 +616,7 @@ export default function Dashboard() {
     setSwapTransactionError(null);
     setSwapUserCancelled(false);
     setSwapSuccess(false);
+    setIsSwapCompleted(false); // Reset completion state when closing modal
   };
 
   const handleNetworkSelect = (networkName: string) => {
@@ -1303,7 +1343,9 @@ export default function Dashboard() {
                         fontSize: { xs: '0.9rem', sm: '1.25rem' },
                         color: isDarkMode ? 'white' : '#000000'
                       }}>
-                        {balance ? `${parseFloat(balance.formatted).toFixed(4)} ETH` : '0 ETH'}
+                        {balance && balance.formatted ? `${parseFloat(balance.formatted).toFixed(4)} ETH` : 
+                         isBalanceLoading ? 'Loading...' : 
+                         balanceError ? 'Error loading balance' : '0.0000 ETH'}
                       </Typography>
         </Box>
                   </Grid>
@@ -4571,8 +4613,7 @@ export default function Dashboard() {
                         const hasNoBalanceError = !showBalanceError;
                         
                         return !hasValidAmount || 
-                               isSwapPending || 
-                               isSwapConfirming || 
+                               (!isSwapCompleted && (isSwapPending || isSwapConfirming)) || 
                                !isTokenFunctional ||
                                !isFHEReady ||
                                !hasNoBalanceError;
@@ -4600,7 +4641,7 @@ export default function Dashboard() {
                         transition: 'all 0.2s ease'
                       }}
                     >
-                      {isSwapPending || isSwapConfirming ? 'Processing...' : 
+                      {(!isSwapCompleted && (isSwapPending || isSwapConfirming)) ? 'Processing...' : 
                        !availableTokens.find(t => t.symbol === selectedToken)?.functional ? 'Coming Soon' :
                        isReversed && !fheInitialized ? 'Initializing FHE...' :
                        isReversed && fheError ? 'FHE Error' :
@@ -4905,7 +4946,9 @@ export default function Dashboard() {
               fontWeight: isDarkMode ? '500' : '400', 
               fontSize: '0.8rem' 
             }}>
-              {balance ? `${parseFloat(balance.formatted).toFixed(4)} ETH` : '0.0000 ETH'}
+              {balance && balance.formatted ? `${parseFloat(balance.formatted).toFixed(4)} ETH` : 
+               isBalanceLoading ? 'Loading...' : 
+               balanceError ? 'Error' : '0.0000 ETH'}
             </Typography>
           </Box>
 

@@ -145,7 +145,7 @@ interface SupplyFormProps {
 export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWETHBalance, hasCWETH: propHasCWETH, isDecrypted: propIsDecrypted }: SupplyFormProps = {}) {
   const { address, isConnected } = useAccount();
   const { data: balance } = useBalance({ address });
-  const { writeContract, data: hash, isPending, error } = useWriteContract();
+  const { writeContract, data: hash, isPending, error, reset: resetWrite } = useWriteContract();
   
   // Debug wagmi error
   if (error) {
@@ -258,6 +258,13 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
       });
 
       console.log('Calling isOperator function...');
+      
+      // Safety check for publicClient
+      if (!publicClient || typeof publicClient.call !== 'function') {
+        console.error('❌ publicClient is not properly initialized in SupplyForm');
+        throw new Error('Public client not properly initialized');
+      }
+      
       const result = await publicClient.call({
         to: CWETH_ADDRESS as `0x${string}`,
         data: encodeFunctionData({
@@ -338,6 +345,12 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
       setIsApproved(false);
       setTransactionError(null);
       setUserCancelled(false);
+      
+      // Reset the write contract state to clear pending states
+      setTimeout(() => {
+        resetWrite();
+      }, 100);
+      
       setTimeout(() => setShowSuccess(false), 5000);
       
       // Refresh all dashboard balances
@@ -350,7 +363,7 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
     } else if (isReceiptError) {
       console.log('❌ Transaction receipt shows error - transaction failed on-chain');
     }
-  }, [isSuccess, isReceiptError, approvalHash, checkOperatorStatus, hash, error, onTransactionSuccess]);
+  }, [isSuccess, isReceiptError, approvalHash, checkOperatorStatus, hash, error, onTransactionSuccess, resetWrite]);
 
   // Handle transaction errors
   useEffect(() => {
@@ -363,13 +376,20 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
           error.message.toLowerCase().includes('rejected the request')) {
         setUserCancelled(true);
         setTransactionError(null);
+        setAmount(''); // Clear input on cancellation
       } else {
         // Other errors (network, contract, etc.)
         setTransactionError(error.message);
         setUserCancelled(false);
+        setAmount(''); // Clear input on error
       }
+      
+      // Reset the write contract state to clear pending states
+      setTimeout(() => {
+        resetWrite();
+      }, 100);
     }
-  }, [error]);
+  }, [error, resetWrite]);
 
   const handleMaxAmount = () => {
     // If balance is decrypted (contains 'cWETH'), use the actual amount

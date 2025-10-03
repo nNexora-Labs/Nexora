@@ -170,6 +170,12 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
         throw new Error(`All RPC endpoints failed. Last error: ${lastError instanceof Error ? lastError.message : 'Unknown error'}`);
       }
 
+      // Safety check for publicClient
+      if (!publicClient || typeof publicClient.call !== 'function') {
+        console.error('❌ publicClient is not properly initialized in useSharePercentage');
+        throw new Error('Public client not properly initialized');
+      }
+
       // Fetch user shares
       const userSharesResult = await publicClient.call({
         to: VAULT_ADDRESS as `0x${string}`,
@@ -241,7 +247,11 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
 
       // Check if the master signature is authorized for the current contract address
       if (!VAULT_ADDRESS || !masterSig.contractAddresses.includes(VAULT_ADDRESS as `0x${string}`)) {
-        console.warn('⚠️ Master signature not authorized for current contract address. Clearing cache and requesting re-authorization.');
+        console.warn('⚠️ Master signature not authorized for current contract address.', {
+          currentVaultAddress: VAULT_ADDRESS,
+          authorizedAddresses: masterSig.contractAddresses,
+          isAuthorized: masterSig.contractAddresses.includes(VAULT_ADDRESS as `0x${string}`)
+        });
         
         // Clear the old signature from localStorage
         localStorage.removeItem(`fhe_master_decryption_${address}`);
@@ -253,23 +263,57 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
         return;
       }
 
+      // Additional check: verify the contract addresses are valid
+      if (!masterSig.contractAddresses || masterSig.contractAddresses.length === 0) {
+        console.warn('⚠️ Master signature has no contract addresses. Clearing cache.');
+        localStorage.removeItem(`fhe_master_decryption_${address}`);
+        setDecryptionError('Invalid decryption signature. Please re-authorize.');
+        setIsDecrypting(false);
+        isDecryptingRef.current = false;
+        return;
+      }
+
       // Get FHE instance
       const fheInstance = await getFHEInstance();
       
       // Decrypt both user shares and total shares using master signature
-      const result = await fheInstance.userDecrypt(
-        [
-          { handle: encryptedUserSharesState, contractAddress: VAULT_ADDRESS as `0x${string}` },
-          { handle: encryptedTotalSharesState, contractAddress: VAULT_ADDRESS as `0x${string}` }
-        ],
-        masterSig.privateKey,
-        masterSig.publicKey,
-        masterSig.signature,
-        masterSig.contractAddresses,
-        masterSig.userAddress,
-        masterSig.startTimestamp,
-        masterSig.durationDays
-      );
+      let result;
+      try {
+        result = await fheInstance.userDecrypt(
+          [
+            { handle: encryptedUserSharesState, contractAddress: VAULT_ADDRESS as `0x${string}` },
+            { handle: encryptedTotalSharesState, contractAddress: VAULT_ADDRESS as `0x${string}` }
+          ],
+          masterSig.privateKey,
+          masterSig.publicKey,
+          masterSig.signature,
+          masterSig.contractAddresses,
+          masterSig.userAddress,
+          masterSig.startTimestamp,
+          masterSig.durationDays
+        );
+      } catch (decryptError: any) {
+        // Handle authorization errors specifically
+        if (decryptError.message && decryptError.message.includes('not authorized')) {
+          console.warn('🚫 Authorization error during decryption. Clearing cache and requesting re-authorization.', {
+            error: decryptError.message,
+            currentVaultAddress: VAULT_ADDRESS,
+            authorizedAddresses: masterSig.contractAddresses
+          });
+          
+          // Clear the old signature from localStorage
+          localStorage.removeItem(`fhe_master_decryption_${address}`);
+          
+          // Clear the current signature state and show error
+          setDecryptionError('Authorization expired. Please re-authorize decryption.');
+          setIsDecrypting(false);
+          isDecryptingRef.current = false;
+          return;
+        }
+        
+        // Re-throw other decryption errors
+        throw decryptError;
+      }
 
       const userSharesValue = encryptedUserSharesState ? (result as any)[encryptedUserSharesState] : undefined;
       const totalSharesValue = encryptedTotalSharesState ? (result as any)[encryptedTotalSharesState] : undefined;
