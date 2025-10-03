@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAccount, useBalance, useConnect, useDisconnect, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { ConnectKitButton } from 'connectkit';
 import { useSuppliedBalance } from '../hooks/useSuppliedBalance';
 import { useCWETHBalance } from '../hooks/useCWETHBalance';
 import { useVaultTVL } from '../hooks/useVaultTVL';
@@ -165,7 +166,6 @@ export default function Dashboard() {
     { name: 'Optimism', chainId: 10, functional: false, icon: '/assets/icons/optimism-ethereum-op-logo.svg' },
     { name: 'Base', chainId: 8453, functional: false, icon: '/assets/icons/base_logo.jpg' }
   ];
-  const [showWalletModal, setShowWalletModal] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [showSupplyModal, setShowSupplyModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
@@ -269,7 +269,25 @@ export default function Dashboard() {
       isDecryptingShares,
       isMasterDecrypting
     });
-  }, [cWETHBalance, suppliedBalance, vaultTVL, sharePercentage, isAllDecrypted, hasSupplied, hasCWETH, hasTVL, hasShares, isAnyDecrypting, masterSignature, isCWETHDecrypted, isTVLDecrypted, canDecryptTVL, isDecryptingTVL, isDecryptingSupplied, isDecryptingCWETH, isDecryptingShares, isMasterDecrypting]);
+    
+    // Additional debugging for TVL and share percentage
+    if (masterSignature && address) {
+      console.log('🔍 Master signature available, checking TVL and share status...');
+      console.log('📊 TVL Status:', { vaultTVL, isTVLDecrypted, isDecryptingTVL, canDecryptTVL });
+      console.log('📈 Share Status:', { sharePercentage, hasShares, isDecryptingShares });
+      
+      // Test if hooks are working
+      if (vaultTVL === '••••••••' && sharePercentage === '••••••••') {
+        console.log('⚠️ Both TVL and Share Percentage are showing dots - this suggests multi-user scenario');
+        console.log('🔄 Attempting manual refresh of TVL and shares...');
+        // Try to trigger a refresh
+        setTimeout(() => {
+          refreshTVL();
+          refreshShares();
+        }, 1000);
+      }
+    }
+  }, [cWETHBalance, suppliedBalance, vaultTVL, sharePercentage, isAllDecrypted, hasSupplied, hasCWETH, hasTVL, hasShares, isAnyDecrypting, masterSignature, isCWETHDecrypted, isTVLDecrypted, canDecryptTVL, isDecryptingTVL, isDecryptingSupplied, isDecryptingCWETH, isDecryptingShares, isMasterDecrypting, address]);
 
   // Auto-refresh all balances when transactions complete
   useEffect(() => {
@@ -413,24 +431,6 @@ export default function Dashboard() {
   }, []);
 
 
-  const handleConnect = () => {
-    setShowWalletModal(true);
-  };
-
-  const handleWalletSelect = async (connector: any) => {
-    if (connector) {
-      try {
-        await connect({ connector });
-        setShowWalletModal(false);
-      } catch (error) {
-        console.error('Failed to connect wallet:', error);
-      }
-    }
-  };
-
-  const handleCloseWalletModal = () => {
-    setShowWalletModal(false);
-  };
 
 
   const handleWalletInfoClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -1252,44 +1252,7 @@ export default function Dashboard() {
             </Box>
               </>
           ) : (
-            <Button
-              color="inherit"
-              onClick={handleConnect}
-              disabled={isConnecting}
-              variant="outlined"
-                size="small"
-                sx={{
-                  background: 'linear-gradient(45deg, #2196f3 30%, #21cbf3 90%)',
-                  color: isDarkMode ? 'white' : '#000000',
-                        fontWeight: '600',
-                  px: { xs: 2, sm: 3 },
-                  py: { xs: 0.5, sm: 1 },
-                  textTransform: 'none',
-                  fontSize: { xs: '0.7rem', sm: '0.75rem' },
-                  boxShadow: '0 4px 14px 0 rgba(33, 150, 243, 0.3)',
-                  border: '1px solid rgba(33, 150, 243, 0.3)',
-                  '&:hover': {
-                    background: 'linear-gradient(45deg, #1976d2 30%, #1cb5e0 90%)',
-                    boxShadow: '0 6px 20px 0 rgba(33, 150, 243, 0.4)',
-                    transform: 'translateY(-1px)'
-                  },
-                  '&:disabled': {
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    color: 'rgba(255, 255, 255, 0.5)',
-                    boxShadow: 'none'
-                  },
-                  transition: 'all 0.3s ease'
-                }}
-              >
-                {isConnecting ? (
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <CircularProgress size={12} sx={{ color: 'white' }} />
-                    <span style={{ fontSize: '0.7rem' }}>Connecting...</span>
-                  </Box>
-                ) : (
-                  'Connect Wallet'
-                )}
-            </Button>
+            <ConnectKitButton />
           )}
           </Box>
         </Toolbar>
@@ -3514,25 +3477,6 @@ export default function Dashboard() {
                 : '0 4px 20px rgba(0, 0, 0, 0.1)'
             }}>
               <CardContent sx={{ p: 4 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                  <Box>
-                    <Typography variant="h4" sx={{ 
-                      fontWeight: '600', 
-                      mb: 1, 
-                      color: isDarkMode ? 'white' : '#2c3e50',
-                      fontFamily: 'sans-serif' 
-                    }}>
-                      Portfolio Overview
-                    </Typography>
-                    <Typography variant="body1" sx={{ 
-                      opacity: isDarkMode ? 0.9 : 0.8,
-                      color: isDarkMode ? 'white' : '#2c3e50'
-                    }}>
-                      View your decrypted balances, performance metrics, and transaction history
-                    </Typography>
-                  </Box>
-                </Box>
-                
                 {/* Portfolio Sub-tabs */}
                 <Box sx={{ mb: 3 }}>
                   <Box sx={{ 
@@ -4042,150 +3986,6 @@ export default function Dashboard() {
 
       </Container>
 
-      {/* Wallet Connection Modal - Center Screen */}
-      {showWalletModal && (
-        <Box
-          sx={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-            backdropFilter: 'blur(8px)'
-          }}
-          onClick={handleCloseWalletModal}
-        >
-          <Box
-            onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
-            sx={{
-              backgroundColor: isDarkMode ? '#1a1a2e' : '#ffffff',
-              borderRadius: '20px',
-              padding: '32px',
-              maxWidth: '400px',
-              width: '90%',
-              maxHeight: '80vh',
-              overflow: 'auto',
-              border: isDarkMode 
-                ? '1px solid rgba(255, 255, 255, 0.1)'
-                : '1px solid rgba(44, 62, 80, 0.1)',
-              boxShadow: isDarkMode 
-                ? '0 20px 60px rgba(0, 0, 0, 0.5)'
-                : '0 20px 60px rgba(0, 0, 0, 0.1)'
-            }}
-          >
-            {/* Header */}
-            <Box sx={{ textAlign: 'center', mb: 4 }}>
-              <Typography variant="h4" sx={{ 
-                color: isDarkMode ? 'white' : '#000000', 
-                        fontWeight: '600',
-                mb: 1,
-                background: 'linear-gradient(45deg, #667eea, #764ba2)',
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent'
-              }}>
-                Connect Wallet
-              </Typography>
-              <Typography variant="body1" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
-                Choose your wallet to connect to Nexora
-              </Typography>
-            </Box>
-
-            {/* Wallet Options */}
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {connectors.map((connector) => (
-                <Box
-            key={connector.id}
-            onClick={() => handleWalletSelect(connector)}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 3,
-                    padding: '16px',
-                    borderRadius: '12px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    cursor: 'pointer',
-                    transition: 'all 0.3s ease',
-                    '&:hover': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                      transform: 'translateY(-2px)',
-                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)'
-                    }
-                  }}
-                >
-                  {/* Wallet Icon */}
-                  <Box sx={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: '12px',
-                    background: connector.name === 'MetaMask' 
-                      ? 'linear-gradient(45deg, #f6851b, #e2761b)'
-                      : connector.name === 'Coinbase Wallet'
-                      ? 'linear-gradient(45deg, #0052ff, #1e88e5)'
-                      : connector.name === 'WalletConnect'
-                      ? 'linear-gradient(45deg, #3b99fc, #1e88e5)'
-                      : 'linear-gradient(45deg, #667eea, #764ba2)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: isDarkMode ? 'white' : '#000000',
-                    fontSize: '24px'
-                  }}>
-                    {connector.name === 'MetaMask' ? '🦊' : 
-                     connector.name === 'Coinbase Wallet' ? '🔵' :
-                     connector.name === 'WalletConnect' ? '🔗' : '👛'}
-                  </Box>
-
-                  {/* Wallet Info */}
-                  <Box sx={{ flex: 1 }}>
-                    <Typography variant="h6" sx={{ 
-                      color: isDarkMode ? 'white' : '#000000', 
-                      fontWeight: '600',
-                      mb: 0.5
-                    }}>
-                      {connector.name}
-                    </Typography>
-                    <Typography variant="body2" sx={{ 
-                      color: 'rgba(255, 255, 255, 0.6)'
-                    }}>
-                      {connector.name === 'MetaMask' && 'Browser extension'}
-                      {connector.name === 'Coinbase Wallet' && 'Browser extension'}
-                      {connector.name === 'WalletConnect' && 'Mobile & Desktop'}
-                      {!['MetaMask', 'Coinbase Wallet', 'WalletConnect'].includes(connector.name) && 'Connect wallet'}
-                    </Typography>
-                  </Box>
-
-                  {/* Arrow */}
-                  <Typography sx={{ color: 'rgba(255, 255, 255, 0.4)', fontSize: '20px' }}>
-                    →
-                  </Typography>
-                </Box>
-              ))}
-            </Box>
-
-            {/* Footer */}
-            <Box sx={{ 
-              mt: 4, 
-              pt: 3, 
-              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-              textAlign: 'center'
-            }}>
-              <Typography variant="caption" sx={{ 
-                color: 'rgba(255, 255, 255, 0.5)',
-                fontSize: '0.75rem'
-              }}>
-                By connecting, you agree to our Terms of Service and Privacy Policy
-              </Typography>
-            </Box>
-          </Box>
-        </Box>
-      )}
 
       {/* Swap - Fullscreen */}
       {showSwapModal && (

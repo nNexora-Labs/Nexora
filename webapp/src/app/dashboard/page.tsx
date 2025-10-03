@@ -1,45 +1,13 @@
 'use client';
 
-import { WagmiProvider, createConfig, http } from 'wagmi';
-import { sepolia } from 'wagmi/chains';
-import { getSepoliaRpcUrl } from '../../utils/rpc';
-import { walletConnect, injected } from 'wagmi/connectors';
+import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Box } from '@mui/material';
+import { ConnectKitProvider } from 'connectkit';
 import Dashboard from '../../components/Dashboard';
-
-// Create wagmi config
-const config = createConfig({
-  chains: [sepolia],
-  connectors: [
-    injected({
-      target: 'metaMask',
-    }),
-    injected({
-      target: 'rabby',
-    }),
-    injected({
-      target: 'coinbaseWallet',
-    }),
-    // Only add WalletConnect if project ID is available
-    ...(process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID && process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID !== 'placeholder_project_id' ? [
-      walletConnect({
-        projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
-        metadata: {
-          name: 'Confidential Lending Protocol',
-          description: 'Fully encrypted lending protocol using Zama FHEVM',
-          url: 'https://confidential-lending.vercel.app',
-          icons: ['https://confidential-lending.vercel.app/icon.png'],
-        },
-      })
-    ] : []),
-  ],
-  transports: {
-    [sepolia.id]: http(getSepoliaRpcUrl()),
-  },
-});
+import { config } from '../../config/wagmi';
 
 // Create query client
 const queryClient = new QueryClient();
@@ -111,16 +79,18 @@ const theme = createTheme({
   },
 });
 
-export default function AppPage() {
+export default function DashboardPage() {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
-          <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
-            <Dashboard />
-          </Box>
-        </ThemeProvider>
+        <ConnectKitProvider>
+          <ThemeProvider theme={theme}>
+            <CssBaseline />
+            <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
+              <Dashboard />
+            </Box>
+          </ThemeProvider>
+        </ConnectKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );

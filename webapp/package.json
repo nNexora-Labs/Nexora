@@ -21,6 +21,7 @@
     "@walletconnect/modal": "^2.6.0",
     "@walletconnect/web3-provider": "^1.8.0",
     "@zama-fhe/relayer-sdk": "^0.2.0",
+    "connectkit": "^1.9.1",
     "critters": "^0.0.23",
     "ethers": "^6.15.0",
     "next": "15.5.4",

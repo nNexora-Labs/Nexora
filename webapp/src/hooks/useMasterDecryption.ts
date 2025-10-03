@@ -26,6 +26,32 @@ export const useMasterDecryption = () => {
   const masterSignatureRef = useRef<FhevmDecryptionSignature | null>(null);
   const isUnlockingRef = useRef(false);
 
+  // Clear corrupted signatures on mount
+  useEffect(() => {
+    if (address && typeof window !== 'undefined') {
+      // Clear any corrupted signatures
+      try {
+        // Check for corrupted FhevmDecryptionSignature entries
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.includes(address) && (key.includes('fhevm-decryption-signature') || key.includes('fhe_master_decryption'))) {
+            try {
+              const value = localStorage.getItem(key);
+              if (value) {
+                JSON.parse(value);
+              }
+            } catch (error) {
+              console.log('🧹 Clearing corrupted signature:', key);
+              localStorage.removeItem(key);
+            }
+          }
+        }
+      } catch (error) {
+        console.log('Error cleaning corrupted signatures:', error);
+      }
+    }
+  }, [address]);
+
   // Clear decryption state on disconnect or contract address change
   useEffect(() => {
     if (!isConnected && address) {
