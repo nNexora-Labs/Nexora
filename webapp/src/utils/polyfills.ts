@@ -24,7 +24,7 @@ if (typeof window !== 'undefined') {
   }
   
   // Ensure proper memory management for WASM
-  if (!window.__wbindgen_malloc) {
+  if (!(window as any).__wbindgen_malloc) {
     // This will be provided by the WASM module when it loads
     console.log('Waiting for WASM module to provide memory management functions...');
   }

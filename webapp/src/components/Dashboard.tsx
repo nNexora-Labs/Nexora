@@ -168,6 +168,28 @@ export default function Dashboard() {
   // Check if any decryption is in progress
   const isAnyDecrypting = isDecryptingSupplied || isDecryptingCWETH || isDecryptingShares || isMasterDecrypting || isDecryptingTVL;
 
+  // Initialize FHE on component mount
+  useEffect(() => {
+    const initializeFHE = async () => {
+      if (!isConnected || !address) return;
+      
+      try {
+        console.log('🔧 Initializing FHE for swap functionality...');
+        const { getFHEInstance } = await import('../utils/fhe');
+        await getFHEInstance();
+        setFheInitialized(true);
+        setFheError(null);
+        console.log('✅ FHE initialized successfully');
+      } catch (error) {
+        console.error('❌ FHE initialization failed:', error);
+        setFheError(error instanceof Error ? error.message : 'Failed to initialize FHE');
+        setFheInitialized(false);
+      }
+    };
+
+    initializeFHE();
+  }, [isConnected, address]);
+
   // Refresh all blockchain data
   const refreshAllBalances = useCallback(async () => {
     console.log('🔄 Refreshing all blockchain data including TVL...');
@@ -470,8 +492,21 @@ export default function Dashboard() {
   };
 
   const handleMaxAmount = () => {
-      if (balance) {
-        setSwapAmount((parseFloat(balance.formatted) * 0.95).toString()); // Leave some for gas
+    if (!isReversed && balance) {
+      // For forward swaps (ETH → cWETH), use ETH balance
+      setSwapAmount((parseFloat(balance.formatted) * 0.95).toString()); // Leave some for gas
+    } else if (isReversed) {
+      if (!hasCWETH) {
+        // User has no cWETH
+        setSwapAmount('0');
+      } else if (isCWETHDecrypted && cWETHBalance && typeof cWETHBalance === 'string' && cWETHBalance.includes('cWETH')) {
+        // User has cWETH and it's decrypted - use full balance
+        const cWETHAmount = parseFloat(cWETHBalance.replace(' cWETH', ''));
+        setSwapAmount(cWETHAmount.toString());
+      } else {
+        // User has cWETH but it's encrypted - can't set max amount
+        setSwapAmount('0');
+      }
     }
   };
 
@@ -526,9 +561,27 @@ export default function Dashboard() {
   const handleAmountChange = (value: string) => {
     setSwapAmount(value);
     
-    // Check if amount exceeds balance (only for forward swaps)
+    // Check if amount exceeds balance for forward swaps (ETH → cWETH)
     if (!isReversed && balance && value && parseFloat(value) > parseFloat(balance.formatted)) {
       setShowBalanceError(true);
+    } 
+    // Check if amount exceeds cWETH balance for reverse swaps (cWETH → ETH)
+    else if (isReversed && value && parseFloat(value) > 0) {
+      if (!hasCWETH) {
+        // User has no cWETH but trying to swap
+        setShowBalanceError(true);
+      } else if (isCWETHDecrypted && cWETHBalance && typeof cWETHBalance === 'string' && cWETHBalance.includes('cWETH')) {
+        // User has cWETH and it's decrypted - check if amount exceeds balance
+        const cWETHAmount = parseFloat(cWETHBalance.replace(' cWETH', ''));
+        if (parseFloat(value) > cWETHAmount) {
+          setShowBalanceError(true);
+        } else {
+          setShowBalanceError(false);
+        }
+      } else {
+        // User has cWETH but it's encrypted - show error to decrypt first
+        setShowBalanceError(true);
+      }
     } else {
       setShowBalanceError(false);
     }
@@ -718,7 +771,7 @@ export default function Dashboard() {
                   {navigationTabs.map((tab) => (
                     <Button
                       key={tab}
-                      onClick={(e) => {
+                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                         e.preventDefault();
                         e.stopPropagation();
                         setActiveTab(tab);
@@ -761,7 +814,7 @@ export default function Dashboard() {
           }}>
             <Tabs
               value={activeTab}
-              onChange={(_, newValue) => setActiveTab(newValue)}
+              onChange={(_: React.SyntheticEvent, newValue: any) => setActiveTab(newValue as 'dashboard' | 'supply' | 'borrow' | 'portfolio')}
               textColor="inherit"
               indicatorColor="secondary"
               sx={{
@@ -1728,6 +1781,7 @@ export default function Dashboard() {
                     hasSupplied={hasSupplied}
                     isDecrypted={isDecryptingSupplied}
                     onTransactionSuccess={refreshAllBalances}
+                    onNavigateToSupply={() => setSupplySubTab('supply')}
                     isDarkMode={isDarkMode}
                   />
                 )}
@@ -3891,7 +3945,7 @@ export default function Dashboard() {
           onClick={handleCloseWalletModal}
         >
           <Box
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e: React.MouseEvent<HTMLDivElement>) => e.stopPropagation()}
             sx={{
               backgroundColor: isDarkMode ? '#1a1a2e' : '#ffffff',
               borderRadius: '20px',
@@ -4232,7 +4286,7 @@ export default function Dashboard() {
                     )}
                   </div>
                   
-                  {/* Balance Display - Only show for forward swaps (ETH → cWETH) */}
+                  {/* Balance Display - Show for both directions */}
                   {balance && !isReversed && (
                     <Box sx={{ 
                       mt: 1, 
@@ -4257,7 +4311,42 @@ export default function Dashboard() {
                     </Box>
                   )}
                   
-                  {/* Balance Error Notification - Only show for forward swaps */}
+                  {/* cWETH Balance Display - Show for reverse swaps (cWETH → ETH) */}
+                  {isReversed && (
+                    <Box sx={{ 
+                      mt: 1, 
+                      mb: 1,
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      px: 1
+                    }}>
+                      <Typography variant="caption" sx={{ 
+                        color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.7)',
+                        fontSize: '12px'
+                      }}>
+                        Balance: {isCWETHDecrypted && cWETHBalance && typeof cWETHBalance === 'string' && cWETHBalance.includes('cWETH') 
+                          ? parseFloat(cWETHBalance.replace(' cWETH', '')).toFixed(4) + ' cWETH'
+                          : hasCWETH 
+                            ? '•••••••• cWETH'
+                            : '0.0000 cWETH'
+                        }
+                      </Typography>
+                      <Typography variant="caption" sx={{ 
+                        color: isDarkMode ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)',
+                        fontSize: '11px'
+                      }}>
+                        {isCWETHDecrypted && cWETHBalance && typeof cWETHBalance === 'string' && cWETHBalance.includes('cWETH') 
+                          ? `≈ $${(parseFloat(cWETHBalance.replace(' cWETH', '')) * 4000).toFixed(2)}`
+                          : hasCWETH 
+                            ? '≈ $••••••••'
+                            : '≈ $0.00'
+                        }
+                      </Typography>
+                    </Box>
+                  )}
+                  
+                  {/* Balance Error Notification - Show for both directions */}
                   {showBalanceError && !isReversed && (
                     <Box sx={{ 
                       mt: 1, 
@@ -4276,7 +4365,36 @@ export default function Dashboard() {
                         fontSize: '12px',
                         fontWeight: '600'
                       }}>
-                        Amount exceeds your balance of {balance?.formatted} {isReversed ? 'cWETH' : selectedToken}
+                        Amount exceeds your balance of {balance?.formatted} {selectedToken}
+                      </Typography>
+                    </Box>
+                  )}
+                  
+                  {/* cWETH Balance Error Notification - Show for reverse swaps */}
+                  {showBalanceError && isReversed && (
+                    <Box sx={{ 
+                      mt: 1, 
+                      mb: 1,
+                      p: 1.5,
+                      background: 'rgba(231, 76, 60, 0.1)',
+                      border: '1px solid rgba(231, 76, 60, 0.3)',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1
+                    }}>
+                      <Typography sx={{ color: '#e74c3c', fontSize: '16px' }}>⚠️</Typography>
+                      <Typography variant="caption" sx={{ 
+                        color: '#e74c3c',
+                        fontSize: '12px',
+                        fontWeight: '600'
+                      }}>
+                        {!hasCWETH 
+                          ? 'You have no cWETH to swap'
+                          : isCWETHDecrypted && cWETHBalance && typeof cWETHBalance === 'string' && cWETHBalance.includes('cWETH') 
+                            ? `Amount exceeds your balance of ${parseFloat(cWETHBalance.replace(' cWETH', '')).toFixed(4)} cWETH`
+                            : 'Please decrypt your cWETH balance first to check available amount'
+                        }
                       </Typography>
                     </Box>
                   )}

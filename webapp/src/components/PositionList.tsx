@@ -1,18 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import { ethers } from 'ethers';
 import {
   Box,
   Typography,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   Button,
   Chip,
   Alert,
@@ -21,6 +14,7 @@ import {
   DialogContent,
   DialogActions,
   Card,
+  CardContent,
   Link,
 } from '@mui/material';
 import { Send, AccountBalance, OpenInNew, Refresh } from '@mui/icons-material';
@@ -42,10 +36,11 @@ interface PositionListProps {
   hasSupplied?: boolean;
   isDecrypted?: boolean;
   onTransactionSuccess?: () => Promise<void>;
+  onNavigateToSupply?: () => void;
   isDarkMode?: boolean;
 }
 
-export default function PositionList({ suppliedBalance: propSuppliedBalance, hasSupplied: propHasSupplied, isDecrypted: propIsDecrypted, onTransactionSuccess, isDarkMode = false }: PositionListProps = {}) {
+export default function PositionList({ suppliedBalance: propSuppliedBalance, hasSupplied: propHasSupplied, isDecrypted: propIsDecrypted, onTransactionSuccess, onNavigateToSupply, isDarkMode = false }: PositionListProps = {}) {
   const { address, isConnected } = useAccount();
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
 
@@ -67,11 +62,25 @@ export default function PositionList({ suppliedBalance: propSuppliedBalance, has
   // Master decryption hook
   const { masterSignature, getMasterSignature } = useMasterDecryption();
   
-  const { suppliedBalance, isDecrypting, hasSupplied } = useSuppliedBalance(masterSignature, getMasterSignature);
+  // Use props from Dashboard if available, otherwise use hook
+  const hookData = useSuppliedBalance(masterSignature, getMasterSignature);
+  const suppliedBalance = propSuppliedBalance || hookData.suppliedBalance;
+  const hasSupplied = propHasSupplied !== undefined ? propHasSupplied : hookData.hasSupplied;
+  // Note: Dashboard passes isDecrypted={isDecryptingSupplied} which is actually the isDecrypting flag
+  const isDecrypting = propIsDecrypted !== undefined ? propIsDecrypted : hookData.isDecrypting;
+  const decryptBalance = hookData.decryptBalance;
+
+  // Auto-decrypt when balance is encrypted to verify actual balance
+  useEffect(() => {
+    if (isConnected && address && hasSupplied && suppliedBalance && suppliedBalance.includes('••••••••') && masterSignature && !isDecrypting) {
+      console.log('🔓 Auto-decrypting balance to verify position...');
+      decryptBalance();
+    }
+  }, [isConnected, address, hasSupplied, suppliedBalance, masterSignature, isDecrypting, decryptBalance]);
 
   // Load aggregated supply positions per asset
-  const loadSupplyPositions = async () => {
-    if (!address || !isConnected || !hasSupplied) return;
+  const loadSupplyPositions = useCallback(async () => {
+    if (!address || !isConnected) return;
     
     setIsLoading(true);
     
@@ -82,6 +91,32 @@ export default function PositionList({ suppliedBalance: propSuppliedBalance, has
         console.error('Vault address not configured');
         return;
       }
+      
+      console.log('🔍 Loading supply positions - hasSupplied:', hasSupplied, 'suppliedBalance:', suppliedBalance);
+      
+      // SMART APPROACH: Show position only if user has actually supplied tokens
+      // Check both hasSupplied flag AND actual balance
+      
+      // First check: Must have supplied flag
+      if (!hasSupplied) {
+        setPositions([]);
+        console.log('🔍 No positions - user has not supplied any tokens');
+        return;
+      }
+      
+      // Second check: If balance is decrypted and zero, don't show position
+      if (suppliedBalance && !suppliedBalance.includes('••••••••')) {
+        const balanceValue = parseFloat(suppliedBalance.replace(' ETH', ''));
+        console.log('🔍 Decrypted balance value:', balanceValue);
+        if (balanceValue <= 0) {
+          setPositions([]);
+          console.log('🔍 No positions - decrypted balance is zero or negative:', balanceValue);
+          return;
+        }
+      }
+      
+      // If we reach here, either balance is encrypted (and hasSupplied=true) or balance is positive
+      console.log('✅ User has supplied tokens - showing position');
       
       // Create aggregated position data from on-chain data
       const supplyPositions: SupplyPosition[] = [{
@@ -101,12 +136,12 @@ export default function PositionList({ suppliedBalance: propSuppliedBalance, has
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [address, isConnected, hasSupplied, suppliedBalance]);
 
   // Load positions when component mounts, address changes, or balance changes
   useEffect(() => {
     loadSupplyPositions();
-  }, [address, isConnected, hasSupplied, suppliedBalance]);
+  }, [loadSupplyPositions]);
 
   if (!isConnected) {
     return (
@@ -124,11 +159,46 @@ export default function PositionList({ suppliedBalance: propSuppliedBalance, has
     );
   }
 
+  if (isDecrypting) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+        <Typography>Verifying position balance...</Typography>
+      </Box>
+    );
+  }
+
   if (positions.length === 0) {
     return (
-      <Alert severity="info">
-        No positions found. Supply some cWETH to start earning yield.
-      </Alert>
+      <Box sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        py: 6,
+        px: 3,
+        textAlign: 'center'
+      }}>
+        <Typography variant="h6" sx={{ mb: 2, opacity: 0.7, color: isDarkMode ? 'white' : '#2c3e50' }}>
+          No Supply Positions
+        </Typography>
+        <Typography variant="body2" sx={{ opacity: 0.6, mb: 3, color: isDarkMode ? 'white' : '#2c3e50' }}>
+          Start supplying assets to earn yield
+        </Typography>
+        <Button
+          variant="contained"
+          size="small"
+          onClick={onNavigateToSupply}
+          sx={{
+            background: 'linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%)',
+            color: 'white',
+            '&:hover': {
+              background: 'linear-gradient(135deg, #7b1fa2 0%, #6a1b9a 100%)',
+            }
+          }}
+        >
+          Start Supplying
+        </Button>
+      </Box>
     );
   }
 
@@ -168,83 +238,147 @@ export default function PositionList({ suppliedBalance: propSuppliedBalance, has
       </Box>
 
       
-      <Card sx={{
-        mb: 3,
-        background: 'transparent',
-        border: 'transparent',
-        boxShadow: 'none'
-      }}>
-        <TableContainer sx={{
-          background: 'transparent',
-          '& .MuiTable-root': {
-            background: 'transparent'
-          },
-          '& .MuiTableHead-root': {
-            background: isDarkMode 
-              ? 'rgba(255, 255, 255, 0.05)'
-              : 'rgba(44, 62, 80, 0.05)'
-          },
-          '& .MuiTableRow-root': {
-            background: 'transparent',
-            '&:hover': {
+      {/* Position Cards */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {positions.map((position, index) => (
+          <Card
+            key={position.id}
+            sx={{
+              borderRadius: '4px',
               background: isDarkMode 
-                ? 'rgba(255, 255, 255, 0.02)'
-                : 'rgba(44, 62, 80, 0.02)'
-            }
-          },
-          '& .MuiTableCell-root': {
-            borderBottom: isDarkMode 
-              ? '1px solid rgba(255, 255, 255, 0.1)'
-              : '1px solid rgba(44, 62, 80, 0.1)',
-            color: isDarkMode ? 'white' : '#2c3e50'
-          }
-        }}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: '600', color: isDarkMode ? 'white' : '#2c3e50' }}>Asset</TableCell>
-                <TableCell sx={{ fontWeight: '600', color: isDarkMode ? 'white' : '#2c3e50' }}>APY</TableCell>
-                <TableCell sx={{ fontWeight: '600', color: isDarkMode ? 'white' : '#2c3e50' }}>Amount</TableCell>
-                <TableCell sx={{ fontWeight: '600', color: isDarkMode ? 'white' : '#2c3e50' }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: '600', color: isDarkMode ? 'white' : '#2c3e50' }}>Action</TableCell>
-              </TableRow>
-            </TableHead>
-          <TableBody>
-            {positions.map((position, index) => (
-              <TableRow key={position.id}>
-                <TableCell>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <AccountBalance />
+                ? 'rgba(255, 255, 255, 0.05)'
+                : 'rgba(255, 255, 255, 0.8)',
+              border: isDarkMode 
+                ? '1px solid rgba(255, 255, 255, 0.1)'
+                : '1px solid rgba(44, 62, 80, 0.1)',
+              boxShadow: isDarkMode 
+                ? '0 4px 12px rgba(0, 0, 0, 0.2)'
+                : '0 4px 12px rgba(0, 0, 0, 0.08)',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: isDarkMode 
+                  ? '0 8px 24px rgba(0, 0, 0, 0.3)'
+                  : '0 8px 24px rgba(0, 0, 0, 0.12)'
+              }
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                {/* Asset Info */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Box sx={{ 
+                    width: 40, 
+                    height: 40, 
+                    borderRadius: '50%',
+                    background: isDarkMode 
+                      ? 'rgba(255, 255, 255, 0.1)'
+                      : 'rgba(44, 62, 80, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    p: 1
+                  }}>
+                    <img 
+                      src="/assets/icons/ethereum.svg" 
+                      alt="Ethereum"
+                      style={{ width: '24px', height: '24px' }}
+                    />
+                  </Box>
+                  <Box>
+                    <Typography variant="h6" sx={{ 
+                      fontFamily: 'sans-serif',
+                      color: isDarkMode ? 'white' : '#2c3e50',
+                      fontWeight: '600',
+                      fontSize: '1rem',
+                      mb: 0.5
+                    }}>
+                      {position.asset}
+                    </Typography>
                     <Typography variant="body2" sx={{ 
                       fontFamily: 'sans-serif',
-                      color: isDarkMode ? 'white' : '#2c3e50'
-                    }}>{position.asset}</Typography>
+                      color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(44, 62, 80, 0.7)',
+                      fontSize: '0.875rem'
+                    }}>
+                      Wrapped Ethereum
+                    </Typography>
                   </Box>
-                </TableCell>
-                <TableCell>
+                </Box>
+
+                {/* APY */}
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="body2" sx={{ 
+                    fontFamily: 'sans-serif',
+                    color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(44, 62, 80, 0.7)',
+                    fontSize: '0.75rem',
+                    mb: 0.5
+                  }}>
+                    APY
+                  </Typography>
                   <Chip 
                     label={position.apy} 
                     size="small" 
-                    color="success" 
-                    variant="outlined"
+                    sx={{
+                      background: isDarkMode 
+                        ? 'rgba(76, 175, 80, 0.2)'
+                        : 'rgba(76, 175, 80, 0.1)',
+                      color: isDarkMode ? '#4caf50' : '#2e7d32',
+                      border: isDarkMode 
+                        ? '1px solid rgba(76, 175, 80, 0.3)'
+                        : '1px solid rgba(76, 175, 80, 0.2)',
+                      fontWeight: '600'
+                    }}
                   />
-                </TableCell>
-                <TableCell>
+                </Box>
+
+                {/* Amount */}
+                <Box sx={{ textAlign: 'center' }}>
                   <Typography variant="body2" sx={{ 
                     fontFamily: 'sans-serif',
-                    color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(44, 62, 80, 0.7)'
+                    color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(44, 62, 80, 0.7)',
+                    fontSize: '0.75rem',
+                    mb: 0.5
+                  }}>
+                    Amount
+                  </Typography>
+                  <Typography variant="h6" sx={{ 
+                    fontFamily: 'sans-serif',
+                    color: isDarkMode ? 'white' : '#2c3e50',
+                    fontWeight: '600',
+                    fontSize: '1rem'
                   }}>
                     {position.amount}
                   </Typography>
-                </TableCell>
-                <TableCell>
+                </Box>
+
+                {/* Status */}
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="body2" sx={{ 
+                    fontFamily: 'sans-serif',
+                    color: isDarkMode ? 'rgba(255, 255, 255, 0.7)' : 'rgba(44, 62, 80, 0.7)',
+                    fontSize: '0.75rem',
+                    mb: 0.5
+                  }}>
+                    Status
+                  </Typography>
                   <Chip 
                     label={position.status} 
                     size="small" 
-                    color="primary" 
+                    sx={{
+                      background: isDarkMode 
+                        ? 'rgba(33, 150, 243, 0.2)'
+                        : 'rgba(33, 150, 243, 0.1)',
+                      color: isDarkMode ? '#2196f3' : '#1976d2',
+                      border: isDarkMode 
+                        ? '1px solid rgba(33, 150, 243, 0.3)'
+                        : '1px solid rgba(33, 150, 243, 0.2)',
+                      fontWeight: '600'
+                    }}
                   />
-                </TableCell>
-                <TableCell>
+                </Box>
+
+                {/* Action Button */}
+                <Box>
                   <Button
                     size="small"
                     variant="outlined"
@@ -256,25 +390,35 @@ export default function PositionList({ suppliedBalance: propSuppliedBalance, has
                       borderColor: isDarkMode 
                         ? 'rgba(255, 255, 255, 0.3)'
                         : 'rgba(44, 62, 80, 0.4)',
+                      borderRadius: '4px',
+                      textTransform: 'none',
+                      fontWeight: '600',
+                      px: 2,
+                      py: 1,
                       '&:hover': {
                         borderColor: isDarkMode 
                           ? 'rgba(255, 255, 255, 0.5)'
                           : 'rgba(44, 62, 80, 0.6)',
                         backgroundColor: isDarkMode 
                           ? 'rgba(255, 255, 255, 0.05)'
-                          : 'rgba(44, 62, 80, 0.05)'
-                      }
+                          : 'rgba(44, 62, 80, 0.05)',
+                        transform: 'translateY(-1px)'
+                      },
+                      '&:disabled': {
+                        opacity: 0.6,
+                        cursor: 'not-allowed'
+                      },
+                      transition: 'all 0.3s ease'
                     }}
                   >
                     Withdraw
                   </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        </TableContainer>
-      </Card>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        ))}
+      </Box>
 
       {/* Withdraw Dialog */}
       <Dialog 

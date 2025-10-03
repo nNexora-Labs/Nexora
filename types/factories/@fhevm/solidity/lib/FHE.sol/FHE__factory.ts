@@ -31,11 +31,6 @@ const _abi = [
     type: "error",
   },
   {
-    inputs: [],
-    name: "UnsupportedHandleType",
-    type: "error",
-  },
-  {
     anonymous: false,
     inputs: [
       {

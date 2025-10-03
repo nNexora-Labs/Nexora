@@ -135,10 +135,10 @@ npx hardhat deploy --network sepolia
 
 ## 🔮 Future Phases
 
-- **Phase 2**: Borrowing functionality
-- **Phase 3**: Dynamic interest rates
-- **Phase 4**: Multi-asset support
-- **Phase 5**: Advanced DeFi features
+- ** Borrowing functionality
+- ** Dynamic interest rates
+- ** Multi-asset support
+- ** Advanced DeFi features
 
 ## 📝 License
 
@@ -151,6 +151,5 @@ This project is built for the Zama Developer Program. Contributions and feedback
 ## 🔗 Links
 
 - [Zama Documentation](https://docs.zama.ai/)
-- [FHEVM Documentation](https://docs.fhevm.org/)
 - [WalletConnect](https://walletconnect.com/)
 - [Wagmi Documentation](https://wagmi.sh/)

@@ -15,7 +15,12 @@ describe("Confidential Lending Protocol", function () {
 
     // Deploy ConfidentialWETH
     const ConfidentialWETHFactory = await ethers.getContractFactory("ConfidentialWETH");
-    cWETH = await ConfidentialWETHFactory.deploy();
+    cWETH = await ConfidentialWETHFactory.deploy(
+      owner.address,
+      "Confidential WETH",
+      "cWETH",
+      "https://example.com/metadata/"
+    );
     await cWETH.waitForDeployment();
 
     // Deploy ConfidentialLendingVault
