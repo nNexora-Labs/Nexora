@@ -44,6 +44,7 @@ export interface ConfidentialWETHInterface extends Interface {
       | "isOperator"
       | "name"
       | "owner"
+      | "protocolId"
       | "rate"
       | "renounceOwnership"
       | "setOperator"
@@ -114,7 +115,7 @@ export interface ConfidentialWETHInterface extends Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "finalizeDiscloseEncryptedAmount",
-    values: [BigNumberish, BigNumberish, BytesLike[]]
+    values: [BigNumberish, BytesLike, BytesLike]
   ): string;
   encodeFunctionData(
     functionFragment: "getEncryptedBalance",
@@ -126,6 +127,10 @@ export interface ConfidentialWETHInterface extends Interface {
   ): string;
   encodeFunctionData(functionFragment: "name", values?: undefined): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "protocolId",
+    values?: undefined
+  ): string;
   encodeFunctionData(functionFragment: "rate", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "renounceOwnership",
@@ -208,6 +213,7 @@ export interface ConfidentialWETHInterface extends Interface {
   decodeFunctionResult(functionFragment: "isOperator", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "name", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "protocolId", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "rate", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "renounceOwnership",
@@ -452,7 +458,11 @@ export interface ConfidentialWETH extends BaseContract {
   >;
 
   finalizeDiscloseEncryptedAmount: TypedContractMethod<
-    [requestId: BigNumberish, amount: BigNumberish, signatures: BytesLike[]],
+    [
+      requestId: BigNumberish,
+      cleartexts: BytesLike,
+      decryptionProof: BytesLike
+    ],
     [void],
     "nonpayable"
   >;
@@ -472,6 +482,8 @@ export interface ConfidentialWETH extends BaseContract {
   name: TypedContractMethod<[], [string], "view">;
 
   owner: TypedContractMethod<[], [string], "view">;
+
+  protocolId: TypedContractMethod<[], [bigint], "view">;
 
   rate: TypedContractMethod<[], [bigint], "view">;
 
@@ -597,7 +609,11 @@ export interface ConfidentialWETH extends BaseContract {
   getFunction(
     nameOrSignature: "finalizeDiscloseEncryptedAmount"
   ): TypedContractMethod<
-    [requestId: BigNumberish, amount: BigNumberish, signatures: BytesLike[]],
+    [
+      requestId: BigNumberish,
+      cleartexts: BytesLike,
+      decryptionProof: BytesLike
+    ],
     [void],
     "nonpayable"
   >;
@@ -617,6 +633,9 @@ export interface ConfidentialWETH extends BaseContract {
   getFunction(
     nameOrSignature: "owner"
   ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "protocolId"
+  ): TypedContractMethod<[], [bigint], "view">;
   getFunction(
     nameOrSignature: "rate"
   ): TypedContractMethod<[], [bigint], "view">;

@@ -643,7 +643,7 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
             hasCWETH 
               ? isDecrypted && cWETHBalance.includes('cWETH')
                 ? `Available: ${cWETHBalance}`
-                : 'Available: Balance encrypted (••••••••)'
+                : 'Available: ••••••••'
               : 'No cWETH balance available'
           }
           sx={{

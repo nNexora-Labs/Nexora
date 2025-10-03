@@ -93,6 +93,7 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
   const [isValidAmount, setIsValidAmount] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [swapDirection, setSwapDirection] = useState<'wrap' | 'unwrap'>('wrap');
+  const [balanceWarning, setBalanceWarning] = useState<string | null>(null);
 
   // Initialize FHE on component mount
   useEffect(() => {
@@ -132,6 +133,13 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
       const amountWei = parseFloat(amount);
       const balanceWei = parseFloat(ethBalance.formatted);
       setIsValidAmount(amountWei > 0 && amountWei <= balanceWei);
+      
+      // Set balance warning for wrap direction
+      if (amountWei > 0 && amountWei > balanceWei) {
+        setBalanceWarning(`Insufficient ETH balance. Available: ${formatBalance(ethBalance.formatted)} ETH`);
+      } else {
+        setBalanceWarning(null);
+      }
     } else if (amount && swapDirection === 'unwrap') {
       const amountWei = parseFloat(amount);
       // For unwrap, we need to check if user has cWETH balance AND FHE is initialized
@@ -140,16 +148,27 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
       if (isDecrypted && cWETHBalance.includes('cWETH')) {
         const balanceWei = parseFloat(cWETHBalance.replace(' cWETH', ''));
         hasValidBalance = amountWei > 0 && amountWei <= balanceWei;
+        
+        // Set balance warning for unwrap direction
+        if (amountWei > 0 && amountWei > balanceWei) {
+          setBalanceWarning(`Insufficient cWETH balance. Available: ${formatBalance(cWETHBalance.replace(' cWETH', ''))} cWETH`);
+        } else {
+          setBalanceWarning(null);
+        }
       } else if (hasCWETH) {
         // If user has encrypted cWETH but it's not decrypted, allow any positive amount
         // The contract will handle the validation
         hasValidBalance = amountWei > 0;
+        setBalanceWarning(null);
+      } else {
+        setBalanceWarning('No cWETH balance available');
       }
       
       // For unwrap, also require FHE to be initialized and no FHE errors
       setIsValidAmount(hasValidBalance && fheInitialized && !fheError);
     } else {
       setIsValidAmount(false);
+      setBalanceWarning(null);
     }
   }, [amount, ethBalance, swapDirection, isDecrypted, cWETHBalance, hasCWETH, fheInitialized, fheError]);
 
@@ -171,10 +190,12 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
       setAmount(ethBalance.formatted);
     } else if (swapDirection === 'unwrap') {
       if (isDecrypted && cWETHBalance.includes('cWETH')) {
-        setAmount(cWETHBalance.replace(' cWETH', ''));
+        const balanceAmount = cWETHBalance.replace(' cWETH', '');
+        setAmount(balanceAmount);
       } else if (hasCWETH) {
-        // If user has encrypted cWETH but it's not decrypted, set a default amount
-        setAmount('0.1'); // Default amount for testing
+        // If user has encrypted cWETH but it's not decrypted, we can't get exact balance
+        // Show a message that they need to decrypt first
+        setBalanceWarning('Please decrypt your balance first to use MAX button');
       }
     }
   };
@@ -259,6 +280,7 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
     if (newDirection !== null) {
       setSwapDirection(newDirection);
       setAmount(''); // Clear amount when switching directions
+      setBalanceWarning(null); // Clear any balance warnings
     }
   };
 
@@ -293,6 +315,12 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
       {swapDirection === 'unwrap' && fheError && (
         <Alert severity="error" sx={{ mb: 2 }}>
           FHE initialization failed: {fheError}
+        </Alert>
+      )}
+
+      {balanceWarning && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          {balanceWarning}
         </Alert>
       )}
 
@@ -345,7 +373,7 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
                     onClick={handleMaxAmount}
                     disabled={
                       (swapDirection === 'wrap' && !ethBalance) ||
-                      (swapDirection === 'unwrap' && !hasCWETH)
+                      (swapDirection === 'unwrap' && (!hasCWETH || (!isDecrypted && hasCWETH)))
                     }
                     sx={{ ml: 1 }}
                   >
@@ -359,7 +387,7 @@ export default function ETHToCWETHConverter({ onTransactionSuccess }: ETHToCWETH
                   : (isDecrypted && cWETHBalance.includes('cWETH') 
                       ? `Available: ${formatBalance(cWETHBalance.replace(' cWETH', ''))} cWETH` 
                       : hasCWETH 
-                        ? 'Available: •••••••• cWETH (encrypted)' 
+                        ? 'Available: •••••••• cWETH (encrypted - click decrypt to see balance)' 
                         : 'No cWETH balance available')
               }
             />
