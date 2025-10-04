@@ -76,9 +76,6 @@ const CWETH_ABI = [
 ] as const;
 
 export default function Dashboard() {
-  const [isMounted, setIsMounted] = useState(false);
-  
-  // Only initialize hooks after component is mounted
   const { address, isConnected } = useAccount();
   const { connect, connectors, isPending: isConnecting } = useConnect();
   const { disconnect } = useDisconnect();
@@ -148,15 +145,12 @@ export default function Dashboard() {
       setUseVerticalNav(window.innerWidth < 900);
     };
 
-    // Only run layout check after component is mounted to avoid hydration issues
-    if (isMounted) {
-      checkLayout();
-    }
-    
-    window.addEventListener('resize', checkLayout);
-    
-    return () => window.removeEventListener('resize', checkLayout);
-  }, [isMounted]);
+  checkLayout();
+  
+  window.addEventListener('resize', checkLayout);
+  
+  return () => window.removeEventListener('resize', checkLayout);
+}, []);
   
   const availableNetworks = [
     { name: 'Ethereum', chainId: 1, functional: false, icon: '/assets/icons/eth-svgrepo-com.svg' },
@@ -384,10 +378,6 @@ export default function Dashboard() {
     { symbol: 'BTC', name: 'Bitcoin', icon: '/assets/icons/bitcoin-svgrepo-com.svg', functional: false },
   ];
 
-  // Handle SSR - only run hooks after component is mounted
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   // Initialize FHE for unwrap functionality
   useEffect(() => {
@@ -698,16 +688,6 @@ export default function Dashboard() {
     }
   };
 
-  // Only render after component is mounted to avoid hydration issues
-  if (!isMounted) {
-    return (
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4, pb: 10 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
-          <CircularProgress />
-        </Box>
-      </Container>
-    );
-  }
 
   return (
     <>
@@ -4412,7 +4392,7 @@ export default function Dashboard() {
                       display: 'block', 
                       color: isDarkMode ? 'rgba(255, 255, 255, 0.75)' : 'rgba(0, 0, 0, 0.75)' 
                     }}>
-                      {isReversed ? `1 cWETH = 1 ${selectedToken}` : `1 ${selectedToken} = 1 cWETH`} • Fee ~$2.50 • Min 0.001 {isReversed ? selectedToken : 'cWETH'}
+                      {isReversed ? `1 cWETH = 1 ${selectedToken}` : `1 ${selectedToken} = 1 cWETH`} • Fee ~$0.00
                     </Typography>
                   </div>
                   <div className={`${styles.actionsRow} ${styles.actionsSpacer}`}>
