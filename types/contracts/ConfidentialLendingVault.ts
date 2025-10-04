@@ -26,9 +26,11 @@ export interface ConfidentialLendingVaultInterface extends Interface {
   getFunction(
     nameOrSignature:
       | "asset"
+      | "getAuthorizedUserCount"
       | "getEncryptedShares"
       | "getEncryptedTotalAssets"
       | "getEncryptedTotalShares"
+      | "isUserAuthorized"
       | "onConfidentialTransferReceived"
       | "owner"
       | "protocolId"
@@ -47,6 +49,10 @@ export interface ConfidentialLendingVaultInterface extends Interface {
 
   encodeFunctionData(functionFragment: "asset", values?: undefined): string;
   encodeFunctionData(
+    functionFragment: "getAuthorizedUserCount",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
     functionFragment: "getEncryptedShares",
     values: [AddressLike]
   ): string;
@@ -57,6 +63,10 @@ export interface ConfidentialLendingVaultInterface extends Interface {
   encodeFunctionData(
     functionFragment: "getEncryptedTotalShares",
     values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "isUserAuthorized",
+    values: [AddressLike]
   ): string;
   encodeFunctionData(
     functionFragment: "onConfidentialTransferReceived",
@@ -86,6 +96,10 @@ export interface ConfidentialLendingVaultInterface extends Interface {
 
   decodeFunctionResult(functionFragment: "asset", data: BytesLike): Result;
   decodeFunctionResult(
+    functionFragment: "getAuthorizedUserCount",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "getEncryptedShares",
     data: BytesLike
   ): Result;
@@ -95,6 +109,10 @@ export interface ConfidentialLendingVaultInterface extends Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "getEncryptedTotalShares",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "isUserAuthorized",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -197,6 +215,8 @@ export interface ConfidentialLendingVault extends BaseContract {
 
   asset: TypedContractMethod<[], [string], "view">;
 
+  getAuthorizedUserCount: TypedContractMethod<[], [bigint], "view">;
+
   getEncryptedShares: TypedContractMethod<
     [user: AddressLike],
     [string],
@@ -206,6 +226,8 @@ export interface ConfidentialLendingVault extends BaseContract {
   getEncryptedTotalAssets: TypedContractMethod<[], [string], "view">;
 
   getEncryptedTotalShares: TypedContractMethod<[], [string], "view">;
+
+  isUserAuthorized: TypedContractMethod<[user: AddressLike], [boolean], "view">;
 
   onConfidentialTransferReceived: TypedContractMethod<
     [arg0: AddressLike, from: AddressLike, amount: BytesLike, arg3: BytesLike],
@@ -245,6 +267,9 @@ export interface ConfidentialLendingVault extends BaseContract {
     nameOrSignature: "asset"
   ): TypedContractMethod<[], [string], "view">;
   getFunction(
+    nameOrSignature: "getAuthorizedUserCount"
+  ): TypedContractMethod<[], [bigint], "view">;
+  getFunction(
     nameOrSignature: "getEncryptedShares"
   ): TypedContractMethod<[user: AddressLike], [string], "view">;
   getFunction(
@@ -253,6 +278,9 @@ export interface ConfidentialLendingVault extends BaseContract {
   getFunction(
     nameOrSignature: "getEncryptedTotalShares"
   ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "isUserAuthorized"
+  ): TypedContractMethod<[user: AddressLike], [boolean], "view">;
   getFunction(
     nameOrSignature: "onConfidentialTransferReceived"
   ): TypedContractMethod<

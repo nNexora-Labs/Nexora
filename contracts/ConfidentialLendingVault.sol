@@ -25,11 +25,41 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
     mapping(address => euint64) private _encryptedShares;
     euint64 private _encryptedTotalShares;
     euint64 private _encryptedTotalAssets;
+    
+    // Track users who have permission to decrypt global data
+    mapping(address => bool) private _canDecryptGlobals;
+    address[] private _authorizedUsers;
 
     constructor(address _asset) Ownable(msg.sender) {
         asset = IERC20(_asset);
         _encryptedTotalShares = FHE.asEuint64(0);
         _encryptedTotalAssets = FHE.asEuint64(0);
+        // Initialize with contract permissions
+        FHE.allowThis(_encryptedTotalShares);
+        FHE.allowThis(_encryptedTotalAssets);
+    }
+
+    /// @notice Update global permissions for a user
+    /// @dev Ensures user can decrypt global vault data (total shares, total assets)
+    /// @dev CRITICAL: Re-grants permissions to ALL authorized users, not just the new one
+    function _updateGlobalPermissions(address newUser) private {
+        // Add new user to authorized list if not already there
+        if (!_canDecryptGlobals[newUser]) {
+            _canDecryptGlobals[newUser] = true;
+            _authorizedUsers.push(newUser);
+        }
+        
+        // CRITICAL FIX: Re-grant permissions to ALL authorized users
+        // This ensures that when a new user supplies, existing users don't lose access
+        for (uint256 i = 0; i < _authorizedUsers.length; i++) {
+            address user = _authorizedUsers[i];
+            if (_canDecryptGlobals[user]) {
+                FHE.allow(_encryptedTotalShares, user);
+                FHE.allow(_encryptedTotalAssets, user);
+            }
+        }
+        
+        // Maintain contract permissions
         FHE.allowThis(_encryptedTotalShares);
         FHE.allowThis(_encryptedTotalAssets);
     }
@@ -68,11 +98,13 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
         _encryptedTotalShares = FHE.add(_encryptedTotalShares, encryptedShares);
         _encryptedTotalAssets = FHE.add(_encryptedTotalAssets, encryptedAmount);
 
-        // Allow contract and user to access encrypted values
+        // CRITICAL FIX: Proper permission management
+        // 1. Allow user to access their own shares
         FHE.allowThis(newUserShares);
         FHE.allow(newUserShares, from);
-        FHE.allowThis(_encryptedTotalShares);
-        FHE.allowThis(_encryptedTotalAssets);
+        
+        // 2. Update global permissions for this user
+        _updateGlobalPermissions(from);
 
         // Emit CONFIDENTIAL event (no amounts exposed)
         emit ConfidentialSupply(from);
@@ -119,10 +151,13 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
         _encryptedTotalShares = FHE.add(_encryptedTotalShares, encryptedShares);
         _encryptedTotalAssets = FHE.add(_encryptedTotalAssets, transferred);
         
+        // CRITICAL FIX: Proper permission management
+        // 1. Allow user to access their own shares
         FHE.allowThis(newUserShares);
         FHE.allow(newUserShares, msg.sender);
-        FHE.allowThis(_encryptedTotalShares);
-        FHE.allowThis(_encryptedTotalAssets);
+        
+        // 2. Update global permissions for this user
+        _updateGlobalPermissions(msg.sender);
         
         emit ConfidentialSupply(msg.sender);
     }
@@ -164,10 +199,12 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
         _encryptedTotalShares = FHE.sub(_encryptedTotalShares, withdrawalAmount);
         _encryptedTotalAssets = FHE.sub(_encryptedTotalAssets, withdrawalAmount);
         
+        // CRITICAL FIX: Maintain permissions after withdrawal
         FHE.allowThis(_encryptedShares[msg.sender]);
         FHE.allow(_encryptedShares[msg.sender], msg.sender);
-        FHE.allowThis(_encryptedTotalShares);
-        FHE.allowThis(_encryptedTotalAssets);
+        
+        // Update global permissions (user still authorized)
+        _updateGlobalPermissions(msg.sender);
 
         FHE.allowTransient(withdrawalAmount, address(asset));
 
@@ -179,6 +216,19 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
         );
         
         emit ConfidentialWithdraw(msg.sender);
+    }
+
+    /// @notice Check if a user is authorized to decrypt global data
+    /// @param user The user address to check
+    /// @return True if user can decrypt global vault data
+    function isUserAuthorized(address user) external view returns (bool) {
+        return _canDecryptGlobals[user];
+    }
+
+    /// @notice Get the total number of authorized users
+    /// @return Number of users who can decrypt global data
+    function getAuthorizedUserCount() external view returns (uint256) {
+        return _authorizedUsers.length;
     }
 
 }

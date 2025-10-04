@@ -206,33 +206,18 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
           masterSig.startTimestamp,
           masterSig.durationDays
         );
-      } catch (userDecryptError) {
-    // User decrypt failed, trying alternative
+      } catch (userDecryptError: any) {
+        console.warn('🚫 TVL Authorization error. Multiple users may be active.', {
+          error: userDecryptError.message,
+          currentVaultAddress: VAULT_ADDRESS,
+          authorizedAddresses: masterSig.contractAddresses
+        });
         
-        const CWETH_ADDRESS = contractAddresses?.CWETH_ADDRESS;
-        if (!CWETH_ADDRESS) {
-          throw new Error('cWETH contract address not available for fallback decryption');
-        }
-        
-        try {
-          result = await fheInstance.userDecrypt(
-            [{ handle: encryptedTVL, contractAddress: CWETH_ADDRESS }],
-            masterSig.privateKey,
-            masterSig.publicKey,
-            masterSig.signature,
-            masterSig.contractAddresses,
-            masterSig.userAddress,
-            masterSig.startTimestamp,
-            masterSig.durationDays
-          );
-    // TVL decrypted successfully
-        } catch (cwethDecryptError) {
-    // CWETH contract address also failed
-          
-          // Don't throw an error, just keep it encrypted
-          // The UI will show "••••••••" which is appropriate for global values
-          return;
-        }
+        setTVLBalance('Permission Error');
+        setDecryptionError('Unable to decrypt TVL data. Contract may need updating for multi-user support.');
+        setIsDecrypting(false);
+        isDecryptingRef.current = false;
+        return;
       }
 
       // Handle different result formats

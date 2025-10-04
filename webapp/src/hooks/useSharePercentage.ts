@@ -310,73 +310,11 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
           return;
         }
         
-        // For share percentage, try fallback decryption with cWETH contract
-        console.log('ℹ️ Share percentage decryption with user signature failed, trying fallback...');
-        
-        try {
-          const CWETH_ADDRESS = contractAddresses?.CWETH_ADDRESS;
-          const masterSig = getMasterSignature();
-          if (CWETH_ADDRESS && masterSig) {
-            console.log('🔄 Attempting fallback share percentage decryption with cWETH contract...');
-            
-            const fheInstance = await getFHEInstance();
-            const fallbackResult = await fheInstance.userDecrypt(
-              [
-                { handle: encryptedUserSharesState, contractAddress: CWETH_ADDRESS as `0x${string}` },
-                { handle: encryptedTotalSharesState, contractAddress: CWETH_ADDRESS as `0x${string}` }
-              ],
-              masterSig.privateKey,
-              masterSig.publicKey,
-              masterSig.signature,
-              masterSig.contractAddresses,
-              masterSig.userAddress,
-              masterSig.startTimestamp,
-              masterSig.durationDays
-            );
-            
-            if (fallbackResult && Array.isArray(fallbackResult) && fallbackResult.length >= 2) {
-              const userSharesValue = encryptedUserSharesState ? fallbackResult[0] : undefined;
-              const totalSharesValue = encryptedTotalSharesState ? fallbackResult[1] : undefined;
-              
-              if (userSharesValue !== undefined && totalSharesValue !== undefined) {
-                let userShares: bigint;
-                let totalShares: bigint;
-
-                // Convert to bigint
-                if (typeof userSharesValue === 'bigint') {
-                  userShares = userSharesValue;
-                } else if (typeof userSharesValue === 'string') {
-                  userShares = BigInt(userSharesValue);
-                } else {
-                  userShares = BigInt(userSharesValue.toString());
-                }
-
-                if (typeof totalSharesValue === 'bigint') {
-                  totalShares = totalSharesValue;
-                } else if (typeof totalSharesValue === 'string') {
-                  totalShares = BigInt(totalSharesValue);
-                } else {
-                  totalShares = BigInt(totalSharesValue.toString());
-                }
-
-                // Calculate percentage
-                if (totalShares > BigInt(0)) {
-                  const percentage = Number(userShares * BigInt(10000) / totalShares) / 100; // 2 decimal places
-                  setSharePercentage(`${percentage.toFixed(2)}%`);
-                  setIsDecrypting(false);
-                  console.log('✅ Share percentage decrypted successfully with fallback method:', percentage);
-                  return; // Success with fallback
-                }
-              }
-            }
-          }
-        } catch (fallbackError) {
-          console.log('ℹ️ Fallback share percentage decryption also failed');
-        }
-        
-        // If fallback also fails, show aggregated data instead of dots
-        setSharePercentage('Multiple Users Active');
-        setIsDecrypting(false); // Mark as "decrypted" but with special status
+        // For other errors, show dots
+        console.error('❌ Share percentage decryption failed:', decryptError);
+        setSharePercentage('••••••••');
+        setDecryptionError('Decryption failed. Please try again.');
+        setIsDecrypting(false);
         return;
       }
 
