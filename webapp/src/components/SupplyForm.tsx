@@ -466,8 +466,24 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
           
           // Encrypt the input (this is CPU-intensive)
           console.log('Encrypting input (this may take a moment)...');
-          const encryptedData = await input.encrypt();
-          console.log('Input encrypted successfully');
+          let encryptedData;
+          try {
+            encryptedData = await input.encrypt();
+            console.log('Input encrypted successfully');
+          } catch (encryptError: any) {
+            console.error('❌ Encryption failed:', encryptError);
+            
+            // Handle specific error types
+            if (encryptError.message && encryptError.message.includes('Relayer')) {
+              throw new Error('FHE relayer is experiencing issues. Please try again in a few moments.');
+            } else if (encryptError.message && encryptError.message.includes('JSON')) {
+              throw new Error('Network communication error with FHE service. Please check your connection and try again.');
+            } else if (encryptError.message && encryptError.message.includes('timeout')) {
+              throw new Error('Encryption request timed out. The FHE service may be busy. Please try again.');
+            } else {
+              throw new Error(`Encryption failed: ${encryptError.message || 'Unknown error'}`);
+            }
+          }
           
           // Extract and normalize encrypted amount and proof to hex strings
           console.log('Raw encrypted data:', encryptedData);
@@ -512,20 +528,27 @@ export default function SupplyForm({ onTransactionSuccess, cWETHBalance: propCWE
         } catch (encryptError) {
           console.error('Encryption/Transfer failed:', encryptError);
           
-          // Check if this is an FHEVM initialization error for the vault
+          // Handle specific error types with user-friendly messages
           if (encryptError instanceof Error) {
             const errorMessage = encryptError.message.toLowerCase();
-            if (errorMessage.includes('fhe') || 
+            
+            if (errorMessage.includes('relayer') || errorMessage.includes('json')) {
+              throw new Error('FHE service is temporarily unavailable. Please try again in a few moments.');
+            } else if (errorMessage.includes('timeout')) {
+              throw new Error('Request timed out. Please check your connection and try again.');
+            } else if (errorMessage.includes('user rejected')) {
+              throw new Error('Transaction was cancelled by user.');
+            } else if (errorMessage.includes('fhe') || 
                 errorMessage.includes('encrypt') ||
                 errorMessage.includes('instance') ||
                 errorMessage.includes('vault') ||
                 errorMessage.includes('contract')) {
               console.log('FHEVM vault encryption error detected:', encryptError.message);
-              throw new Error(`Vault encryption failed: ${encryptError.message}`);
+              throw new Error(`Encryption service error: ${encryptError.message}`);
             }
           }
           
-          throw new Error(`Failed to encrypt transfer amount: ${encryptError}`);
+          throw new Error(`Transaction failed: ${encryptError instanceof Error ? encryptError.message : String(encryptError)}`);
         } finally {
           setIsEncrypting(false);
         }

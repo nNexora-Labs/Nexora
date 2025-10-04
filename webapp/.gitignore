@@ -13,7 +13,7 @@ lerna-debug.log*
 .env.development.local
 .env.test.local
 .env.production.local
-.env.example
+# .env.example (keep this as a template)
 
 # Next.js build output
 .next/

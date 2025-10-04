@@ -145,11 +145,14 @@ export default function Dashboard() {
       setUseVerticalNav(window.innerWidth < 900);
     };
 
-  checkLayout();
-  
-  window.addEventListener('resize', checkLayout);
-  
-  return () => window.removeEventListener('resize', checkLayout);
+    // Only run after component is mounted to avoid hydration issues
+    if (typeof window !== 'undefined') {
+      checkLayout();
+      
+      window.addEventListener('resize', checkLayout);
+      
+      return () => window.removeEventListener('resize', checkLayout);
+    }
 }, []);
   
   const availableNetworks = [
@@ -403,6 +406,11 @@ export default function Dashboard() {
 
   // Handle SupplyForm close event
   useEffect(() => {
+    // Only run in browser environment to avoid hydration issues
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     const handleCloseSupplyDialog = () => {
       setShowSupplyModal(false);
     };
@@ -650,12 +658,15 @@ export default function Dashboard() {
       }
     };
 
-    if (showNetworkDropdown || showMobileMenu) {
+    // Only run in browser environment to avoid hydration issues
+    if (typeof document !== 'undefined' && (showNetworkDropdown || showMobileMenu)) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('mousedown', handleClickOutside);
+      }
     };
   }, [showNetworkDropdown, showMobileMenu]);
 
@@ -1248,7 +1259,10 @@ export default function Dashboard() {
         flexDirection: 'column'
       }}>
         {/* Main Content Wrapper */}
-        <Box sx={{ flex: 1, pt: { xs: 2, sm: 3 } }}>
+        <Box sx={{ flex: 1,
+         //mt: 0.2, //margin-top
+         pb: { xs: 2, sm: 3}  // padding-bottom
+      }}>
           {/* Contract Status Banner */}
           <ContractStatusBanner isDarkMode={isDarkMode} />
           
@@ -3442,13 +3456,14 @@ export default function Dashboard() {
         {activeTab === 'portfolio' && (
           <Box>
             {/* Portfolio Header */}
-            <Card sx={{ 
+            <Card sx={{
+              mt:0.15, 
               mb: 3, 
               background: isDarkMode 
                 ? 'linear-gradient(135deg, #34495e 0%, #2c3e50 100%)'
                 : 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
               color: isDarkMode ? 'white' : '#000000',
-              borderRadius: '4px',
+              borderRadius: '0px',
               border: isDarkMode 
                 ? '1px solid rgba(255, 255, 255, 0.1)'
                 : '1px solid rgba(44, 62, 80, 0.1)',
@@ -3644,10 +3659,12 @@ export default function Dashboard() {
                         </Card>
                       </Grid>
                     </Grid>
-
-                    {/* Asset Breakdown */}
+                  <Box  display="flex">
+                    {/* Asset Breakdown */}  {/* list of assets that the user has in  the wallet connected to the Nexora */}
                     <Card sx={{
-                      mb: 3,
+                      width: '50%',
+                      gap:2,
+                      mb: 1,
                       background: isDarkMode 
                         ? 'rgba(255, 255, 255, 0.08)'
                         : 'rgba(44, 62, 80, 0.08)',
@@ -3658,7 +3675,7 @@ export default function Dashboard() {
                         ? '0 2px 8px rgba(0, 0, 0, 0.2)'
                         : '0 2px 8px rgba(44, 62, 80, 0.1)'
                     }}>
-                      <CardContent sx={{ p: 3 }}>
+                      <CardContent sx={{ p: 1 }}>
                         <Typography variant="h6" sx={{ 
                           fontWeight: '600', 
                           mb: 3, 
@@ -3669,13 +3686,268 @@ export default function Dashboard() {
                         </Typography>
                         
                         {/* Asset List */}
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+
+                          {/* list of assets available in the user wallet */}
                           {/* cWETH Asset */}
                           <Box sx={{
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            p: 2,
+                            p: 1,
+                            borderRadius: '4px',
+                            background: isDarkMode 
+                              ? 'rgba(255, 255, 255, 0.08)'
+                              : 'rgba(44, 62, 80, 0.08)',
+                            border: isDarkMode 
+                              ? '2px solid rgba(255, 255, 255, 0.2)'
+                              : '2px solid rgba(44, 62, 80, 0.3)',
+                            boxShadow: isDarkMode 
+                              ? '0 2px 8px rgba(0, 0, 0, 0.2)'
+                              : '0 2px 8px rgba(44, 62, 80, 0.1)'
+                          }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <img 
+                                src="/assets/icons/ethereum.svg" 
+                                alt="cWETH"
+                                style={{ width: '32px', height: '32px' }}
+                              />
+                              <Box>
+                                <Typography variant="h6" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                                  cWETH
+                                </Typography>
+                                <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                                  Wrapped Ethereum
+                                </Typography>
+                              </Box>
+                            </Box>
+                            <Box sx={{ textAlign: 'right' }}>
+                              <Typography variant="h6" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                                {suppliedBalance}
+                              </Typography>
+                              <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                                100% of portfolio
+                              </Typography>
+                            </Box>
+                          </Box>
+
+                          {/*cUDT */}
+                          <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            p: 1,
+                            borderRadius: '4px',
+                            background: isDarkMode 
+                              ? 'rgba(255, 255, 255, 0.08)'
+                              : 'rgba(44, 62, 80, 0.08)',
+                            border: isDarkMode 
+                              ? '2px solid rgba(255, 255, 255, 0.2)'
+                              : '2px solid rgba(44, 62, 80, 0.3)',
+                            boxShadow: isDarkMode 
+                              ? '0 2px 8px rgba(0, 0, 0, 0.2)'
+                              : '0 2px 8px rgba(44, 62, 80, 0.1)'
+                          }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <img 
+                                src="/assets/icons/usdt-svgrepo-com.svg" 
+                                alt="cWETH"
+                                style={{ width: '32px', height: '32px' }}
+                              />
+                              <Box>
+                                <Typography variant="h6" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                                  cUDT
+                                </Typography>
+                                <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                                  confidential USDT
+                                </Typography>
+                              </Box>
+                            </Box>
+                            <Box sx={{ textAlign: 'right' }}>
+                              <Typography variant="h6" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                                {suppliedBalance}
+                              </Typography>
+                              <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                                100% of portfolio
+                              </Typography>
+                            </Box>
+                          </Box>
+
+                           {/*cUDC */}
+                          <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            p: 1,
+                            borderRadius: '4px',
+                            background: isDarkMode 
+                              ? 'rgba(255, 255, 255, 0.08)'
+                              : 'rgba(44, 62, 80, 0.08)',
+                            border: isDarkMode 
+                              ? '2px solid rgba(255, 255, 255, 0.2)'
+                              : '2px solid rgba(44, 62, 80, 0.3)',
+                            boxShadow: isDarkMode 
+                              ? '0 2px 8px rgba(0, 0, 0, 0.2)'
+                              : '0 2px 8px rgba(44, 62, 80, 0.1)'
+                          }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <img 
+                                src="/assets/icons/usdc-svgrepo-com.svg" 
+                                alt="cWETH"
+                                style={{ width: '32px', height: '32px' }}
+                              />
+                              <Box>
+                                <Typography variant="h6" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                                  cUSDC
+                                </Typography>
+                                <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                                  confidential USDC
+                                </Typography>
+                              </Box>
+                            </Box>
+                            <Box sx={{ textAlign: 'right' }}>
+                              <Typography variant="h6" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                                {suppliedBalance}
+                              </Typography>
+                              <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                                100% of portfolio
+                              </Typography>
+                            </Box>
+                          </Box>
+
+                          {/*cDAI */}
+                          <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            p: 1,
+                            borderRadius: '4px',
+                            background: isDarkMode 
+                              ? 'rgba(255, 255, 255, 0.08)'
+                              : 'rgba(44, 62, 80, 0.08)',
+                            border: isDarkMode 
+                              ? '2px solid rgba(255, 255, 255, 0.2)'
+                              : '2px solid rgba(44, 62, 80, 0.3)',
+                            boxShadow: isDarkMode 
+                              ? '0 2px 8px rgba(0, 0, 0, 0.2)'
+                              : '0 2px 8px rgba(44, 62, 80, 0.1)'
+                          }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <img 
+                                src="/assets/icons/multi-collateral-dai-dai-logo.svg" 
+                                alt="cWETH"
+                                style={{ width: '32px', height: '32px' }}
+                              />
+                              <Box>
+                                <Typography variant="h6" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                                  cDAI
+                                </Typography>
+                                <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                                  confidential DAI
+                                </Typography>
+                              </Box>
+                            </Box>
+                            <Box sx={{ textAlign: 'right' }}>
+                              <Typography variant="h6" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                                {suppliedBalance}
+                              </Typography>
+                              <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                                100% of portfolio
+                              </Typography>
+                            </Box>
+                          </Box>
+
+
+                          {/*cUNI */}
+                          <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            p: 1,
+                            borderRadius: '4px',
+                            background: isDarkMode 
+                              ? 'rgba(255, 255, 255, 0.08)'
+                              : 'rgba(44, 62, 80, 0.08)',
+                            border: isDarkMode 
+                              ? '2px solid rgba(255, 255, 255, 0.2)'
+                              : '2px solid rgba(44, 62, 80, 0.3)',
+                            boxShadow: isDarkMode 
+                              ? '0 2px 8px rgba(0, 0, 0, 0.2)'
+                              : '0 2px 8px rgba(44, 62, 80, 0.1)'
+                          }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <img 
+                                src="/assets/icons/uniswap-uni-logo.svg" 
+                                alt="cWETH"
+                                style={{ width: '32px', height: '32px' }}
+                              />
+                              <Box>
+                                <Typography variant="h6" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                                  cUNI
+                                </Typography>
+                                <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                                  confidential UNI
+                                </Typography>
+                              </Box>
+                            </Box>
+                            <Box sx={{ textAlign: 'right' }}>
+                              <Typography variant="h6" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                                {suppliedBalance}
+                              </Typography>
+                              <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                                100% of portfolio
+                              </Typography>
+                            </Box>
+                          </Box>
+
+                          {/*cWBTC */}
+                          <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            p: 1,
+                            borderRadius: '4px',
+                            background: isDarkMode 
+                              ? 'rgba(255, 255, 255, 0.08)'
+                              : 'rgba(44, 62, 80, 0.08)',
+                            border: isDarkMode 
+                              ? '2px solid rgba(255, 255, 255, 0.2)'
+                              : '2px solid rgba(44, 62, 80, 0.3)',
+                            boxShadow: isDarkMode 
+                              ? '0 2px 8px rgba(0, 0, 0, 0.2)'
+                              : '0 2px 8px rgba(44, 62, 80, 0.1)'
+                          }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              <img 
+                                src="/assets/icons/bitcoin-svgrepo-com.svg" 
+                                alt="cWETH"
+                                style={{ width: '32px', height: '32px' }}
+                              />
+                              <Box>
+                                <Typography variant="h6" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                                  cWBTC
+                                </Typography>
+                                <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                                  Confidential WBTC
+                                </Typography>
+                              </Box>
+                            </Box>
+                            <Box sx={{ textAlign: 'right' }}>
+                              <Typography variant="h6" sx={{ fontWeight: '600', fontFamily: 'sans-serif' }}>
+                                {suppliedBalance}
+                              </Typography>
+                              <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                                100% of portfolio
+                              </Typography>
+                            </Box>
+                          </Box>
+
+
+                          <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            p: 1,
                             borderRadius: '4px',
                             background: isDarkMode 
                               ? 'rgba(255, 255, 255, 0.08)'
@@ -3715,6 +3987,23 @@ export default function Dashboard() {
                       </CardContent>
                     </Card>
 
+
+                    <Card sx={{
+                      flexGrow: 1,
+                      width: '50%',
+                      mb: 1,
+                      background: isDarkMode 
+                        ? 'rgba(255, 255, 255, 0.08)'
+                        : 'rgba(44, 62, 80, 0.08)',
+                      border: isDarkMode 
+                        ? '2px solid rgba(255, 255, 255, 0.2)'
+                        : '2px solid rgba(44, 62, 80, 0.3)',
+                      boxShadow: isDarkMode 
+                        ? '0 2px 8px rgba(0, 0, 0, 0.2)'
+                        : '0 2px 8px rgba(44, 62, 80, 0.1)'
+                    }}>
+                    </Card>
+                  </Box>
                     {/* Performance Metrics */}
                     <Card sx={{
                       background: isDarkMode 

@@ -4,6 +4,11 @@ import { useEffect } from 'react';
 
 export default function ConsoleFilter() {
   useEffect(() => {
+    // Only run in browser environment to avoid hydration issues
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     // Suppress network error logs from console
     const originalConsoleError = console.error;
     console.error = (...args) => {

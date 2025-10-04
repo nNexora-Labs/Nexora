@@ -6,8 +6,8 @@
 // LATEST deployed contract addresses (update these when contracts are redeployed)
 export const LATEST_CONTRACTS = {
   SEPOLIA: {
-    VAULT_ADDRESS: '0x36c7631949f02a45C56d2cf23B489bcfD1D49A2f',
-    CWETH_ADDRESS: '0xe2EA515db3005E025bc0797fD3048dE85dC82107',
+    VAULT_ADDRESS: '0x7cBEd507b6B3e0A3b2D976b00dCa485ddF22485A',
+    CWETH_ADDRESS: '0x4A0c0EBFFb4d11E1A6778a696CCCE0D4BF42C065',
     CHAIN_ID: 11155111,
   },
   // Add other networks as needed

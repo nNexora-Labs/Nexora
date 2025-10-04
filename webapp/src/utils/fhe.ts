@@ -142,7 +142,7 @@ export const getFHEInstance = async (provider?: any): Promise<FhevmInstance> => 
       // Create config with or without public key (like the official example)
       const config = {
         ...relayerSDK.SepoliaConfig,
-        network: provider || 'https://eth-sepolia.public.blastapi.io',
+        network: provider || process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/your-key-here',
         ...(cachedKey && { 
           publicKey: cachedKey.publicKey,
           publicParams: cachedKey.publicParams 
@@ -259,53 +259,65 @@ export const createEncryptedInput = async (
   throw new Error('createEncryptedInput method not available in current SDK version');
 };
 
-// Encrypt a value and register it to FHEVM
+// Encrypt a value and register it to FHEVM with retry logic
 export const encryptAndRegister = async (
   contractAddress: string,
   userAddress: string,
-  value: bigint
+  value: bigint,
+  maxRetries: number = 3
 ) => {
   // Only run in browser environment
   if (typeof window === 'undefined') {
     throw new Error('FHE operations can only be performed in the browser');
   }
 
-  try {
-    // Creating encrypted input
-    console.log('🔐 Creating encrypted input for contract:', contractAddress, 'user:', userAddress, 'value:', value.toString());
-    
-    const buffer = await createEncryptedInput(contractAddress, userAddress);
-    // Encrypted input buffer created
-    console.log('📦 Encrypted input buffer created successfully');
-    
-    // Add the value to the buffer (using add64 for uint64 values)
-    if ('add64' in buffer) {
-      (buffer as any).add64(value);
-    // Value added to buffer (64-bit)
-    console.log('➕ Value added to buffer using add64');
-    } else if ('add32' in buffer) {
-      (buffer as any).add32(Number(value));
-    // Value added to buffer (32-bit)
-    console.log('➕ Value added to buffer using add32');
-    } else {
-      throw new Error('Buffer does not support add64 or add32 methods');
+  let lastError: Error | null = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🔐 Creating encrypted input (attempt ${attempt}/${maxRetries}) for contract:`, contractAddress, 'user:', userAddress, 'value:', value.toString());
+      
+      const buffer = await createEncryptedInput(contractAddress, userAddress);
+      console.log('📦 Encrypted input buffer created successfully');
+      
+      // Add the value to the buffer (using add64 for uint64 values)
+      if ('add64' in buffer) {
+        (buffer as any).add64(value);
+        console.log('➕ Value added to buffer using add64');
+      } else if ('add32' in buffer) {
+        (buffer as any).add32(Number(value));
+        console.log('➕ Value added to buffer using add32');
+      } else {
+        throw new Error('Buffer does not support add64 or add32 methods');
+      }
+      
+      // Encrypt and register to FHEVM
+      if ('encrypt' in buffer) {
+        console.log('🔒 Encrypting buffer...');
+        const ciphertexts = await (buffer as any).encrypt();
+        console.log('✅ Encryption successful');
+        return ciphertexts;
+      }
+      
+      throw new Error('Buffer encrypt method not available');
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.error(`❌ encryptAndRegister attempt ${attempt}/${maxRetries} failed:`, lastError.message);
+      
+      // If it's a relayer error, wait before retrying
+      if (lastError.message.includes('Relayer') || lastError.message.includes('JSON')) {
+        console.log(`⏳ Waiting 2 seconds before retry ${attempt + 1}...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+      
+      // If this is the last attempt, throw the error
+      if (attempt === maxRetries) {
+        throw new Error(`Failed to encrypt amount after ${maxRetries} attempts: ${lastError.message}`);
+      }
     }
-    
-    // Encrypt and register to FHEVM
-    if ('encrypt' in buffer) {
-    // Encrypting buffer
-    console.log('🔒 Encrypting buffer...');
-      const ciphertexts = await (buffer as any).encrypt();
-    // Encryption successful
-    console.log('✅ Encryption successful');
-      return ciphertexts;
-    }
-    
-    throw new Error('Buffer encrypt method not available');
-  } catch (error) {
-    console.error('encryptAndRegister failed:', error);
-    throw new Error(`Failed to encrypt amount: ${error instanceof Error ? error.message : String(error)}`);
   }
+  
+  throw lastError || new Error('Encryption failed for unknown reason');
 };
 
 // Decrypt user data using the official Zama pattern

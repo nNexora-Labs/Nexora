@@ -6,6 +6,11 @@ const nextConfig = {
     outputFileTracingRoot: require('path').join(__dirname, '../'),
   }),
   
+  // Enable emotion for Material-UI
+  compiler: {
+    emotion: true,
+  },
+  
   /* // Enable experimental features for better performance
   experimental: {
     optimizeCss: true,

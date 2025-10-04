@@ -4,21 +4,17 @@
  */
 
 export const SEPOLIA_RPC_URLS = [
-  // Primary: Environment variable (if set)
+  // Primary: Environment variable (if set) - should contain your Infura or Alchemy URL
   process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL,
   
-  // Free public endpoints (no API key required)
-  'https://ethereum-sepolia.publicnode.com',
-  'https://sepolia.gateway.tenderly.co',
+  // Fallback: Only use reliable providers with API keys
+  // These should be set in .env.local file
+  process.env.NEXT_PUBLIC_INFURA_RPC_URL,
+  process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL,
+  
+  // Last resort: Generic endpoints (less reliable)
   'https://rpc.sepolia.org',
   'https://sepolia.drpc.org',
-  'https://sepolia.blockpi.network/v1/rpc/public',
-  'https://sepolia.meowrpc.com',
-  'https://sepolia.api.onfinality.io/public',
-  'https://sepolia.public.blastapi.io',
-  
-  // Fallback: Infura key (if not rate limited)
-  'https://sepolia.infura.io/v3/edae100994ea476180577c9218370251',
 ];
 
 /**

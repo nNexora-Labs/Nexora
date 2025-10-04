@@ -29,7 +29,7 @@ export const useGasFee = () => {
       // Create a public client to fetch gas price
       
       const rpcUrls = [
-        process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/edae100994ea476180577c9218370251'
+        process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID'
       ];
       
       let publicClient;
@@ -77,7 +77,7 @@ export const useGasFee = () => {
         
         const fallbackClient = createPublicClient({
           chain: sepolia,
-          transport: http('https://sepolia.infura.io/v3/edae100994ea476180577c9218370251'),
+          transport: http(process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID'),
         });
         
         // Try getting gas price from latest block

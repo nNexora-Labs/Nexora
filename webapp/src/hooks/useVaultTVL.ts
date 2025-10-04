@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAccount, useWalletClient } from 'wagmi';
+import { useAccount, useReadContract, useWalletClient } from 'wagmi';
 import { createPublicClient, http, encodeFunctionData } from 'viem';
 import { sepolia } from 'wagmi/chains';
 import { getFHEInstance } from '../utils/fhe';
@@ -17,9 +17,9 @@ const VAULT_ABI = [
     "name": "getEncryptedTotalAssets",
     "outputs": [
       {
-        "internalType": "euint64",
+        "internalType": "bytes32",
         "name": "",
-        "type": "euint64"
+        "type": "bytes32"
       }
     ],
     "stateMutability": "view",
@@ -48,108 +48,49 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
   // Refs for preventing multiple simultaneous decryption attempts
   const isDecryptingRef = useRef(false);
 
-  // Fetch encrypted TVL from contract with aggressive polling
-  const fetchEncryptedTVL = useCallback(async () => {
-    if (!VAULT_ADDRESS) {
-      console.warn('Missing vault address for fetching TVL');
-      return;
-    }
+  // Read encrypted TVL from contract using useReadContract for auto-refresh
+  const { data: encryptedTVLData, refetch: refetchTVL } = useReadContract({
+    address: VAULT_ADDRESS as `0x${string}`,
+    abi: VAULT_ABI,
+    functionName: 'getEncryptedTotalAssets',
+    args: [],
+    query: {
+      enabled: !!VAULT_ADDRESS && typeof window !== 'undefined',
+      refetchInterval: 2000, // Poll every 2 seconds for real-time updates
+      refetchIntervalInBackground: true, // Continue polling even when tab is not active
+      staleTime: 1000, // Consider data stale after 1 second
+    },
+  });
 
-    try {
-      setIsLoadingTVL(true);
-      
-      // Create public client for raw calls
-      
-      const rpcUrls = getSepoliaRpcUrls();
-      
-      let publicClient;
-      let lastError;
-      
-      for (const rpcUrl of rpcUrls) {
-        try {
-    // Fetching TVL data
-          publicClient = createPublicClient({
-            chain: sepolia,
-            transport: http(rpcUrl),
-          });
-          
-          // Test the connection
-          await publicClient.getBlockNumber();
-    // Connected to RPC
-          
-          // Encode function call for getEncryptedTotalAssets
-          const data = encodeFunctionData({
-            abi: VAULT_ABI,
-            functionName: 'getEncryptedTotalAssets',
-            args: [],
-          });
-          
-          // Make the contract call - with safety check
-          if (!publicClient || typeof publicClient.call !== 'function') {
-            console.error('❌ publicClient is not properly initialized in useVaultTVL');
-            throw new Error('Public client not properly initialized');
-          }
-
-          const result = await publicClient.call({
-            to: VAULT_ADDRESS as `0x${string}`,
-            data,
-          });
-          
-          if (result.data && result.data !== '0x') {
-            const tvlData = result.data as `0x${string}`;
-    // TVL data fetched
-            setEncryptedTVL(tvlData);
-            break; // Success, exit the loop
-          } else {
-            console.log('⚠️ No TVL data received');
-            setEncryptedTVL(null);
-          }
-          
-        } catch (error) {
-          console.error(`❌ Failed to connect to ${rpcUrl}:`, error);
-          lastError = error;
-          continue; // Try next RPC URL
-        }
-      }
-      
-      if (!publicClient) {
-        throw lastError || new Error('Failed to connect to any RPC endpoint');
-      }
-      
-    } catch (error) {
-      console.error('Failed to fetch vault TVL:', error);
-      setEncryptedTVL(null);
-    } finally {
-      setIsLoadingTVL(false);
-    }
-  }, [VAULT_ADDRESS]);
-
-  // More frequent polling for TVL updates to match other hooks
+  // Handle encrypted TVL from useReadContract
   useEffect(() => {
-    if (!isConnected) return;
-    
-    // Initial fetch
-    fetchEncryptedTVL();
-    
-    // Set up polling - much more frequent to match other hooks
-    const pollInterval = isTransactionPending ? 1000 : 3000; // 1s when pending, 3s normally (was 10s)
-    // Set up polling
-    
-    const interval = setInterval(() => {
-    // Polling TVL data
-      fetchEncryptedTVL();
-    }, pollInterval);
-    
-    return () => clearInterval(interval);
-  }, [isConnected, fetchEncryptedTVL, isTransactionPending]);
+    if (encryptedTVLData) {
+      // Handle different return types from contract call
+      let tvlData: string | null = null;
+      
+      if (typeof encryptedTVLData === 'string') {
+        tvlData = encryptedTVLData;
+      } else if (typeof encryptedTVLData === 'object' && encryptedTVLData !== null) {
+        tvlData = (encryptedTVLData as any).data || (encryptedTVLData as any).result || null;
+      }
+      
+      console.log('🔍 TVL from useReadContract:', { encryptedTVLData, tvlData });
+      setEncryptedTVL(tvlData);
+    } else {
+      console.log('🔍 No TVL from useReadContract');
+      setEncryptedTVL(null);
+    }
+  }, [encryptedTVLData]);
+
+  // Legacy fetch function removed - using useReadContract instead
 
   // Additional trigger: refetch TVL when master signature changes (like other hooks)
   useEffect(() => {
     if (masterSignature && isConnected) {
       console.log('🔄 Master signature available, refetching TVL...');
-      fetchEncryptedTVL();
+      refetchTVL();
     }
-  }, [masterSignature, fetchEncryptedTVL, isConnected]);
+  }, [masterSignature, refetchTVL, isConnected]);
 
   // Decrypt TVL using master signature
   const decryptTVL = useCallback(async () => {
@@ -241,7 +182,23 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
           ethValue = 0;
         }
         
-        setTVLBalance(`${ethValue.toFixed(4)} ETH`);
+        // Use adaptive precision: show more decimal places for small amounts
+        let formattedValue: string;
+        if (ethValue >= 1) {
+          formattedValue = ethValue.toFixed(4);
+        } else if (ethValue >= 0.01) {
+          formattedValue = ethValue.toFixed(6);
+        } else if (ethValue >= 0.001) {
+          formattedValue = ethValue.toFixed(7);
+        } else if (ethValue >= 0.0001) {
+          formattedValue = ethValue.toFixed(8);
+        } else if (ethValue > 0) {
+          formattedValue = ethValue.toFixed(10);
+        } else {
+          formattedValue = '0.0000000000';
+        }
+        
+        setTVLBalance(`${formattedValue} ETH`);
         setIsDecrypted(true);
         console.log('✅ Vault TVL decrypted successfully:', ethValue);
       } else {
@@ -323,26 +280,28 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
     }
   }, [isConnected]);
 
+  // Calculate hasTVL like other hooks calculate hasSupplied/hasCWETH
+  const hasTVL = !!encryptedTVL && encryptedTVL !== '0x0000000000000000000000000000000000000000000000000000000000000000';
+
   // Auto-decrypt when master signature becomes available
   useEffect(() => {
     // Auto-decrypt check
     
     // Auto-decrypt if we have master signature and encrypted TVL data
-    if (masterSignature && encryptedTVL && !isLoadingTVL && !isDecrypted) {
-    // Auto-triggering TVL decryption
+    // Use hasTVL condition like other hooks use hasSupplied/hasCWETH
+    if (masterSignature && encryptedTVL && hasTVL) {
+      console.log('🔄 Master signature available for TVL decryption, attempting decryption...');
       decryptTVL();
     } else if (!masterSignature) {
     // Locking TVL (no master signature)
       lockTVL();
     }
-  }, [masterSignature, encryptedTVL, isLoadingTVL, isDecrypted, decryptTVL, lockTVL]);
+  }, [masterSignature, encryptedTVL, hasTVL, decryptTVL, lockTVL]);
 
   // Simple refresh function
   const refreshTVL = useCallback(() => {
-    fetchEncryptedTVL();
-  }, [fetchEncryptedTVL]);
-
-  const hasTVL = !!encryptedTVL && encryptedTVL !== '0x0000000000000000000000000000000000000000000000000000000000000000';
+    refetchTVL();
+  }, [refetchTVL]);
 
   return {
     // State
@@ -359,7 +318,6 @@ export const useVaultTVL = (masterSignature: string | null, getMasterSignature: 
     decryptTVL,
     lockTVL,
     refreshTVL,
-    fetchEncryptedTVL: fetchEncryptedTVL,
     
     // Computed
     canDecrypt: hasTVL && !!masterSignature && isConnected,

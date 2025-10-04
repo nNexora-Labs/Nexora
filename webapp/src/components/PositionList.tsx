@@ -109,7 +109,7 @@ export default function PositionList({ suppliedBalance: propSuppliedBalance, has
       // Second check: If balance is decrypted and zero, don't show position
       if (suppliedBalance && !suppliedBalance.includes('••••••••')) {
         const balanceValue = parseFloat(suppliedBalance.replace(' ETH', ''));
-        console.log('🔍 Decrypted balance value:', balanceValue);
+        console.log('🔍 Decrypted balance value:', balanceValue, 'from suppliedBalance:', suppliedBalance);
         if (balanceValue <= 0) {
           setPositions([]);
           console.log('🔍 No positions - decrypted balance is zero or negative:', balanceValue);

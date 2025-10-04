@@ -91,12 +91,25 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
             currentUserShares = FHE.asEuint64(0);
         }
 
-        euint64 newUserShares = FHE.add(currentUserShares, encryptedShares);
+        // PROPER FHE OVERFLOW PROTECTION using Zama's recommended approach
+        // Check for overflow on user shares
+        euint64 tempUserShares = FHE.add(currentUserShares, encryptedShares);
+        ebool userSharesOverflow = FHE.lt(tempUserShares, currentUserShares);
+        
+        // Check for overflow on total shares (more critical)
+        euint64 tempTotalShares = FHE.add(_encryptedTotalShares, encryptedShares);
+        ebool totalSharesOverflow = FHE.lt(tempTotalShares, _encryptedTotalShares);
+        
+        // Use FHE.select to prevent overflow: if overflow detected, keep original values
+        euint64 newUserShares = FHE.select(userSharesOverflow, currentUserShares, tempUserShares);
         _encryptedShares[from] = newUserShares;
 
-        // Update totals
-        _encryptedTotalShares = FHE.add(_encryptedTotalShares, encryptedShares);
-        _encryptedTotalAssets = FHE.add(_encryptedTotalAssets, encryptedAmount);
+        // Update totals with overflow protection
+        _encryptedTotalShares = FHE.select(totalSharesOverflow, _encryptedTotalShares, tempTotalShares);
+        
+        // For total assets, we can use the same overflow check as total shares
+        euint64 tempTotalAssets = FHE.add(_encryptedTotalAssets, encryptedAmount);
+        _encryptedTotalAssets = FHE.select(totalSharesOverflow, _encryptedTotalAssets, tempTotalAssets);
 
         // CRITICAL FIX: Proper permission management
         // 1. Allow user to access their own shares
@@ -144,12 +157,26 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
             currentUserShares = FHE.asEuint64(0);
         }
         
-        euint64 newUserShares = FHE.add(currentUserShares, encryptedShares);
+        // PROPER FHE OVERFLOW PROTECTION using Zama's recommended approach
+        // Check for overflow on user shares
+        euint64 tempUserShares = FHE.add(currentUserShares, encryptedShares);
+        ebool userSharesOverflow = FHE.lt(tempUserShares, currentUserShares);
+        
+        // Check for overflow on total shares (more critical)
+        euint64 tempTotalShares = FHE.add(_encryptedTotalShares, encryptedShares);
+        ebool totalSharesOverflow = FHE.lt(tempTotalShares, _encryptedTotalShares);
+        
+        // Use FHE.select to prevent overflow: if overflow detected, keep original values
+        euint64 newUserShares = FHE.select(userSharesOverflow, currentUserShares, tempUserShares);
         _encryptedShares[msg.sender] = newUserShares;
         
-        // Update totals
-        _encryptedTotalShares = FHE.add(_encryptedTotalShares, encryptedShares);
-        _encryptedTotalAssets = FHE.add(_encryptedTotalAssets, transferred);
+        // Update totals with overflow protection
+        _encryptedTotalShares = FHE.select(totalSharesOverflow, _encryptedTotalShares, tempTotalShares);
+        
+        // For total assets, we can use the same overflow check as total shares
+        // since they should be updated with the same amount
+        euint64 tempTotalAssets = FHE.add(_encryptedTotalAssets, transferred);
+        _encryptedTotalAssets = FHE.select(totalSharesOverflow, _encryptedTotalAssets, tempTotalAssets);
         
         // CRITICAL FIX: Proper permission management
         // 1. Allow user to access their own shares
@@ -195,23 +222,39 @@ contract ConfidentialLendingVault is Ownable, ReentrancyGuard, IConfidentialFung
         euint64 withdrawalAmount = FHE.fromExternal(encryptedAmount, inputProof);
         euint64 userShares = _encryptedShares[msg.sender];
         
-        _encryptedShares[msg.sender] = FHE.sub(userShares, withdrawalAmount);
-        _encryptedTotalShares = FHE.sub(_encryptedTotalShares, withdrawalAmount);
-        _encryptedTotalAssets = FHE.sub(_encryptedTotalAssets, withdrawalAmount);
+        // PROPER FHE OVERFLOW/UNDERFLOW PROTECTION using Zama's recommended approach
+        // Check for underflow: if withdrawalAmount > userShares, operation would underflow
+        euint64 tempUserShares = FHE.sub(userShares, withdrawalAmount);
+        ebool isUnderflow = FHE.gt(withdrawalAmount, userShares);
+        
+        // Use FHE.select to prevent underflow: if underflow detected, keep original values
+        euint64 newUserShares = FHE.select(isUnderflow, userShares, tempUserShares);
+        _encryptedShares[msg.sender] = newUserShares;
+        
+        // Update totals with same underflow protection
+        euint64 tempTotalShares = FHE.sub(_encryptedTotalShares, withdrawalAmount);
+        euint64 tempTotalAssets = FHE.sub(_encryptedTotalAssets, withdrawalAmount);
+        
+        _encryptedTotalShares = FHE.select(isUnderflow, _encryptedTotalShares, tempTotalShares);
+        _encryptedTotalAssets = FHE.select(isUnderflow, _encryptedTotalAssets, tempTotalAssets);
+        
+        // Only transfer if no underflow occurred
+        euint64 actualWithdrawalAmount = FHE.select(isUnderflow, FHE.asEuint64(0), withdrawalAmount);
         
         // CRITICAL FIX: Maintain permissions after withdrawal
-        FHE.allowThis(_encryptedShares[msg.sender]);
-        FHE.allow(_encryptedShares[msg.sender], msg.sender);
+        FHE.allowThis(newUserShares);
+        FHE.allow(newUserShares, msg.sender);
         
         // Update global permissions (user still authorized)
         _updateGlobalPermissions(msg.sender);
 
-        FHE.allowTransient(withdrawalAmount, address(asset));
+        // Use the actual withdrawal amount (0 if underflow detected)
+        FHE.allowTransient(actualWithdrawalAmount, address(asset));
 
         ConfidentialFungibleToken(address(asset)).confidentialTransferFromAndCall(
             address(this),
             msg.sender,
-            withdrawalAmount,
+            actualWithdrawalAmount,
             bytes("")
         );
         

@@ -269,7 +269,23 @@ export const useSuppliedBalance = (masterSignature: string | null, getMasterSign
           ethValue = 0;
         }
         
-        setSuppliedBalance(`${ethValue.toFixed(4)} ETH`);
+        // Use adaptive precision: show more decimal places for small amounts
+        let formattedValue: string;
+        if (ethValue >= 1) {
+          formattedValue = ethValue.toFixed(4);
+        } else if (ethValue >= 0.01) {
+          formattedValue = ethValue.toFixed(6);
+        } else if (ethValue >= 0.001) {
+          formattedValue = ethValue.toFixed(7);
+        } else if (ethValue >= 0.0001) {
+          formattedValue = ethValue.toFixed(8);
+        } else if (ethValue > 0) {
+          formattedValue = ethValue.toFixed(10);
+        } else {
+          formattedValue = '0.0000000000';
+        }
+        
+        setSuppliedBalance(`${formattedValue} ETH`);
         setHasSupplied(ethValue > 0);
         setIsDecrypting(false);
         

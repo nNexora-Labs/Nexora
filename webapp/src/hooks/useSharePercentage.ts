@@ -105,9 +105,10 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
         userSharesData = (encryptedUserShares as any).data || (encryptedUserShares as any).result || null;
       }
       
-    // Encrypted shares received
+      console.log('🔍 User shares from useReadContract:', { encryptedUserShares, userSharesData });
       setEncryptedUserSharesStateState(userSharesData);
     } else {
+      console.log('🔍 No user shares from useReadContract');
       setEncryptedUserSharesStateState(null);
     }
   }, [encryptedUserShares]);
@@ -124,9 +125,10 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
         totalSharesData = (encryptedTotalShares as any).data || (encryptedTotalShares as any).result || null;
       }
       
-    // Encrypted total shares received
+      console.log('🔍 Total shares from useReadContract:', { encryptedTotalShares, totalSharesData });
       setEncryptedTotalSharesStateState(totalSharesData);
     } else {
+      console.log('🔍 No total shares from useReadContract');
       setEncryptedTotalSharesStateState(null);
     }
   }, [encryptedTotalShares]);
@@ -202,10 +204,12 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
         // Check if user has any shares
         const isAllZeros = userSharesData === '0x0000000000000000000000000000000000000000000000000000000000000000';
         setHasShares(!isAllZeros);
+        console.log('🔍 User shares check in fetchEncryptedShares:', { userSharesData, isAllZeros, hasShares: !isAllZeros });
     // User shares check
       } else {
         // Note: State is now managed by useReadContract hooks above
         setHasShares(false);
+        console.log('🔍 No user shares data received');
       }
 
       if (totalSharesResult.data && totalSharesResult.data !== '0x') {
@@ -224,7 +228,17 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
 
   // Decrypt and calculate share percentage
   const decryptAndCalculate = useCallback(async () => {
+    console.log('🔍 Share decryption conditions check:', {
+      isConnected,
+      address,
+      encryptedUserSharesState: !!encryptedUserSharesState,
+      encryptedTotalSharesState: !!encryptedTotalSharesState,
+      masterSignature: !!masterSignature,
+      walletClient: !!walletClient
+    });
+    
     if (!isConnected || !address || !encryptedUserSharesState || !encryptedTotalSharesState || !masterSignature || !walletClient) {
+      console.log('❌ Missing required data for share decryption');
       return;
     }
 
@@ -275,6 +289,14 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
       // Get FHE instance
       const fheInstance = await getFHEInstance();
       
+      console.log('🔓 Attempting FHE decryption for shares:', {
+        userSharesHandle: encryptedUserSharesState,
+        totalSharesHandle: encryptedTotalSharesState,
+        contractAddress: VAULT_ADDRESS,
+        masterSigAddress: masterSig.userAddress,
+        authorizedContracts: masterSig.contractAddresses
+      });
+      
       // Decrypt both user shares and total shares using master signature
       let result;
       try {
@@ -291,6 +313,8 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
           masterSig.startTimestamp,
           masterSig.durationDays
         );
+        
+        console.log('✅ FHE decryption successful for shares:', result);
       } catch (decryptError: any) {
         // Handle authorization errors specifically
         if (decryptError.message && decryptError.message.includes('not authorized')) {
@@ -342,15 +366,64 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
           totalShares = BigInt(0);
         }
 
-        // Calculate percentage
-        let percentage = 0;
-        if (totalShares > 0) {
-          // Calculate percentage with higher precision
-          const percentageBigInt = (userShares * BigInt(10000)) / totalShares;
-          percentage = Number(percentageBigInt) / 100; // Convert back to percentage
-        }
+        // Debug logging for share calculations
+        console.log('🔍 Share Calculation Debug:', {
+          userShares: userShares.toString(),
+          totalShares: totalShares.toString(),
+          userSharesValue,
+          totalSharesValue,
+          address,
+          userSharesHex: userShares.toString(16),
+          totalSharesHex: totalShares.toString(16),
+          userSharesWei: (Number(userShares) / 1e18).toFixed(6),
+          totalSharesWei: (Number(totalShares) / 1e18).toFixed(6)
+        });
 
-        setSharePercentage(`${percentage.toFixed(2)}% of vault`);
+        // Calculate percentage with proper validation
+        let percentage = 0;
+        
+        // Import precision math utilities
+        const { calculatePrecisePercentage, formatPercentage } = await import('../utils/precisionMath');
+        
+        // Only calculate if both values are valid and total shares > 0
+        if (totalShares > 0 && userShares >= 0) {
+          
+          // Calculate percentage using BigInt arithmetic for maximum precision
+          // (userShares * 10000) / totalShares to get percentage with 2 decimal places
+          const percentageBigInt = (userShares * BigInt(10000)) / totalShares;
+          percentage = Number(percentageBigInt) / 100;
+          
+          // Manual calculation for comparison
+          const manualPercentage = userShares === BigInt(0) ? 0 : (Number(userShares) / Number(totalShares)) * 100;
+          
+          // Also try precision math for comparison
+          const precisionMathPercentage = calculatePrecisePercentage(userShares, totalShares, 8);
+          
+          console.log('📊 Percentage Calculation:', {
+            userShares: userShares.toString(),
+            totalShares: totalShares.toString(),
+            bigIntCalculation: percentage.toFixed(6),
+            manualPercentage: manualPercentage.toFixed(6),
+            precisionMathPercentage: precisionMathPercentage.toFixed(6),
+            expectedRatio: userShares === BigInt(0) ? '0%' : `${manualPercentage.toFixed(6)}%`,
+            difference: Math.abs(percentage - manualPercentage).toFixed(6)
+          });
+          
+          const formattedPercentage = formatPercentage(percentage);
+          setSharePercentage(`${formattedPercentage} of vault`);
+        } else if (userShares === BigInt(0)) {
+          // User has no shares
+          percentage = 0;
+          console.log('👤 User has no shares');
+          const formattedPercentage = formatPercentage(percentage);
+          setSharePercentage(`${formattedPercentage} of vault`);
+        } else {
+          // Invalid state - show error
+          console.warn('❌ Invalid share calculation state:', { userShares, totalShares });
+          setSharePercentage('Error');
+          setIsDecrypting(false);
+          return;
+        }
         setHasShares(userShares > 0);
         setIsDecrypting(false);
         
@@ -378,12 +451,13 @@ export const useSharePercentage = (masterSignature: string | null, getMasterSign
 
   // Auto-decrypt when master signature becomes available
   useEffect(() => {
-    if (masterSignature && encryptedUserSharesState && encryptedTotalSharesState && hasShares) {
+    if (masterSignature && encryptedUserSharesState && encryptedTotalSharesState) {
+      console.log('🔄 Master signature available for share decryption, attempting decryption...');
       decryptAndCalculate();
     } else if (!masterSignature) {
       setSharePercentage('••••••••');
     }
-  }, [masterSignature, encryptedUserSharesState, encryptedTotalSharesState, hasShares, decryptAndCalculate]);
+  }, [masterSignature, encryptedUserSharesState, encryptedTotalSharesState, decryptAndCalculate]);
 
   // Simple refresh function
   const refreshShares = useCallback(() => {
